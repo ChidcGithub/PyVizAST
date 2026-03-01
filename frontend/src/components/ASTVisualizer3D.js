@@ -924,9 +924,6 @@ function ASTVisualizer3D({ graph, theme }) {
     // Create particles for each edge
     propagationQueue.forEach(({ sourceId, targetId, startPos, endPos, delay, edgeLength, targetNode }) => {
       const timerId = setTimeout(() => {
-        // Check if component is still mounted
-        if (!isMountedRef.current) return;
-        
         const particleId = particleIdRef.current++;
         const startTime = Date.now();
         // Duration based on edge length and constant speed
@@ -948,9 +945,6 @@ function ASTVisualizer3D({ graph, theme }) {
         
         // Animate particle
         const animateParticle = () => {
-          // Check if component is still mounted
-          if (!isMountedRef.current) return;
-          
           const elapsed = Date.now() - startTime;
           const progress = Math.min(elapsed / duration, 1);
           
