@@ -447,8 +447,9 @@ const Scene = forwardRef(({ nodes, edges, positions, selectedNode, focusedNode, 
   const controlsRef = useRef();
   const targetPosition = useRef(new THREE.Vector3());
   const isAnimating = useRef(false);
+  const isResetting = useRef(false); // Track reset animation state
+  const resetTarget = useRef({ position: null, lookAt: null });
   const keysPressed = useRef(new Set());
-  const resetAnimationRef = useRef(null); // Track reset camera animation frame
   
   // Calculate which nodes should be dimmed (when focused)
   const visibleNodeIds = useMemo(() => {
@@ -534,6 +535,23 @@ const Scene = forwardRef(({ nodes, edges, positions, selectedNode, focusedNode, 
   useFrame((_, delta) => {
     const controls = controlsRef.current;
     
+    // Handle reset camera animation (priority over other animations)
+    if (isResetting.current && controls && resetTarget.current.position) {
+      const targetPos = resetTarget.current.position;
+      const targetLookAt = resetTarget.current.lookAt;
+      
+      // Smooth interpolation
+      camera.position.lerp(targetPos, 0.05);
+      controls.target.lerp(targetLookAt, 0.05);
+      
+      // Check if animation is complete
+      if (camera.position.distanceTo(targetPos) < 0.1 && controls.target.distanceTo(targetLookAt) < 0.1) {
+        isResetting.current = false;
+        resetTarget.current = { position: null, lookAt: null };
+      }
+      return; // Skip other animations during reset
+    }
+    
     // Handle focused node animation
     if (isAnimating.current && controls) {
       const target = targetPosition.current;
@@ -593,15 +611,9 @@ const Scene = forwardRef(({ nodes, edges, positions, selectedNode, focusedNode, 
     }
   });
   
-  // Reset camera to initial position
+  // Reset camera to initial position (integrated with useFrame)
   const resetCamera = useCallback(() => {
     if (!positions || positions.size === 0) return;
-    
-    // Cancel any ongoing reset animation
-    if (resetAnimationRef.current) {
-      cancelAnimationFrame(resetAnimationRef.current);
-      resetAnimationRef.current = null;
-    }
     
     // Calculate bounding box
     let minX = Infinity, maxX = -Infinity;
@@ -622,45 +634,15 @@ const Scene = forwardRef(({ nodes, edges, positions, selectedNode, focusedNode, 
     const centerZ = (minZ + maxZ) / 2;
     const maxDist = Math.max(maxX - minX, maxY - minY, maxZ - minZ);
     
-    // Animate camera to initial position
-    const targetCamPos = new THREE.Vector3(centerX, centerY + maxDist, centerZ + maxDist);
-    const targetLookAt = new THREE.Vector3(centerX, centerY, centerZ);
-    
-    // Smooth animation
-    const startPos = camera.position.clone();
-    const startTarget = controlsRef.current?.target.clone() || new THREE.Vector3();
-    const duration = 500;
-    const startTime = Date.now();
-    
-    const animateReset = () => {
-      const elapsed = Date.now() - startTime;
-      const t = Math.min(elapsed / duration, 1);
-      const easeT = 1 - Math.pow(1 - t, 3); // Ease out cubic
-      
-      camera.position.lerpVectors(startPos, targetCamPos, easeT);
-      if (controlsRef.current) {
-        controlsRef.current.target.lerpVectors(startTarget, targetLookAt, easeT);
-      }
-      
-      if (t < 1) {
-        resetAnimationRef.current = requestAnimationFrame(animateReset);
-      } else {
-        resetAnimationRef.current = null;
-      }
+    // Set reset target for useFrame animation
+    resetTarget.current = {
+      position: new THREE.Vector3(centerX, centerY + maxDist, centerZ + maxDist),
+      lookAt: new THREE.Vector3(centerX, centerY, centerZ)
     };
-    
-    resetAnimationRef.current = requestAnimationFrame(animateReset);
-  }, [positions, camera]);
-  
-  // Cleanup animation frame on unmount
-  useEffect(() => {
-    return () => {
-      if (resetAnimationRef.current) {
-        cancelAnimationFrame(resetAnimationRef.current);
-        resetAnimationRef.current = null;
-      }
-    };
-  }, []);
+    isResetting.current = true;
+    isAnimating.current = false; // Cancel any ongoing focus animation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positions]);
   
   // Expose resetCamera to parent component
   useImperativeHandle(ref, () => ({
