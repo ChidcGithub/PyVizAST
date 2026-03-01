@@ -42,11 +42,12 @@ class CodeSmellDetector:
         Returns:
             代码问题列表
         """
-        if tree is None:
-            tree = ast.parse(code)
-        
+        # 清空之前的状态，避免累积
         self.issues = []
         self.issue_counter = 0
+        
+        if tree is None:
+            tree = ast.parse(code)
         
         source_lines = code.splitlines()
         
@@ -191,22 +192,57 @@ class CodeSmellDetector:
         """检测魔法数字"""
         excluded_values = {0, 1, -1, 2, 10, 100, 1000, 255, 256, 360, 1024}
         
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Constant):
+        class MagicNumberVisitor(ast.NodeVisitor):
+            def __init__(self, detector):
+                self.detector = detector
+                self.in_assign_value = False
+                self.in_constant_def = False
+            
+            def visit_Assign(self, node):
+                # 检查是否是常量定义（大写变量名）
+                is_constant = all(
+                    isinstance(t, ast.Name) and t.id.isupper()
+                    for t in node.targets
+                )
+                
+                old_in_assign = self.in_assign_value
+                old_in_constant = self.in_constant_def
+                
+                self.in_assign_value = True
+                self.in_constant_def = is_constant
+                
+                self.generic_visit(node)
+                
+                self.in_assign_value = old_in_assign
+                self.in_constant_def = old_in_constant
+            
+            def visit_AnnAssign(self, node):
+                # 类型注解赋值
+                is_constant = isinstance(node.target, ast.Name) and node.target.id.isupper()
+                
+                old_in_constant = self.in_constant_def
+                self.in_constant_def = is_constant
+                
+                self.generic_visit(node)
+                
+                self.in_constant_def = old_in_constant
+            
+            def visit_Constant(self, node):
                 if isinstance(node.value, (int, float)):
-                    # 排除一些常见值
                     if node.value not in excluded_values:
-                        # 检查是否在赋值语句中
-                        parent = getattr(node, '_parent', None)
-                        if not isinstance(parent, ast.Assign):
-                            self.issues.append(CodeIssue(
-                                id=self._generate_issue_id("magic_number"),
+                        # 如果在常量定义中，不报告
+                        if not self.in_constant_def:
+                            self.detector.issues.append(CodeIssue(
+                                id=self.detector._generate_issue_id("magic_number"),
                                 type="code_smell",
                                 severity=SeverityLevel.INFO,
                                 message=f"魔法数字 '{node.value}'，建议定义为常量",
                                 lineno=node.lineno,
                                 col_offset=node.col_offset
                             ))
+        
+        visitor = MagicNumberVisitor(self)
+        visitor.visit(tree)
     
     def _detect_unused_variables(self, tree: ast.AST):
         """检测未使用的变量"""

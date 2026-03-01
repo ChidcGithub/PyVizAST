@@ -176,6 +176,51 @@ Contributions are welcome. Please submit pull requests to the main repository.
 
 ## Version History
 
+### v0.2.1 (2026-03-01)
+**Bug Fixes:**
+- Fixed CORS security configuration - now uses environment variable `ALLOWED_ORIGINS`
+- Fixed analyzer state pollution between requests - each request now creates fresh instances
+- Fixed `_detect_magic_numbers` crash due to missing parent node tracking
+- Fixed `_generate_node_explanation` crash when node.name is None
+- Fixed duplicate state clearing in code_smells.py
+
+**Frontend Improvements:**
+- Added 30-second request timeout with friendly error messages
+- Added request cancellation on component unmount (AbortController)
+- Improved error handling for network issues and server errors
+
+**Performance Detection:**
+- Completed string concatenation detection in loops
+- Completed global variable lookup detection in loops
+- Fixed state accumulation in performance analyzer
+
+**Maintainability Index:**
+- Rewrote algorithm with multi-dimensional weighted scoring
+- Now handles large codebases correctly (minimum score 20 instead of 0)
+- Considers complexity (35%), scale (25%), function quality (25%), Halstead (15%)
+
+**Patch Generator:**
+- Added syntax validation before and after patch generation
+- Improved string concatenation fix (auto-adds init and join)
+- Improved range(len()) fix (replaces arr[i] with item)
+- Improved list membership fix (auto-adds set conversion)
+- Added automatic `import ast` insertion for eval→literal_eval fix
+- Added error tracking with `get_errors()` method
+
+**Suggestion Engine:**
+- Smart detection of list comprehension contexts
+- Only suggests generator expression when appropriate:
+  - As argument to single-pass functions (sum, any, all, max, min, etc.)
+  - Direct iteration in for loop
+  - NOT for variable assignment (may need multiple access)
+  - NOT for return statements
+
+**Code Quality:**
+- Added comprehensive logging throughout backend
+- Extracted challenge data to JSON file (`backend/data/challenges.json`)
+- Added `AnalyzerFactory` for clean instance creation
+- Removed hardcoded data from main.py
+
 ### v0.2.0 (2026-03-01)
 - Redesigned UI with monochrome minimalist theme
 - Optimized AST visualization for large codebases:

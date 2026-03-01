@@ -54,12 +54,13 @@ class PerformanceAnalyzer:
         Returns:
             性能热点列表
         """
-        if tree is None:
-            tree = ast.parse(code)
-        
+        # 清空之前的状态，避免累积
         self.hotspots = []
         self.issues = []
         self.hotspot_counter = 0
+        
+        if tree is None:
+            tree = ast.parse(code)
         
         # 执行各项检测
         self._detect_nested_loops(tree)
@@ -120,13 +121,26 @@ class PerformanceAnalyzer:
             
             def _check_loop_operations(self, node):
                 """检查循环内的低效操作"""
+                string_concat_vars = {}  # 跟踪可能的字符串拼接变量
+                
                 for child in ast.walk(node):
-                    # 字符串拼接
+                    # 字符串拼接检测
                     if isinstance(child, ast.AugAssign):
                         if isinstance(child.op, ast.Add):
                             if isinstance(child.target, ast.Name):
-                                # 简化检查：在循环内的 += 操作可能是字符串拼接
-                                pass
+                                var_name = child.target.id
+                                # 检查右侧是否是字符串字面量或字符串表达式
+                                if isinstance(child.value, ast.Constant) and isinstance(child.value.value, str):
+                                    # 明确的字符串拼接
+                                    self.analyzer.issues.append(CodeIssue(
+                                        id=f"perf_string_concat_{len(self.analyzer.issues)}",
+                                        type="performance",
+                                        severity=SeverityLevel.WARNING,
+                                        message=f"在循环内使用 += 进行字符串拼接，建议使用列表 append + join",
+                                        lineno=child.lineno,
+                                        suggestion=f"使用 {var_name}_parts = [] 然后 ''.join({var_name}_parts)"
+                                    ))
+                                    string_concat_vars[var_name] = True
                     
                     # 列表插入开头
                     if isinstance(child, ast.Call):
@@ -138,6 +152,20 @@ class PerformanceAnalyzer:
                                         type="performance",
                                         severity=SeverityLevel.WARNING,
                                         message="在循环内使用list.insert(0, ...)效率低下",
+                                        lineno=child.lineno
+                                    ))
+                    
+                    # 列表成员检查（建议使用集合）
+                    if isinstance(child, ast.Compare):
+                        for i, op in enumerate(child.ops):
+                            if isinstance(op, (ast.In, ast.NotIn)):
+                                comparator = child.comparators[i]
+                                if isinstance(comparator, ast.Name):
+                                    self.analyzer.issues.append(CodeIssue(
+                                        id=f"perf_list_membership_{len(self.analyzer.issues)}",
+                                        type="performance",
+                                        severity=SeverityLevel.INFO,
+                                        message=f"对列表 '{comparator.id}' 使用 'in' 操作效率为 O(n)，建议转换为集合",
                                         lineno=child.lineno
                                     ))
         
@@ -249,16 +277,27 @@ class PerformanceAnalyzer:
     def _detect_global_lookups(self, tree: ast.AST):
         """检测可能的全局查找"""
         
+        # Python 内置函数和常见全局名称
+        BUILTINS = set(dir(__builtins__)) if isinstance(__builtins__, dict) else set()
+        BUILTINS.update(['print', 'len', 'range', 'str', 'int', 'float', 'list', 'dict', 'set', 'tuple',
+                         'True', 'False', 'None', 'open', 'type', 'isinstance', 'hasattr', 'getattr',
+                         'enumerate', 'zip', 'map', 'filter', 'sorted', 'reversed', 'sum', 'min', 'max'])
+        
         # 检测循环内的全局变量访问
         class GlobalLookupVisitor(ast.NodeVisitor):
             def __init__(self, analyzer):
                 self.analyzer = analyzer
                 self.in_loop = False
                 self.local_vars = set()
+                self.global_vars = set()
+                self.loop_depth = 0
+                self.reported_vars = set()  # 避免重复报告
             
             def visit_For(self, node):
                 old_in_loop = self.in_loop
+                old_depth = self.loop_depth
                 self.in_loop = True
+                self.loop_depth += 1
                 
                 # 添加循环变量到局部变量
                 if isinstance(node.target, ast.Name):
@@ -266,27 +305,63 @@ class PerformanceAnalyzer:
                 
                 self.generic_visit(node)
                 self.in_loop = old_in_loop
+                self.loop_depth = old_depth
             
             def visit_While(self, node):
                 old_in_loop = self.in_loop
+                old_depth = self.loop_depth
                 self.in_loop = True
+                self.loop_depth += 1
                 self.generic_visit(node)
                 self.in_loop = old_in_loop
+                self.loop_depth = old_depth
             
             def visit_FunctionDef(self, node):
                 # 收集函数局部变量
                 old_locals = self.local_vars.copy()
+                old_reported = self.reported_vars.copy()
+                
                 for arg in node.args.args:
                     self.local_vars.add(arg.arg)
+                if node.args.vararg:
+                    self.local_vars.add(node.args.vararg.arg)
+                if node.args.kwarg:
+                    self.local_vars.add(node.args.kwarg.arg)
+                
+                # 检测函数内的赋值（局部变量）
+                for child in ast.walk(node):
+                    if isinstance(child, ast.Assign):
+                        for target in child.targets:
+                            if isinstance(target, ast.Name):
+                                self.local_vars.add(target.id)
                 
                 self.generic_visit(node)
                 self.local_vars = old_locals
+                self.reported_vars = old_reported
+            
+            def visit_Global(self, node):
+                # 显式声明的全局变量
+                for name in node.names:
+                    self.global_vars.add(name)
+                self.generic_visit(node)
             
             def visit_Name(self, node):
                 if self.in_loop and isinstance(node.ctx, ast.Load):
-                    if node.id not in self.local_vars:
-                        # 可能的全局查找
-                        pass  # 需要更多上下文
+                    # 检查是否是全局/内置查找
+                    if (node.id not in self.local_vars and 
+                        node.id not in BUILTINS and
+                        node.id not in self.reported_vars):
+                        # 排除模块级别的常见名称
+                        if not node.id.startswith('_'):
+                            self.analyzer.issues.append(CodeIssue(
+                                id=f"perf_global_lookup_{len(self.analyzer.issues)}",
+                                type="performance",
+                                severity=SeverityLevel.INFO,
+                                message=f"在循环内访问全局变量 '{node.id}'，建议缓存为局部变量以提升性能",
+                                lineno=node.lineno,
+                                suggestion=f"在循环前添加: local_{node.id} = {node.id}"
+                            ))
+                            self.reported_vars.add(node.id)
                 self.generic_visit(node)
         
         visitor = GlobalLookupVisitor(self)

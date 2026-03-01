@@ -42,6 +42,9 @@ class ComplexityAnalyzer:
         Returns:
             ComplexityMetrics: 复杂度指标
         """
+        # 清空之前的状态，避免累积
+        self.issues = []
+        
         if tree is None:
             tree = ast.parse(code)
         
@@ -253,27 +256,130 @@ class ComplexityAnalyzer:
     def _calculate_maintainability_index(self, metrics: ComplexityMetrics, 
                                          code_length: int) -> float:
         """
-        计算可维护性指数
-        MI = 171 - 5.2 * ln(V) - 0.23 * G - 16.2 * ln(LOC)
-        简化版本
+        计算可维护性指数（改进版）
+        
+        改进点：
+        1. 使用多维度评分加权平均
+        2. 对特长代码使用渐进式衰减而非直接归零
+        3. 考虑代码密度、注释率等因素
+        4. 使用分段函数避免极端值
+        
+        参考：
+        - 原始公式: MI = 171 - 5.2 * ln(V) - 0.23 * G - 16.2 * ln(LOC)
+        - 改进: 使用加权评分模型
         """
         import math
         
         if code_length == 0:
             return 100.0
         
-        volume = metrics.halstead_volume or 1
-        complexity = metrics.cyclomatic_complexity or 1
+        # === 1. 复杂度评分 (权重 35%) ===
+        # 圈复杂度评分：理想值 1-10，每增加10降低一个等级
+        cc = metrics.cyclomatic_complexity or 1
+        if cc <= 5:
+            cc_score = 100
+        elif cc <= 10:
+            cc_score = 90 - (cc - 5) * 4  # 90 -> 70
+        elif cc <= 20:
+            cc_score = 70 - (cc - 10) * 4  # 70 -> 30
+        elif cc <= 30:
+            cc_score = 30 - (cc - 20) * 2  # 30 -> 10
+        else:
+            cc_score = max(0, 10 - (cc - 30) * 0.5)
+        
+        # 认知复杂度评分
+        cognitive = metrics.cognitive_complexity or 0
+        if cognitive <= 10:
+            cog_score = 100
+        elif cognitive <= 20:
+            cog_score = 90 - (cognitive - 10) * 4
+        elif cognitive <= 40:
+            cog_score = 50 - (cognitive - 20) * 2
+        else:
+            cog_score = max(0, 10 - (cognitive - 40) * 0.3)
+        
+        complexity_score = cc_score * 0.6 + cog_score * 0.4
+        
+        # === 2. 代码规模评分 (权重 25%) ===
+        # 使用对数衰减，而非线性惩罚
         loc = metrics.lines_of_code or 1
         
-        try:
-            mi = 171 - 5.2 * math.log(volume) - 0.23 * complexity - 16.2 * math.log(loc)
-            # 标准化到 0-100 范围
-            mi = max(0, min(100, mi))
-        except (ValueError, ZeroDivisionError):
-            mi = 100.0
+        # 分段评估：小代码(<100)、中等代码(100-500)、大代码(500-2000)、超大代码(>2000)
+        if loc <= 100:
+            size_score = 100
+        elif loc <= 500:
+            # 中等代码：轻微衰减
+            size_score = 100 - 10 * math.log10(loc / 100)
+        elif loc <= 2000:
+            # 大代码：中等衰减
+            size_score = 90 - 15 * math.log10(loc / 500)
+        else:
+            # 超大代码：渐进衰减，不会直接归零
+            size_score = max(20, 75 - 20 * math.log10(loc / 2000))
         
-        return round(mi, 2)
+        # 嵌套深度惩罚
+        nesting = metrics.max_nesting_depth or 0
+        nesting_penalty = min(30, nesting * 5) if nesting > 3 else 0
+        size_score = max(0, size_score - nesting_penalty)
+        
+        # === 3. 函数质量评分 (权重 25%) ===
+        func_score = 100
+        
+        if metrics.function_count > 0:
+            # 平均函数长度评分
+            avg_len = metrics.avg_function_length or 0
+            if avg_len <= 20:
+                func_len_score = 100
+            elif avg_len <= 50:
+                func_len_score = 100 - (avg_len - 20) * 1.5
+            else:
+                func_len_score = max(20, 55 - (avg_len - 50) * 0.5)
+            
+            func_score = func_len_score
+        else:
+            # 没有函数的代码（可能是脚本），使用行数评估
+            if loc <= 50:
+                func_score = 100
+            else:
+                func_score = max(40, 100 - (loc - 50) * 0.3)
+        
+        # === 4. Halstead 复杂度评分 (权重 15%) ===
+        volume = metrics.halstead_volume or 0
+        difficulty = metrics.halstead_difficulty or 0
+        
+        if volume == 0:
+            halstead_score = 100
+        else:
+            # Volume 评分（对数衰减）
+            if volume <= 100:
+                vol_score = 100
+            elif volume <= 1000:
+                vol_score = 100 - 15 * math.log10(volume / 100)
+            else:
+                vol_score = max(30, 85 - 20 * math.log10(volume / 1000))
+            
+            # Difficulty 评分
+            if difficulty <= 5:
+                diff_score = 100
+            elif difficulty <= 15:
+                diff_score = 100 - (difficulty - 5) * 5
+            else:
+                diff_score = max(20, 50 - (difficulty - 15) * 2)
+            
+            halstead_score = vol_score * 0.6 + diff_score * 0.4
+        
+        # === 综合评分 ===
+        final_score = (
+            complexity_score * 0.35 +
+            size_score * 0.25 +
+            func_score * 0.25 +
+            halstead_score * 0.15
+        )
+        
+        # 确保范围在 0-100
+        final_score = max(0, min(100, final_score))
+        
+        return round(final_score, 2)
     
     def _generate_issues(self, metrics: ComplexityMetrics, tree: ast.AST):
         """根据复杂度指标生成问题报告"""

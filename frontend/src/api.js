@@ -1,21 +1,85 @@
 import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_TIMEOUT = 30000; // 30秒超时
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: API_TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
+// 请求拦截器
+api.interceptors.request.use(
+  (config) => {
+    // 可以在这里添加认证 token 等
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// 响应拦截器 - 统一错误处理
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    let errorMessage = '请求失败';
+    
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      errorMessage = '请求超时，请检查网络连接或稍后重试';
+    } else if (error.response) {
+      // 服务器返回错误
+      const status = error.response.status;
+      const detail = error.response.data?.detail;
+      
+      switch (status) {
+        case 400:
+          errorMessage = detail || '请求参数错误';
+          break;
+        case 401:
+          errorMessage = '未授权，请先登录';
+          break;
+        case 403:
+          errorMessage = '拒绝访问';
+          break;
+        case 404:
+          errorMessage = detail || '请求的资源不存在';
+          break;
+        case 500:
+          errorMessage = detail || '服务器内部错误';
+          break;
+        default:
+          errorMessage = detail || `请求失败 (${status})`;
+      }
+    } else if (error.request) {
+      // 请求已发出但没有收到响应
+      errorMessage = '无法连接到服务器，请检查服务器是否运行';
+    }
+    
+    // 创建带有友好消息的错误对象
+    const friendlyError = new Error(errorMessage);
+    friendlyError.originalError = error;
+    friendlyError.status = error.response?.status;
+    
+    return Promise.reject(friendlyError);
+  }
+);
+
 /**
  * 分析Python代码
+ * @param {string} code - Python代码
+ * @param {Object} options - 分析选项
+ * @param {AbortSignal} signal - 可选的取消信号
  */
-export const analyzeCode = async (code, options = {}) => {
+export const analyzeCode = async (code, options = {}, signal = null) => {
   const response = await api.post('/api/analyze', {
     code,
     options,
+  }, {
+    signal,
   });
   return response.data;
 };

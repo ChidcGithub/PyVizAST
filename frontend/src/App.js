@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import CodeEditor from './components/CodeEditor';
 import ASTVisualizer from './components/ASTVisualizer';
 import AnalysisPanel from './components/AnalysisPanel';
@@ -103,6 +103,18 @@ function App() {
   const [activeTab, setActiveTab] = useState('ast');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [theme, setTheme] = useState('dark');
+  
+  // 用于取消请求的 AbortController
+  const abortControllerRef = useRef(null);
+
+  // 组件卸载时取消正在进行的请求
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleAnalyze = useCallback(async () => {
     if (!code.trim()) {
@@ -110,13 +122,25 @@ function App() {
       return;
     }
 
+    // 取消之前的请求
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // 创建新的 AbortController
+    abortControllerRef.current = new AbortController();
+
     setIsLoading(true);
     setError(null);
 
     try {
-      const result = await analyzeCode(code);
+      const result = await analyzeCode(code, {}, abortControllerRef.current.signal);
       setAnalysisResult(result);
     } catch (err) {
+      // 如果是取消的请求，不显示错误
+      if (err.name === 'AbortError' || err.name === 'CanceledError') {
+        return;
+      }
       setError(err.message || '分析失败，请检查代码语法');
     } finally {
       setIsLoading(false);

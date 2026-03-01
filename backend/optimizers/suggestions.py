@@ -162,23 +162,112 @@ class SuggestionEngine:
         return self.suggestions
     
     def _detect_list_comp_opportunities(self, tree: ast.AST, source_lines: List[str]):
-        """检测可以用生成器替代的列表推导式"""
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ListComp):
-                # 检查是否在只遍历上下文中
-                # 简化：如果在for循环或作为参数传递
-                self.suggestions.append(OptimizationSuggestion(
-                    id=self._generate_suggestion_id(),
-                    node_id="",  # TODO: 关联节点
+        """
+        检测可以用生成器替代的列表推导式
+        
+        只有在以下场景才建议转换为生成器表达式：
+        1. 作为函数参数传递，且该函数只遍历一次（如 sum, any, all, max, min, join, sorted）
+        2. 直接用于迭代且不会被多次使用
+        
+        不建议转换的场景：
+        1. 赋值给变量（可能多次遍历或索引访问）
+        2. 作为返回值
+        3. 在需要 len() 的上下文中
+        """
+        
+        # 只遍历一次的函数（适合生成器）
+        SINGLE_PASS_FUNCTIONS = {
+            'sum', 'any', 'all', 'max', 'min', 'sorted', 'reversed',
+            'list', 'tuple', 'set', 'dict', 'frozenset',
+            ''.join.__name__: 'join',  # 字符串 join
+            'map', 'filter', 'enumerate', 'zip',
+            'heapq.nlargest', 'heapq.nsmallest',
+            'itertools.chain', 'itertools.islice',
+        }
+        
+        # 需要多次访问或多功能的函数（不适合生成器）
+        MULTI_PASS_FUNCTIONS = {'len', 'copy', 'deepcopy'}
+        
+        class ListCompContextVisitor(ast.NodeVisitor):
+            def __init__(self, engine, lines):
+                self.engine = engine
+                self.lines = lines
+                self.suggestions_added = set()  # 避免重复建议
+            
+            def visit_Call(self, node):
+                """检查列表推导式作为函数参数的情况"""
+                
+                # 检查函数名
+                func_name = None
+                if isinstance(node.func, ast.Name):
+                    func_name = node.func.id
+                elif isinstance(node.func, ast.Attribute):
+                    func_name = node.func.attr
+                
+                if func_name in SINGLE_PASS_FUNCTIONS:
+                    # 检查参数中是否有列表推导式
+                    for arg in node.args:
+                        if isinstance(arg, ast.ListComp):
+                            self._add_suggestion(arg, node, 'function_arg', func_name)
+                
+                # 继续遍历子节点
+                self.generic_visit(node)
+            
+            def visit_For(self, node):
+                """检查 for 循环中直接使用列表推导式迭代的情况"""
+                
+                # 检查迭代器是否是列表推导式
+                if isinstance(node.iter, ast.ListComp):
+                    # 检查这个 for 循环是否在函数内且结果不会被保存
+                    # 这通常可以转换为生成器
+                    self._add_suggestion(node.iter, node, 'for_iter')
+                
+                self.generic_visit(node)
+            
+            def _add_suggestion(self, listcomp_node, parent_node, context, func_name=None):
+                """添加优化建议"""
+                
+                # 避免重复建议同一个节点
+                node_key = (listcomp_node.lineno, listcomp_node.col_offset)
+                if node_key in self.suggestions_added:
+                    return
+                self.suggestions_added.add(node_key)
+                
+                before_code = self.engine._get_source_segment(listcomp_node, self.lines)
+                after_code = self.engine._convert_listcomp_to_genexpr(listcomp_node, self.lines)
+                
+                # 根据上下文生成不同的描述
+                if context == 'function_arg':
+                    description = (
+                        f"作为 `{func_name}()` 的参数时，生成器表达式更节省内存，"
+                        f"因为函数只会遍历一次"
+                    )
+                    estimated = '内存使用减少50%+'
+                elif context == 'for_iter':
+                    description = (
+                        "作为 for 循环的迭代器时，生成器表达式可以延迟计算，"
+                        "节省内存。但如果循环内有 break 或多次迭代，需谨慎"
+                    )
+                    estimated = '内存使用减少，惰性计算'
+                else:
+                    description = '如果只需要遍历结果而不需要随机访问，生成器表达式更节省内存'
+                    estimated = '内存使用减少50%+'
+                
+                self.engine.suggestions.append(OptimizationSuggestion(
+                    id=self.engine._generate_suggestion_id(),
+                    node_id="",
                     category='performance',
                     title='考虑使用生成器表达式',
-                    description='如果只需要遍历结果而不需要随机访问，生成器表达式更节省内存',
-                    before_code=self._get_source_segment(node, source_lines),
-                    after_code=self._convert_listcomp_to_genexpr(node, source_lines),
-                    estimated_improvement='内存使用减少50%+',
+                    description=description,
+                    before_code=before_code,
+                    after_code=after_code,
+                    estimated_improvement=estimated,
                     auto_fixable=True,
                     priority=3
                 ))
+        
+        visitor = ListCompContextVisitor(self, source_lines)
+        visitor.visit(tree)
     
     def _detect_string_concat_opportunities(self, tree: ast.AST, source_lines: List[str]):
         """检测循环中的字符串拼接"""

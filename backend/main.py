@@ -3,6 +3,7 @@ PyVizAST - FastAPI Backend
 基于AST的Python代码可视化与优化分析器
 """
 import ast
+import logging
 from typing import Optional, Dict, Any, List
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +19,13 @@ from .ast_parser import ASTParser, NodeMapper
 from .analyzers import ComplexityAnalyzer, PerformanceAnalyzer, CodeSmellDetector, SecurityScanner
 from .optimizers import SuggestionEngine, PatchGenerator
 
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -29,23 +37,47 @@ app = FastAPI(
 )
 
 # 配置CORS
+import os
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 生产环境应限制
+    allow_origins=ALLOWED_ORIGINS,  # 从环境变量读取允许的来源
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
-# 初始化分析器
-node_mapper = NodeMapper()
-complexity_analyzer = ComplexityAnalyzer()
-performance_analyzer = PerformanceAnalyzer()
-code_smell_detector = CodeSmellDetector()
-security_scanner = SecurityScanner()
-suggestion_engine = SuggestionEngine()
-patch_generator = PatchGenerator()
+class AnalyzerFactory:
+    """分析器工厂 - 每次请求创建新实例避免状态污染"""
+    
+    @staticmethod
+    def create_complexity_analyzer() -> ComplexityAnalyzer:
+        return ComplexityAnalyzer()
+    
+    @staticmethod
+    def create_performance_analyzer() -> PerformanceAnalyzer:
+        return PerformanceAnalyzer()
+    
+    @staticmethod
+    def create_code_smell_detector() -> CodeSmellDetector:
+        return CodeSmellDetector()
+    
+    @staticmethod
+    def create_security_scanner() -> SecurityScanner:
+        return SecurityScanner()
+    
+    @staticmethod
+    def create_suggestion_engine() -> SuggestionEngine:
+        return SuggestionEngine()
+    
+    @staticmethod
+    def create_patch_generator() -> PatchGenerator:
+        return PatchGenerator()
+    
+    @staticmethod
+    def create_node_mapper(theme: str = "default") -> NodeMapper:
+        return NodeMapper(theme=theme)
 
 
 def get_parser(options: dict = None) -> ASTParser:
@@ -54,7 +86,6 @@ def get_parser(options: dict = None) -> ASTParser:
     max_nodes = options.get('max_nodes', 2000)
     simplified = options.get('simplified', False)
     
-    # Auto-enable simplified mode for large code
     return ASTParser(max_nodes=max_nodes, simplified=simplified)
 
 
@@ -83,6 +114,8 @@ async def analyze_code(input_data: CodeInput):
     完整代码分析
     解析AST、分析复杂度、检测问题、生成优化建议
     """
+    logger.info(f"开始分析代码, 文件名: {input_data.filename or '未指定'}")
+    
     try:
         code = input_data.code
         filename = input_data.filename
@@ -91,15 +124,23 @@ async def analyze_code(input_data: CodeInput):
         # 检测代码大小，自动启用简化模式
         code_lines = len(code.splitlines())
         auto_simplified = code_lines > 500
+        logger.debug(f"代码行数: {code_lines}, 简化模式: {auto_simplified}")
         
         # 解析AST
         tree = ast.parse(code)
         parser = get_parser({'simplified': auto_simplified, **options})
         ast_graph = parser.parse(code)
         
-        # 应用主题
+        # 创建新的分析器实例
         theme = options.get('theme', 'default')
-        node_mapper.set_theme(theme)
+        node_mapper = AnalyzerFactory.create_node_mapper(theme)
+        complexity_analyzer = AnalyzerFactory.create_complexity_analyzer()
+        performance_analyzer = AnalyzerFactory.create_performance_analyzer()
+        code_smell_detector = AnalyzerFactory.create_code_smell_detector()
+        security_scanner = AnalyzerFactory.create_security_scanner()
+        suggestion_engine = AnalyzerFactory.create_suggestion_engine()
+        
+        # 应用主题
         ast_graph = node_mapper.apply_theme_to_graph(ast_graph)
         ast_graph = node_mapper.calculate_node_sizes(ast_graph)
         
@@ -139,6 +180,8 @@ async def analyze_code(input_data: CodeInput):
             "node_statistics": node_mapper.get_statistics(ast_graph)
         }
         
+        logger.info(f"分析完成, 发现 {len(all_issues)} 个问题")
+        
         return AnalysisResult(
             filename=filename,
             total_lines=len(code.splitlines()),
@@ -151,8 +194,10 @@ async def analyze_code(input_data: CodeInput):
         )
     
     except SyntaxError as e:
+        logger.warning(f"语法错误: {e}")
         raise HTTPException(status_code=400, detail=f"语法错误: {str(e)}")
     except Exception as e:
+        logger.error(f"分析错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"分析错误: {str(e)}")
 
 
@@ -162,6 +207,8 @@ async def get_ast(input_data: CodeInput):
     获取AST图结构
     用于可视化
     """
+    logger.debug(f"获取AST图结构")
+    
     try:
         code = input_data.code
         options = input_data.options or {}
@@ -178,7 +225,7 @@ async def get_ast(input_data: CodeInput):
         theme = options.get('theme', 'default')
         format_type = options.get('format', 'cytoscape')
         
-        node_mapper.set_theme(theme)
+        node_mapper = AnalyzerFactory.create_node_mapper(theme)
         ast_graph = node_mapper.apply_theme_to_graph(ast_graph)
         ast_graph = node_mapper.calculate_node_sizes(ast_graph)
         
@@ -193,6 +240,7 @@ async def get_ast(input_data: CodeInput):
             return ast_graph
     
     except SyntaxError as e:
+        logger.warning(f"语法错误: {e}")
         raise HTTPException(status_code=400, detail=f"语法错误: {str(e)}")
 
 
@@ -201,6 +249,8 @@ async def filter_ast(input_data: CodeInput, node_types: Optional[str] = None, ma
     """
     过滤AST节点
     """
+    logger.debug(f"过滤AST节点, 类型: {node_types}, 最大深度: {max_depth}")
+    
     try:
         from .models.schemas import NodeType
         
@@ -209,6 +259,8 @@ async def filter_ast(input_data: CodeInput, node_types: Optional[str] = None, ma
         
         parser = get_parser(options)
         ast_graph = parser.parse(code)
+        
+        node_mapper = AnalyzerFactory.create_node_mapper()
         
         # 按类型过滤
         if node_types:
@@ -222,6 +274,7 @@ async def filter_ast(input_data: CodeInput, node_types: Optional[str] = None, ma
         return node_mapper.to_cytoscape_elements(ast_graph)
     
     except Exception as e:
+        logger.error(f"过滤AST节点错误: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -230,12 +283,16 @@ async def get_complexity(input_data: CodeInput):
     """
     获取复杂度分析结果
     """
+    logger.debug("获取复杂度分析")
+    
     try:
         code = input_data.code
         tree = ast.parse(code)
-        return complexity_analyzer.analyze(code, tree)
+        analyzer = AnalyzerFactory.create_complexity_analyzer()
+        return analyzer.analyze(code, tree)
     
     except SyntaxError as e:
+        logger.warning(f"语法错误: {e}")
         raise HTTPException(status_code=400, detail=f"语法错误: {str(e)}")
 
 
@@ -244,11 +301,14 @@ async def get_performance_issues(input_data: CodeInput):
     """
     获取性能热点分析
     """
+    logger.debug("获取性能热点分析")
+    
     try:
         code = input_data.code
         tree = ast.parse(code)
-        hotspots = performance_analyzer.analyze(code, tree)
-        issues = performance_analyzer.get_issues()
+        analyzer = AnalyzerFactory.create_performance_analyzer()
+        hotspots = analyzer.analyze(code, tree)
+        issues = analyzer.get_issues()
         
         return {
             "hotspots": hotspots,
@@ -256,6 +316,7 @@ async def get_performance_issues(input_data: CodeInput):
         }
     
     except SyntaxError as e:
+        logger.warning(f"语法错误: {e}")
         raise HTTPException(status_code=400, detail=f"语法错误: {str(e)}")
 
 
@@ -264,11 +325,14 @@ async def get_security_issues(input_data: CodeInput):
     """
     获取安全扫描结果
     """
+    logger.debug("获取安全扫描结果")
+    
     try:
         code = input_data.code
         tree = ast.parse(code)
-        issues = security_scanner.scan(code, tree)
-        summary = security_scanner.get_security_summary()
+        scanner = AnalyzerFactory.create_security_scanner()
+        issues = scanner.scan(code, tree)
+        summary = scanner.get_security_summary()
         
         return {
             "issues": issues,
@@ -276,6 +340,7 @@ async def get_security_issues(input_data: CodeInput):
         }
     
     except SyntaxError as e:
+        logger.warning(f"语法错误: {e}")
         raise HTTPException(status_code=400, detail=f"语法错误: {str(e)}")
 
 
@@ -284,9 +349,18 @@ async def get_suggestions(input_data: CodeInput):
     """
     获取优化建议
     """
+    logger.debug("获取优化建议")
+    
     try:
         code = input_data.code
         tree = ast.parse(code)
+        
+        # 创建新的分析器实例
+        complexity_analyzer = AnalyzerFactory.create_complexity_analyzer()
+        performance_analyzer = AnalyzerFactory.create_performance_analyzer()
+        code_smell_detector = AnalyzerFactory.create_code_smell_detector()
+        security_scanner = AnalyzerFactory.create_security_scanner()
+        suggestion_engine = AnalyzerFactory.create_suggestion_engine()
         
         # 运行完整分析获取问题
         complexity_analyzer.analyze(code, tree)
@@ -311,6 +385,7 @@ async def get_suggestions(input_data: CodeInput):
         }
     
     except SyntaxError as e:
+        logger.warning(f"语法错误: {e}")
         raise HTTPException(status_code=400, detail=f"语法错误: {str(e)}")
 
 
@@ -319,9 +394,15 @@ async def generate_patches(input_data: CodeInput):
     """
     生成自动修复补丁
     """
+    logger.debug("生成自动修复补丁")
+    
     try:
         code = input_data.code
         tree = ast.parse(code)
+        
+        # 创建新实例
+        suggestion_engine = AnalyzerFactory.create_suggestion_engine()
+        patch_generator = AnalyzerFactory.create_patch_generator()
         
         # 获取建议
         suggestions = suggestion_engine.generate_suggestions(code, tree)
@@ -333,6 +414,7 @@ async def generate_patches(input_data: CodeInput):
         }
     
     except SyntaxError as e:
+        logger.warning(f"语法错误: {e}")
         raise HTTPException(status_code=400, detail=f"语法错误: {str(e)}")
 
 
@@ -341,13 +423,17 @@ async def apply_patch(code: str, patch: str):
     """
     应用补丁到代码
     """
+    logger.debug("应用补丁到代码")
+    
     try:
+        patch_generator = AnalyzerFactory.create_patch_generator()
         result = patch_generator.apply_patch(code, patch)
         if result is None:
             raise HTTPException(status_code=400, detail="补丁应用失败")
         return {"fixed_code": result}
     
     except Exception as e:
+        logger.error(f"补丁应用失败: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -357,6 +443,8 @@ async def explain_node(node_id: str, input_data: CodeInput):
     """
     解释AST节点（学习模式）
     """
+    logger.debug(f"解释AST节点: {node_id}")
+    
     try:
         code = input_data.code
         options = input_data.options or {}
@@ -391,85 +479,62 @@ async def explain_node(node_id: str, input_data: CodeInput):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# 挑战模式数据
-CHALLENGES = [
-    {
-        "id": "challenge_1",
-        "title": "优化嵌套循环",
-        "description": "找出代码中的性能问题并修复",
-        "code": """
-def find_duplicates(arr):
-    duplicates = []
-    for i in range(len(arr)):
-        for j in range(len(arr)):
-            if i != j and arr[i] == arr[j]:
-                if arr[i] not in duplicates:
-                    duplicates.append(arr[i])
-    return duplicates
-""",
-        "issues": ["nested_loop", "list_membership"],
-        "difficulty": "easy"
-    },
-    {
-        "id": "challenge_2",
-        "title": "修复安全问题",
-        "description": "找出代码中的安全漏洞",
-        "code": """
-def execute_user_input(user_input):
-    result = eval(user_input)
-    return result
+# 挑战数据加载器
+import json
+from pathlib import Path
 
-def get_user(user_id):
-    query = f"SELECT * FROM users WHERE id = {user_id}"
-    return db.execute(query)
-""",
-        "issues": ["eval_usage", "sql_injection"],
-        "difficulty": "medium"
-    },
-    {
-        "id": "challenge_3",
-        "title": "降低复杂度",
-        "description": "重构高复杂度代码",
-        "code": """
-def process_data(data, flag1, flag2, flag3, flag4):
-    result = []
-    if flag1:
-        if flag2:
-            if flag3:
-                if flag4:
-                    for item in data:
-                        if item > 0:
-                            if item < 100:
-                                result.append(item * 2)
-                        else:
-                            if item > -100:
-                                result.append(item * -1)
-    return result
-""",
-        "issues": ["deep_nesting", "high_complexity"],
-        "difficulty": "hard"
-    }
-]
+def load_challenges() -> List[Dict[str, Any]]:
+    """从 JSON 文件加载挑战数据"""
+    challenges_path = Path(__file__).parent / "data" / "challenges.json"
+    try:
+        with open(challenges_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data.get("challenges", [])
+    except FileNotFoundError:
+        logger.warning(f"挑战数据文件未找到: {challenges_path}")
+        return []
+    except json.JSONDecodeError as e:
+        logger.error(f"挑战数据 JSON 解析错误: {e}")
+        return []
+
+
+def get_challenges_cache() -> List[Dict[str, Any]]:
+    """获取挑战数据（带缓存）"""
+    if not hasattr(get_challenges_cache, '_cache'):
+        get_challenges_cache._cache = load_challenges()
+    return get_challenges_cache._cache
 
 
 @app.get("/api/challenges")
 async def get_challenges():
     """获取挑战列表"""
-    return [{"id": c["id"], "title": c["title"], "difficulty": c["difficulty"]} 
-            for c in CHALLENGES]
+    logger.debug("获取挑战列表")
+    challenges = get_challenges_cache()
+    return [
+        {
+            "id": c["id"], 
+            "title": c["title"], 
+            "difficulty": c["difficulty"],
+            "estimated_time_minutes": c.get("estimated_time_minutes")
+        } 
+        for c in challenges
+    ]
 
 
 @app.get("/api/challenges/{challenge_id}")
 async def get_challenge(challenge_id: str):
     """获取挑战详情"""
-    for challenge in CHALLENGES:
+    logger.debug(f"获取挑战详情: {challenge_id}")
+    challenges = get_challenges_cache()
+    for challenge in challenges:
         if challenge["id"] == challenge_id:
             return {
                 "id": challenge["id"],
                 "title": challenge["title"],
                 "description": challenge["description"],
                 "code": challenge["code"],
-                "difficulty": challenge["difficulty"]
+                "difficulty": challenge["difficulty"],
+                "hints": challenge.get("hints", [])
             }
     raise HTTPException(status_code=404, detail="挑战未找到")
 
@@ -482,7 +547,9 @@ class ChallengeSubmission(BaseModel):
 @app.post("/api/challenges/submit")
 async def submit_challenge(submission: ChallengeSubmission):
     """提交挑战答案"""
-    for challenge in CHALLENGES:
+    logger.debug(f"提交挑战答案: {submission.challenge_id}")
+    challenges = get_challenges_cache()
+    for challenge in challenges:
         if challenge["id"] == submission.challenge_id:
             expected = set(challenge["issues"])
             found = set(submission.found_issues)
@@ -508,9 +575,11 @@ async def submit_challenge(submission: ChallengeSubmission):
 
 def _generate_node_explanation(node) -> Dict[str, Any]:
     """生成节点解释"""
+    node_name = node.name or "未命名"
+    
     explanations = {
         "function": {
-            "explanation": f"这是一个函数定义节点。函数名是 '{node.name}'，"
+            "explanation": f"这是一个函数定义节点。函数名是 '{node_name}'，"
                           f"它包含{len(node.children)}个子节点。",
             "doc": "在Python中，函数是使用def关键字定义的代码块，"
                    "可以接收参数并返回值。函数有助于代码复用和模块化。",
@@ -521,7 +590,7 @@ def _generate_node_explanation(node) -> Dict[str, Any]:
             "related": ["parameters", "return statement", "decorators"]
         },
         "class": {
-            "explanation": f"这是一个类定义节点。类名是 '{node.name}'。",
+            "explanation": f"这是一个类定义节点。类名是 '{node_name}'。",
             "doc": "类是对象的蓝图，包含属性和方法。"
                    "Python支持面向对象编程，包括继承、封装和多态。",
             "examples": [
@@ -551,7 +620,7 @@ def _generate_node_explanation(node) -> Dict[str, Any]:
             "related": ["elif", "else", "conditional expressions", "boolean logic"]
         },
         "call": {
-            "explanation": f"这是一个函数调用节点，调用 '{node.name or 'unknown'}' 函数。",
+            "explanation": f"这是一个函数调用节点，调用 '{node_name}' 函数。",
             "doc": "函数调用会执行函数定义中的代码，并可以传递参数和接收返回值。",
             "examples": [
                 "result = len(my_list)",

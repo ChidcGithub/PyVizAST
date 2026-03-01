@@ -1,0 +1,74 @@
+{
+  "challenges": [
+    {
+      "id": "challenge_1",
+      "title": "优化嵌套循环",
+      "description": "找出代码中的性能问题并修复",
+      "code": "def find_duplicates(arr):\n    duplicates = []\n    for i in range(len(arr)):\n        for j in range(len(arr)):\n            if i != j and arr[i] == arr[j]:\n                if arr[i] not in duplicates:\n                    duplicates.append(arr[i])\n    return duplicates\n",
+      "issues": ["nested_loop", "list_membership"],
+      "difficulty": "easy",
+      "hints": [
+        "注意嵌套循环的时间复杂度",
+        "查找成员检查的效率问题"
+      ],
+      "estimated_time_minutes": 5
+    },
+    {
+      "id": "challenge_2",
+      "title": "修复安全问题",
+      "description": "找出代码中的安全漏洞",
+      "code": "def execute_user_input(user_input):\n    result = eval(user_input)\n    return result\n\ndef get_user(user_id):\n    query = f\"SELECT * FROM users WHERE id = {user_id}\"\n    return db.execute(query)\n",
+      "issues": ["eval_usage", "sql_injection"],
+      "difficulty": "medium",
+      "hints": [
+        "eval() 函数有什么安全风险？",
+        "SQL 查询字符串拼接是否安全？"
+      ],
+      "estimated_time_minutes": 10
+    },
+    {
+      "id": "challenge_3",
+      "title": "降低复杂度",
+      "description": "重构高复杂度代码",
+      "code": "def process_data(data, flag1, flag2, flag3, flag4):\n    result = []\n    if flag1:\n        if flag2:\n            if flag3:\n                if flag4:\n                    for item in data:\n                        if item > 0:\n                            if item < 100:\n                                result.append(item * 2)\n                        else:\n                            if item > -100:\n                                result.append(item * -1)\n    return result\n",
+      "issues": ["deep_nesting", "high_complexity"],
+      "difficulty": "hard",
+      "hints": [
+        "考虑使用早返回（early return）模式",
+        "嵌套条件可以如何简化？"
+      ],
+      "estimated_time_minutes": 15
+    },
+    {
+      "id": "challenge_4",
+      "title": "修复代码异味",
+      "description": "识别并修复代码中的不良实践",
+      "code": "def calc(x, y, z, a, b, c, d, e):\n    temp = 0\n    data = []\n    result = []\n    for i in range(len(data)):\n        if data[i] > 0:\n            if data[i] < 100:\n                if data[i] % 2 == 0:\n                    temp = temp + data[i] * 2\n    return temp\n",
+      "issues": ["long_parameter_list", "unused_variable", "empty_list_iteration", "string_concat_in_loop"],
+      "difficulty": "medium",
+      "hints": [
+        "参数数量是否合理？",
+        "是否有未使用的变量？"
+      ],
+      "estimated_time_minutes": 8
+    },
+    {
+      "id": "challenge_5",
+      "title": "性能优化挑战",
+      "description": "优化低效的数据处理代码",
+      "code": "def process_items(items):\n    result = \"\"\n    for item in items:\n        result = result + str(item) + \",\"\n    \n    unique_items = []\n    for item in items:\n        if item not in unique_items:\n            unique_items.append(item)\n    \n    return result, unique_items\n",
+      "issues": ["string_concat_in_loop", "list_membership_check"],
+      "difficulty": "easy",
+      "hints": [
+        "字符串拼接在循环中效率如何？",
+        "成员检查用列表还是集合更好？"
+      ],
+      "estimated_time_minutes": 5
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "last_updated": "2026-03-01",
+    "total_challenges": 5
+  }
+}
