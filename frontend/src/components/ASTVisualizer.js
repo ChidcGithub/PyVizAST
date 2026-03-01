@@ -49,7 +49,6 @@ function ASTVisualizer({ graph, theme }) {
   // Track timers and animation frames for cleanup
   const timersRef = useRef(new Set());
   const animationFramesRef = useRef(new Set());
-  const isMountedRef = useRef(true);
 
   // Format attribute key using memoized map
   const formatAttrKey = useCallback((key) => ATTR_KEY_MAP[key] || key, []);
@@ -387,9 +386,6 @@ function ASTVisualizer({ graph, theme }) {
       propagationQueue.forEach(({ sourceNode, targetNode, delay }) => {
         // Create particle after delay (tracked for cleanup)
         const timerId = setTimeout(() => {
-          // Check if component is still mounted
-          if (!isMountedRef.current) return;
-          
           // Get current positions at animation time
           const sourcePos = sourceNode.renderedPosition();
           const targetPos = targetNode.renderedPosition();
@@ -418,9 +414,6 @@ function ASTVisualizer({ graph, theme }) {
           
           // Animate particle (tracked for cleanup)
           const animateParticle = () => {
-            // Check if component is still mounted
-            if (!isMountedRef.current) return;
-            
             const elapsed = Date.now() - particle.startTime;
             const progress = Math.min(elapsed / particle.duration, 1);
             
@@ -459,7 +452,6 @@ function ASTVisualizer({ graph, theme }) {
 
     return () => {
       mounted = false;
-      isMountedRef.current = false;
       
       // Copy refs to local variables for cleanup
       // eslint-disable-next-line react-hooks/exhaustive-deps

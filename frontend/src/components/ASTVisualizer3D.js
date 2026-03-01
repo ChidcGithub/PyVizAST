@@ -763,13 +763,10 @@ function ASTVisualizer3D({ graph, theme }) {
   // Track timers and animation frames for cleanup
   const timersRef = useRef(new Set());
   const animationFramesRef = useRef(new Set());
-  const isMountedRef = useRef(true);
   
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      isMountedRef.current = false;
-      
       // Copy refs to local variables for cleanup
       // eslint-disable-next-line react-hooks/exhaustive-deps
       const timers = timersRef.current;
