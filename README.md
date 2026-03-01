@@ -176,6 +176,29 @@ Contributions are welcome. Please submit pull requests to the main repository.
 
 <details> <summary>Version History</summary>
 
+### v0.3.2 (2026-03-01)
+**Animation Redesign:**
+- Redesigned particle animations with clean white theme
+- Simplified particle rendering for better performance
+- Unified animation loop for camera movements
+
+**Performance Optimizations:**
+- Reduced sphere geometry segments (16→8) for 75% fewer vertices
+- Removed redundant Line component from SignalParticle
+- Single glow mesh instead of multiple layers
+- Removed unnecessary useFrame rotation animation
+- Simplified SVG particle: single circle instead of two
+- Reduced blur filter intensity for faster rendering
+
+**Code Quality:**
+- Unified camera animations into single `useFrame` loop
+- Removed duplicate `requestAnimationFrame` loop in resetCamera
+- Cleaner code with 49 fewer lines
+
+**Bug Fixes:**
+- Fixed signal propagation animation not playing (removed `isMountedRef` checks)
+- Fixed animation conflicts between reset and keyboard/focus animations
+
 ### v0.3.1 (2026-03-01)
 **Bug Fixes:**
 - Fixed mutable default arguments in Pydantic models (`schemas.py`)
