@@ -7,7 +7,9 @@ A Python AST Visualizer & Static Analyzer that transforms code into interactive 
 ### Code Parsing & Visualization Engine
 - Parse Python source code into Abstract Syntax Tree (AST) using Python's `ast` module
 - Map AST nodes to interactive visual elements with distinct colors and shapes
-- Force-directed graph layout showing code structure and dependencies
+- Multiple layout algorithms: hierarchical (dagre), force-directed (fcose), breadth-first
+- Detail level control: overview, normal, and detail modes for large codebases
+- Auto-simplification for files with many nodes to prevent performance issues
 - Zoom, pan, and click-to-inspect node details
 
 ### Intelligent Analysis Layer
@@ -173,6 +175,17 @@ GNU General Public License v3.0
 Contributions are welcome. Please submit pull requests to the main repository.
 
 ## Version History
+
+### v0.2.0 (2026-03-01)
+- Redesigned UI with monochrome minimalist theme
+- Optimized AST visualization for large codebases:
+  - Node filtering by priority types
+  - Depth limiting for deep trees
+  - Auto-simplification for files with >800 nodes
+- Fixed Cytoscape rendering issues (style expressions, ResizeObserver errors)
+- Fixed Monaco Editor web worker loading
+- Added layout algorithm selection (hierarchical, force-directed, breadth-first)
+- Added detail level control (overview, normal, detail)
 
 ### v0.1.0 (2026-02-28)
 - Initial release
