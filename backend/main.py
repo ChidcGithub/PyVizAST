@@ -39,7 +39,6 @@ app.add_middleware(
 
 
 # 初始化分析器
-parser = ASTParser()
 node_mapper = NodeMapper()
 complexity_analyzer = ComplexityAnalyzer()
 performance_analyzer = PerformanceAnalyzer()
@@ -47,6 +46,16 @@ code_smell_detector = CodeSmellDetector()
 security_scanner = SecurityScanner()
 suggestion_engine = SuggestionEngine()
 patch_generator = PatchGenerator()
+
+
+def get_parser(options: dict = None) -> ASTParser:
+    """获取配置化的解析器实例"""
+    options = options or {}
+    max_nodes = options.get('max_nodes', 2000)
+    simplified = options.get('simplified', False)
+    
+    # Auto-enable simplified mode for large code
+    return ASTParser(max_nodes=max_nodes, simplified=simplified)
 
 
 @app.get("/")
@@ -77,10 +86,15 @@ async def analyze_code(input_data: CodeInput):
     try:
         code = input_data.code
         filename = input_data.filename
-        options = input_data.options
+        options = input_data.options or {}
+        
+        # 检测代码大小，自动启用简化模式
+        code_lines = len(code.splitlines())
+        auto_simplified = code_lines > 500
         
         # 解析AST
         tree = ast.parse(code)
+        parser = get_parser({'simplified': auto_simplified, **options})
         ast_graph = parser.parse(code)
         
         # 应用主题
@@ -150,9 +164,14 @@ async def get_ast(input_data: CodeInput):
     """
     try:
         code = input_data.code
-        options = input_data.options
+        options = input_data.options or {}
+        
+        # 自动简化大文件
+        code_lines = len(code.splitlines())
+        auto_simplified = code_lines > 500 or options.get('simplified', False)
         
         # 解析AST
+        parser = get_parser({'simplified': auto_simplified, **options})
         ast_graph = parser.parse(code)
         
         # 应用主题和布局
@@ -186,6 +205,9 @@ async def filter_ast(input_data: CodeInput, node_types: Optional[str] = None, ma
         from .models.schemas import NodeType
         
         code = input_data.code
+        options = input_data.options or {}
+        
+        parser = get_parser(options)
         ast_graph = parser.parse(code)
         
         # 按类型过滤
@@ -337,6 +359,9 @@ async def explain_node(node_id: str, input_data: CodeInput):
     """
     try:
         code = input_data.code
+        options = input_data.options or {}
+        
+        parser = get_parser(options)
         ast_graph = parser.parse(code)
         
         # 查找节点

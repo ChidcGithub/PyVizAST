@@ -5,18 +5,19 @@ import {
   Shield,
   Lightbulb,
   BookOpen,
-  Trophy
+  Trophy,
+  Zap
 } from 'lucide-react';
 
 function Sidebar({ isOpen, activeTab, onTabChange, analysisResult }) {
   const tabs = [
-    { id: 'ast', label: 'AST可视化', icon: <GitBranch size={18} /> },
-    { id: 'complexity', label: '复杂度分析', icon: <Activity size={18} /> },
-    { id: 'performance', label: '性能检测', icon: <Activity size={18} /> },
-    { id: 'security', label: '安全扫描', icon: <Shield size={18} /> },
-    { id: 'suggestions', label: '优化建议', icon: <Lightbulb size={18} /> },
-    { id: 'learn', label: '学习模式', icon: <BookOpen size={18} /> },
-    { id: 'challenges', label: '挑战模式', icon: <Trophy size={18} /> },
+    { id: 'ast', label: 'AST Visualization', icon: <GitBranch size={18} /> },
+    { id: 'complexity', label: 'Complexity', icon: <Activity size={18} /> },
+    { id: 'performance', label: 'Performance', icon: <Zap size={18} /> },
+    { id: 'security', label: 'Security', icon: <Shield size={18} /> },
+    { id: 'suggestions', label: 'Suggestions', icon: <Lightbulb size={18} /> },
+    { id: 'learn', label: 'Learn', icon: <BookOpen size={18} /> },
+    { id: 'challenges', label: 'Challenges', icon: <Trophy size={18} /> },
   ];
 
   const getTabCount = (tabId) => {
@@ -61,23 +62,23 @@ function Sidebar({ isOpen, activeTab, onTabChange, analysisResult }) {
       
       {analysisResult && (
         <div className="sidebar-stats">
-          <h4>分析摘要</h4>
+          <h4>Summary</h4>
           <div className="stats-grid">
             <div className="stat-item">
               <span className="stat-value">{analysisResult.total_lines}</span>
-              <span className="stat-label">代码行数</span>
+              <span className="stat-label">Lines</span>
             </div>
             <div className="stat-item">
               <span className="stat-value">{analysisResult.complexity?.cyclomatic_complexity || 0}</span>
-              <span className="stat-label">圈复杂度</span>
+              <span className="stat-label">Complexity</span>
             </div>
             <div className="stat-item">
               <span className="stat-value">{analysisResult.summary?.total_issues || 0}</span>
-              <span className="stat-label">问题总数</span>
+              <span className="stat-label">Issues</span>
             </div>
             <div className="stat-item">
               <span className="stat-value">{analysisResult.ast_graph?.metadata?.total_nodes || 0}</span>
-              <span className="stat-label">AST节点</span>
+              <span className="stat-label">Nodes</span>
             </div>
           </div>
         </div>

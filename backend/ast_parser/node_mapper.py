@@ -11,34 +11,34 @@ class NodeMapper:
     支持不同的可视化布局和样式主题
     """
     
-    # 预定义的颜色主题
+    # Minimalist Monochrome Theme
     THEMES = {
         "default": {
-            "function": "#1565C0",
-            "class": "#7B1FA2",
-            "control_flow": "#F57C00",
-            "data_structures": "#0097A7",
-            "variables": "#616161",
-            "expressions": "#0288D1",
-            "other": "#9E9E9E"
+            "function": "#ffffff",
+            "class": "#e0e0e0",
+            "control_flow": "#a0a0a0",
+            "data_structures": "#c0c0c0",
+            "variables": "#606060",
+            "expressions": "#808080",
+            "other": "#404040"
         },
         "dark": {
-            "function": "#64B5F6",
-            "class": "#CE93D8",
-            "control_flow": "#FFB74D",
-            "data_structures": "#4DD0E1",
-            "variables": "#BDBDBD",
-            "expressions": "#81D4FA",
-            "other": "#757575"
+            "function": "#ffffff",
+            "class": "#d0d0d0",
+            "control_flow": "#909090",
+            "data_structures": "#b0b0b0",
+            "variables": "#505050",
+            "expressions": "#707070",
+            "other": "#303030"
         },
-        "neon": {
-            "function": "#00FF00",
-            "class": "#FF00FF",
-            "control_flow": "#FFFF00",
-            "data_structures": "#00FFFF",
-            "variables": "#FF6600",
-            "expressions": "#FF0066",
-            "other": "#666666"
+        "light": {
+            "function": "#000000",
+            "class": "#202020",
+            "control_flow": "#606060",
+            "data_structures": "#404040",
+            "variables": "#909090",
+            "expressions": "#707070",
+            "other": "#b0b0b0"
         }
     }
     

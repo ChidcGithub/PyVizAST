@@ -1,5 +1,6 @@
 """
 AST Parser - 将Python源代码解析为可视化图结构
+支持性能优化模式处理大型代码库
 """
 import ast
 import uuid
@@ -9,50 +10,77 @@ from ..models.schemas import (
 )
 
 
+# Performance optimization: Skip these node types in simplified mode
+SKIP_TYPES_SIMPLIFIED = {
+    'expr', 'expr_context', 'slice', 'boolop', 'operator', 
+    'unaryop', 'cmpop', 'comprehension', 'excepthandler',
+    'arguments', 'arg', 'keyword', 'alias', 'withitem',
+    'type_ignore', 'type_param', 'pattern'
+}
+
+# Priority node types that are always kept
+PRIORITY_NODE_TYPES = {
+    'Module', 'FunctionDef', 'AsyncFunctionDef', 'ClassDef',
+    'If', 'For', 'AsyncFor', 'While', 'Try', 'With', 'AsyncWith',
+    'Import', 'ImportFrom', 'Return', 'Yield', 'YieldFrom'
+}
+
+
 class ASTParser:
-    """Python AST解析器"""
+    """Python AST解析器 - 支持性能优化模式"""
     
     # 节点类型到颜色和形状的映射
     NODE_STYLES = {
         # 结构节点
-        NodeType.MODULE: {"color": "#2E7D32", "shape": "hexagon", "size": 30},
-        NodeType.FUNCTION: {"color": "#1565C0", "shape": "roundrectangle", "size": 25},
-        NodeType.CLASS: {"color": "#7B1FA2", "shape": "roundrectangle", "size": 28},
+        NodeType.MODULE: {"color": "#ffffff", "shape": "hexagon", "size": 30},
+        NodeType.FUNCTION: {"color": "#ffffff", "shape": "roundrectangle", "size": 25},
+        NodeType.CLASS: {"color": "#e0e0e0", "shape": "roundrectangle", "size": 28},
         
         # 控制流
-        NodeType.IF: {"color": "#F57C00", "shape": "diamond", "size": 20},
-        NodeType.FOR: {"color": "#F57C00", "shape": "diamond", "size": 20},
-        NodeType.WHILE: {"color": "#F57C00", "shape": "diamond", "size": 20},
-        NodeType.TRY: {"color": "#D32F2F", "shape": "diamond", "size": 22},
-        NodeType.WITH: {"color": "#00796B", "shape": "diamond", "size": 20},
+        NodeType.IF: {"color": "#a0a0a0", "shape": "diamond", "size": 20},
+        NodeType.FOR: {"color": "#a0a0a0", "shape": "diamond", "size": 20},
+        NodeType.WHILE: {"color": "#a0a0a0", "shape": "diamond", "size": 20},
+        NodeType.TRY: {"color": "#909090", "shape": "diamond", "size": 22},
+        NodeType.WITH: {"color": "#909090", "shape": "diamond", "size": 20},
         
         # 表达式
-        NodeType.CALL: {"color": "#0288D1", "shape": "circle", "size": 15},
-        NodeType.BINARY_OP: {"color": "#5D4037", "shape": "circle", "size": 12},
-        NodeType.COMPARE: {"color": "#5D4037", "shape": "circle", "size": 12},
-        NodeType.LAMBDA: {"color": "#1565C0", "shape": "ellipse", "size": 18},
+        NodeType.CALL: {"color": "#707070", "shape": "circle", "size": 15},
+        NodeType.BINARY_OP: {"color": "#606060", "shape": "circle", "size": 12},
+        NodeType.COMPARE: {"color": "#606060", "shape": "circle", "size": 12},
+        NodeType.LAMBDA: {"color": "#d0d0d0", "shape": "ellipse", "size": 18},
         
         # 数据结构
-        NodeType.LIST: {"color": "#0097A7", "shape": "rectangle", "size": 15},
-        NodeType.DICT: {"color": "#0097A7", "shape": "rectangle", "size": 15},
-        NodeType.SET: {"color": "#0097A7", "shape": "rectangle", "size": 15},
-        NodeType.TUPLE: {"color": "#0097A7", "shape": "rectangle", "size": 15},
+        NodeType.LIST: {"color": "#808080", "shape": "rectangle", "size": 15},
+        NodeType.DICT: {"color": "#808080", "shape": "rectangle", "size": 15},
+        NodeType.SET: {"color": "#808080", "shape": "rectangle", "size": 15},
+        NodeType.TUPLE: {"color": "#808080", "shape": "rectangle", "size": 15},
         
         # 变量
-        NodeType.ASSIGN: {"color": "#616161", "shape": "circle", "size": 14},
-        NodeType.NAME: {"color": "#757575", "shape": "circle", "size": 10},
+        NodeType.ASSIGN: {"color": "#505050", "shape": "circle", "size": 14},
+        NodeType.NAME: {"color": "#404040", "shape": "circle", "size": 10},
         
         # 其他
-        NodeType.IMPORT: {"color": "#8D6E63", "shape": "parallelogram", "size": 16},
-        NodeType.RETURN: {"color": "#C2185B", "shape": "triangle", "size": 14},
-        NodeType.YIELD: {"color": "#C2185B", "shape": "triangle", "size": 14},
-        NodeType.OTHER: {"color": "#9E9E9E", "shape": "circle", "size": 10},
+        NodeType.IMPORT: {"color": "#909090", "shape": "parallelogram", "size": 16},
+        NodeType.RETURN: {"color": "#707070", "shape": "triangle", "size": 14},
+        NodeType.YIELD: {"color": "#707070", "shape": "triangle", "size": 14},
+        NodeType.OTHER: {"color": "#404040", "shape": "circle", "size": 10},
     }
     
-    def __init__(self):
+    def __init__(self, max_nodes: int = 2000, simplified: bool = False):
+        """
+        初始化解析器
+        
+        Args:
+            max_nodes: 最大节点数量限制
+            simplified: 是否使用简化模式（跳过次要节点）
+        """
         self.nodes: Dict[str, ASTNode] = {}
         self.edges: List[ASTEdge] = []
         self.node_counter: Dict[str, int] = {}
+        self.max_nodes = max_nodes
+        self.simplified = simplified
+        self._node_count = 0
+        self._skipped_count = 0
     
     def _generate_id(self, node_type: str) -> str:
         """生成唯一节点ID"""
@@ -253,6 +281,8 @@ class ASTParser:
         self.nodes = {}
         self.edges = []
         self.node_counter = {}
+        self._node_count = 0
+        self._skipped_count = 0
         
         try:
             tree = ast.parse(code)
@@ -277,19 +307,58 @@ class ASTParser:
             metadata={
                 "total_nodes": len(self.nodes),
                 "total_edges": len(self.edges),
-                "node_types": self._count_node_types()
+                "node_types": self._count_node_types(),
+                "skipped_nodes": self._skipped_count,
+                "simplified": self.simplified
             }
         )
     
-    def _traverse(self, ast_node: ast.AST, parent_id: Optional[str], source_lines: List[str]):
+    def _should_skip_node(self, ast_node: ast.AST) -> bool:
+        """判断是否应该跳过该节点（用于性能优化）"""
+        if not self.simplified:
+            return False
+        
+        node_type_name = type(ast_node).__name__
+        
+        # Always keep priority nodes
+        if node_type_name in PRIORITY_NODE_TYPES:
+            return False
+        
+        # Skip certain node types in simplified mode
+        if node_type_name.lower() in {t.lower() for t in SKIP_TYPES_SIMPLIFIED}:
+            return True
+        
+        # Skip if we've reached max nodes
+        if self._node_count >= self.max_nodes:
+            return True
+        
+        return False
+    
+    def _traverse(self, ast_node: ast.AST, parent_id: Optional[str], source_lines: List[str], depth: int = 0):
         """递归遍历AST"""
+        # Check if we should skip this node
+        if self._should_skip_node(ast_node):
+            self._skipped_count += 1
+            # Still traverse children if not at max depth
+            if depth < 50:  # Max depth limit
+                for child in ast.iter_child_nodes(ast_node):
+                    self._traverse(child, parent_id, source_lines, depth + 1)
+            return
+        
+        # Check node limit
+        if self._node_count >= self.max_nodes:
+            self._skipped_count += 1
+            return
+        
+        self._node_count += 1
+        
         # 创建当前节点
         node = self._create_ast_node(ast_node, parent_id)
         
         # 提取源代码片段
         if node.lineno and node.end_lineno:
             start = node.lineno - 1
-            end = node.end_lineno
+            end = min(node.end_lineno, len(source_lines))
             node.source_code = "\n".join(source_lines[start:end])
         
         self.nodes[node.id] = node
@@ -304,7 +373,7 @@ class ASTParser:
         
         # 遍历子节点
         for child in ast.iter_child_nodes(ast_node):
-            self._traverse(child, node.id, source_lines)
+            self._traverse(child, node.id, source_lines, depth + 1)
     
     def _build_call_relationships(self):
         """构建函数调用关系"""
