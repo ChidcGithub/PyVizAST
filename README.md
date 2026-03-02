@@ -33,6 +33,13 @@ A Python AST Visualizer & Static Analyzer that transforms code into interactive 
 - **Beginner Mode**: Display Python documentation when hovering over AST nodes
 - **Challenge Mode**: Identify performance issues in provided code samples
 
+### Project-Level Analysis (v0.4.0+)
+- **Multi-File Analysis**: Upload ZIP or scan directories for whole-project analysis
+- **Dependency Graph**: Visualize module dependencies and detect circular dependencies
+- **Cross-File Issues**: Detect unused exports, duplicate code across files
+- **Health Score**: Project-level code quality assessment with actionable insights
+- **Incremental Analysis**: SQLite-based persistence for fast re-analysis
+
 ## Architecture
 
 ```
@@ -41,7 +48,15 @@ PyVizAST/
 │   ├── ast_parser/         # AST parsing and visualization mapping
 │   ├── analyzers/          # Complexity, performance, security analyzers
 │   ├── optimizers/         # Suggestion engine and patch generator
-│   └── models/             # Pydantic data models
+│   ├── models/             # Pydantic data models
+│   └── project_analyzer/   # Project-level analysis (v0.4.0+)
+│       ├── scanner.py      # ZIP/directory scanning
+│       ├── processor.py    # Concurrent file processing
+│       ├── dependency.py   # Dependency graph builder
+│       ├── cache.py        # AST/dependency caching
+│       ├── storage.py      # SQLite persistence
+│       ├── cli.py          # Command-line interface
+│       └── global_rules/   # Cross-file issue detection
 ├── frontend/               # React frontend
 │   └── src/
 │       ├── components/     # UI components
@@ -55,6 +70,7 @@ PyVizAST/
 - FastAPI
 - Python `ast` module
 - radon (complexity analysis)
+- SQLite (incremental analysis cache)
 
 **Frontend:**
 - React 18
@@ -102,10 +118,32 @@ cd frontend && npm start
 
 ## Usage
 
+### Web Interface
 1. Open `http://localhost:3000` in your browser
 2. Enter or paste Python code in the editor
 3. Click "Analyze" to parse and visualize
 4. Explore the AST graph and analysis results
+
+### Project Analysis
+1. Switch to "Project Analysis" tab
+2. Upload a ZIP file containing Python files
+3. Click "Analyze" for full project analysis
+4. View summary, file details, dependencies, and cross-file issues
+
+### Command Line (v0.4.0+)
+```bash
+# Analyze a project directory
+python -m backend.project_analyzer.cli /path/to/project
+
+# Output JSON report
+python -m backend.project_analyzer.cli /path/to/project --output report.json
+
+# Quick mode (complexity only)
+python -m backend.project_analyzer.cli /path/to/project --quick
+
+# With whitelist config
+python -m backend.project_analyzer.cli /path/to/project --whitelist whitelist.json
+```
 
 ## API Documentation
 
@@ -122,6 +160,8 @@ Access the interactive API documentation at `http://localhost:8000/docs`
 | `/api/security` | POST | Security vulnerabilities |
 | `/api/suggestions` | POST | Optimization suggestions |
 | `/api/patches` | POST | Generate auto-fix patches |
+| `/api/project/upload` | POST | Upload project ZIP for preview |
+| `/api/project/analyze` | POST | Full project analysis |
 
 ## Example Analysis
 
@@ -155,11 +195,21 @@ def find_duplicates(arr):
 
 ## Configuration
 
-Analysis thresholds can be configured in `backend/analyzers/`:
-
+### Analysis Thresholds
+Configurable in `backend/analyzers/`:
 - `complexity.py`: Complexity thresholds
 - `code_smells.py`: Code smell detection thresholds
 - `security.py`: Security check patterns
+
+### Whitelist Configuration (v0.4.0+)
+Create `whitelist.json` for unused export detection:
+```json
+{
+  "symbols": ["main", "setup", "create_app"],
+  "file_patterns": ["test_", "_test.py", "conftest.py"],
+  "path_patterns": ["tests/", "examples/"]
+}
+```
 
 ## Development
 
@@ -179,226 +229,132 @@ GNU General Public License v3.0
 
 Contributions are welcome. Please submit pull requests to the main repository.
 
-<details> <summary>Version History</summary>
+<details>
+<summary>Version History</summary>
+
+### v0.4.0-alpha (2026-03-02)
+**Project-Level Analysis:**
+- Multi-file project analysis via ZIP upload or directory scanning
+- Dependency graph construction with cycle detection
+- Cross-file issue detection (unused exports, duplicate code)
+- Project health score with grading system (A-F)
+- File-by-file complexity and issue breakdown
+
+**Performance Optimizations:**
+- AST parsing cache with content-based invalidation
+- Dependency graph cache for incremental analysis
+- SQLite-based result persistence
+- Incremental analysis support (only re-analyze changed files)
+- Concurrent file processing with ThreadPoolExecutor
+
+**Accuracy Improvements:**
+- `__all__` support for export detection
+- Conditional import detection (`try/except ImportError`)
+- Dynamic import detection (`importlib.import_module`)
+- Whitelist configuration for test files and helper functions
+- Better relative import resolution
+
+**New Detection Rules:**
+- Oversized modules (>1000 lines)
+- Too many public APIs per module
+- Circular dependency depth analysis
+- Module coupling metrics
+
+**CLI Tool:**
+- Command-line interface for CI integration
+- JSON report output
+- Configurable analysis options
+- Exit codes based on issue severity
+
+**Frontend Updates:**
+- Project analysis view with upload area
+- Tab-based navigation (Summary, Files, Issues, Dependencies)
+- File preview before analysis
+- Consistent analyze workflow with single-file mode
 
 ### v0.3.4 (2026-03-02)
 **Bug Fixes:**
 - Fixed 422 validation error showing `[object Object]` instead of readable message
-  - Added `extractErrorMessage` function to properly parse Pydantic validation errors
-  - Correctly extracts error details from arrays/objects to display meaningful messages
-- Fixed large file support:
-  - Increased `MAX_CODE_LENGTH` from 100,000 to 5,000,000 characters
-  - Now supports analyzing large project files
+- Fixed large file support (increased MAX_CODE_LENGTH to 5,000,000 characters)
 
 **Backend Bug Fixes:**
-- Fixed potential infinite recursion in `performance.py` (removed duplicate `generic_visit`)
-- Fixed incomplete dead code detection in `code_smells.py` (removed premature `break`)
-- Fixed patch parsing logic in `patches.py` (line number tracking)
-- Fixed regex false positives in `security.py` (excluded comments and placeholders)
-- Added progressive simplification strategy for large files in `main.py`
-- Added deduplication in `suggestions.py` to prevent duplicate suggestions
+- Fixed potential infinite recursion in `performance.py`
+- Fixed incomplete dead code detection in `code_smells.py`
+- Fixed patch parsing logic in `patches.py`
+- Fixed regex false positives in `security.py`
+- Added progressive simplification strategy for large files
+- Added deduplication in `suggestions.py`
 
 **Frontend Bug Fixes:**
-- Fixed memory leak in `ASTVisualizer.js` (animation cancellation flags)
-- Fixed useFrame state updates in `ASTVisualizer3D.js` (throttling + ref-based vectors)
-- Fixed retry logic in `api.js` (only retry idempotent methods like GET)
-- Fixed patch application in `PatchPanel.js` (API-first with fallback)
-
-**Performance Notes:**
-- Very large files (millions of characters) may cause:
-  - Increased memory usage during AST parsing
-  - Performance slowdown in visualization with many nodes
-  - Consider splitting large projects into separate files for analysis
+- Fixed memory leak in `ASTVisualizer.js`
+- Fixed useFrame state updates in `ASTVisualizer3D.js`
+- Fixed retry logic in `api.js`
+- Fixed patch application in `PatchPanel.js`
 
 ### v0.3.3 (2026-03-02)
 **New Features:**
-- **Search Functionality**: Search nodes in 2D/3D AST view
-  - Search by function name, variable name, or node type
-  - Keyboard navigation (↑↓ to navigate, Enter to jump, Esc to close)
-  - Click search result to focus node and jump to editor line
-- **Resizable Panels**: Drag the divider between editor and visualization panels
-  - Adjust panel sizes by dragging the center divider
-  - Position saved during session (20%-80% range)
-  - Responsive design: auto-stacks on smaller screens
+- Search functionality in 2D/3D AST view
+- Resizable panels with drag support
 
 **Backend Code Quality:**
-- Added input validation in `schemas.py` (code length, line number ranges, type whitelists)
-- Added custom exception classes for better error handling
-- Refactored exception handling in `main.py` with specific exception types
-- Improved production error messages (no stack trace exposure)
-
-**Frontend Bug Fixes:**
-- Fixed AST visualizer initialization issue (first analyze not showing graph)
-- Fixed 2D/3D switch requiring re-analyze
-- Fixed particle key generation strategy to prevent conflicts
-- Fixed `useFrame` state update causing potential infinite loops
-- Fixed keyboard navigation conflict with search input
-- Added `withRetry` wrapper to all API calls for better reliability
-- Improved optional chaining consistency in `AnalysisPanel.js`
-- Enhanced diff parsing in `PatchPanel.js` with better edge case handling
+- Added input validation in `schemas.py`
+- Added custom exception classes
+- Refactored exception handling in `main.py`
 
 ### v0.3.2 (2026-03-01)
 **Animation Redesign:**
 - Redesigned particle animations with clean white theme
 - Simplified particle rendering for better performance
-- Unified animation loop for camera movements
 
 **Performance Optimizations:**
-- Reduced sphere geometry segments (16→8) for 75% fewer vertices
-- Removed redundant Line component from SignalParticle
+- Reduced sphere geometry segments (75% fewer vertices)
+- Removed redundant components
 - Single glow mesh instead of multiple layers
-- Removed unnecessary useFrame rotation animation
-- Simplified SVG particle: single circle instead of two
-- Reduced blur filter intensity for faster rendering
-
-**Code Quality:**
-- Unified camera animations into single `useFrame` loop
-- Removed duplicate `requestAnimationFrame` loop in resetCamera
-- Cleaner code with 49 fewer lines
-
-**Bug Fixes:**
-- Fixed signal propagation animation not playing (removed `isMountedRef` checks)
-- Fixed animation conflicts between reset and keyboard/focus animations
 
 ### v0.3.1 (2026-03-01)
 **Bug Fixes:**
-- Fixed mutable default arguments in Pydantic models (`schemas.py`)
-  - Changed `= {}` and `= []` to `Field(default_factory=dict/list)`
-  - Prevents shared state between model instances
-- Fixed potential `AttributeError` in security scanner (`security.py`)
-  - Added `isinstance(node.func, ast.Attribute)` check before accessing `.attr`
-- Fixed cyclomatic complexity calculation for elif branches (`complexity.py`)
-  - Removed duplicate counting of nested If nodes
+- Fixed mutable default arguments in Pydantic models
+- Fixed potential `AttributeError` in security scanner
+- Fixed cyclomatic complexity calculation for elif branches
 
 **Frontend Memory Leak Fixes:**
-- Fixed `requestAnimationFrame` not being cancelled on unmount (`ASTVisualizer.js`)
-- Fixed `setTimeout` not being cleared on unmount (`ASTVisualizer.js`, `ASTVisualizer3D.js`)
-- Added proper cleanup for event listeners and timers
-- Added `isMountedRef` to prevent state updates after unmount
-
-**Performance Optimizations:**
-- Added `React.memo` to panel components (`AnalysisPanel.js`)
-  - `ComplexityPanel`, `PerformancePanel`, `SecurityPanel`, `SuggestionsPanel`
-  - `MetricCard`, `DetailItem`, `IssueList`, `SuggestionCard`
-- Implemented code splitting with `React.lazy` (`App.js`)
-  - Lazy loading for `ASTVisualizer`, `ASTVisualizer3D`, `AnalysisPanel`
-  - Added loading fallback component
-
-**Error Handling Improvements:**
-- Enhanced `ErrorBoundary` component with error type classification
-  - Network errors, syntax errors, runtime errors, chunk load errors
-  - Different recovery suggestions based on error type
-- Added `LazyLoadErrorBoundary` for lazy-loaded components
-- Improved development mode error logging
+- Fixed `requestAnimationFrame` not being cancelled on unmount
+- Fixed `setTimeout` not being cleared on unmount
+- Added `React.memo` to panel components
+- Implemented code splitting with `React.lazy`
 
 ### v0.3.0 (2026-03-01)
 **3D Visualization:**
 - Added 3D AST view with Three.js and React Three Fiber
-- Custom 3D force-directed layout algorithm for automatic node positioning
-- Different 3D shapes for node types (boxes for structures, diamonds for control flow, spheres for expressions)
-- OrbitControls for camera manipulation (drag to rotate, scroll to zoom)
-- Reset camera button to return to initial view
-
-**Signal Propagation Animation:**
-- Long press on a node to focus and display detailed information
-- Release to trigger electric-like signal propagation animation
-- Particles travel along edges at constant speed (duration based on edge length)
-- Target nodes glow with fade-in/fade-out animation when particles approach
-- Smooth BFS-based wave propagation (up to 5 levels deep)
+- Custom 3D force-directed layout algorithm
+- OrbitControls for camera manipulation
+- Signal propagation animation on long press
 
 **Keyboard Navigation:**
-- WASD / Arrow keys for smooth horizontal camera movement
-- Space bar to move camera up
-- Shift key to move camera down
-- Continuous movement while keys are held
-
-**UI Improvements:**
-- Server connection status indicator with helpful error messages
-- Better error handling and display
-- Improved startup error reporting in run.py
-- Removed emoji from detail panel labels
-
-**Bug Fixes:**
-- Fixed `PatchApplyRequest` undefined error (moved class definition before usage)
-- Fixed `__builtins__` type check reliability in performance analyzer
-- Fixed particle duplication issue (added edge-level visited tracking)
-- Fixed particle position offset issue (positions now fetched at animation time)
-- Fixed 3D particle reference issue (positions now copied, not referenced)
+- WASD/Arrow keys for camera movement
+- Space/Shift for vertical movement
 
 ### v0.2.2 (2026-03-01)
 **New Features:**
-- **Patch Application UI**: Interactive interface to preview and apply auto-fix patches
-  - Unified diff preview with syntax highlighting
-  - One-click patch application to code editor
-  - Visual status tracking for applied patches
-- **Enhanced AST Node Details**: Richer information for learning
-  - Descriptive icons for each node type (ƒ for functions, C for classes, etc.)
-  - Detailed labels showing full signatures (e.g., `def func(arg1, arg2)`)
-  - Educational explanations for each node type
-  - Attribute display (parameters, decorators, base classes, etc.)
-- **Patch Context Validation**: Improved safety for auto-fix
-  - Validates context lines before applying patches
-  - Prevents incorrect modifications to code
-
-**Bug Fixes:**
-- Fixed f-string syntax error in parser.py (escape `{}` to `{{}}`)
-- Fixed dictionary syntax error in suggestions.py
+- Patch application UI with diff preview
+- Enhanced AST node details with educational content
 
 ### v0.2.1 (2026-03-01)
 **Bug Fixes:**
-- Fixed CORS security configuration - now uses environment variable `ALLOWED_ORIGINS`
-- Fixed analyzer state pollution between requests - each request now creates fresh instances
-- Fixed `_detect_magic_numbers` crash due to missing parent node tracking
-- Fixed `_generate_node_explanation` crash when node.name is None
-- Fixed duplicate state clearing in code_smells.py
+- Fixed CORS security configuration
+- Fixed analyzer state pollution between requests
+- Fixed various crashes in analyzers
 
 **Frontend Improvements:**
-- Added 30-second request timeout with friendly error messages
-- Added request cancellation on component unmount (AbortController)
-- Improved error handling for network issues and server errors
-
-**Performance Detection:**
-- Completed string concatenation detection in loops
-- Completed global variable lookup detection in loops
-- Fixed state accumulation in performance analyzer
-
-**Maintainability Index:**
-- Rewrote algorithm with multi-dimensional weighted scoring
-- Now handles large codebases correctly (minimum score 20 instead of 0)
-- Considers complexity (35%), scale (25%), function quality (25%), Halstead (15%)
-
-**Patch Generator:**
-- Added syntax validation before and after patch generation
-- Improved string concatenation fix (auto-adds init and join)
-- Improved range(len()) fix (replaces arr[i] with item)
-- Improved list membership fix (auto-adds set conversion)
-- Added automatic `import ast` insertion for eval→literal_eval fix
-- Added error tracking with `get_errors()` method
-
-**Suggestion Engine:**
-- Smart detection of list comprehension contexts
-- Only suggests generator expression when appropriate:
-  - As argument to single-pass functions (sum, any, all, max, min, etc.)
-  - Direct iteration in for loop
-  - NOT for variable assignment (may need multiple access)
-  - NOT for return statements
-
-**Code Quality:**
-- Added comprehensive logging throughout backend
-- Extracted challenge data to JSON file (`backend/data/challenges.json`)
-- Added `AnalyzerFactory` for clean instance creation
-- Removed hardcoded data from main.py
+- Added 30-second request timeout
+- Added request cancellation on unmount
+- Improved error handling
 
 ### v0.2.0 (2026-03-01)
 - Redesigned UI with monochrome minimalist theme
-- Optimized AST visualization for large codebases:
-  - Node filtering by priority types
-  - Depth limiting for deep trees
-  - Auto-simplification for files with >800 nodes
-- Fixed Cytoscape rendering issues (style expressions, ResizeObserver errors)
-- Fixed Monaco Editor web worker loading
-- Added layout algorithm selection (hierarchical, force-directed, breadth-first)
-- Added detail level control (overview, normal, detail)
+- Optimized AST visualization for large codebases
+- Added layout algorithm selection
+- Added detail level control
 
 ### v0.1.0 (2026-02-28)
 - Initial release
