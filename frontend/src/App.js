@@ -118,8 +118,54 @@ function App() {
   const [viewMode, setViewMode] = useState('2d'); // '2d' or '3d'
   const [serverStatus, setServerStatus] = useState({ checking: true, connected: false });
   
+  // 分割线拖动状态
+  const [splitPosition, setSplitPosition] = useState(50); // 百分比
+  const [isDragging, setIsDragging] = useState(false);
+  const mainContentRef = useRef(null);
+  
   // 用于取消请求的 AbortController
   const abortControllerRef = useRef(null);
+  
+  // 编辑器 ref，用于调用编辑器方法（如跳转到指定行）
+  const editorRef = useRef(null);
+  
+  // 分割线拖动处理
+  const handleMouseDown = useCallback((e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+  
+  const handleMouseMove = useCallback((e) => {
+    if (!isDragging || !mainContentRef.current) return;
+    
+    const rect = mainContentRef.current.getBoundingClientRect();
+    const newPosition = ((e.clientX - rect.left) / rect.width) * 100;
+    
+    // 限制最小和最大位置
+    const clampedPosition = Math.min(Math.max(newPosition, 20), 80);
+    setSplitPosition(clampedPosition);
+  }, [isDragging]);
+  
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+  
+  // 添加全局鼠标事件监听
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isDragging, handleMouseMove, handleMouseUp]);
 
   // 检查服务器连接状态
   useEffect(() => {
@@ -195,6 +241,17 @@ function App() {
     setAnalysisResult(null);
     setError(null);
   }, []);
+  
+  /**
+   * 跳转到编辑器指定行
+   * @param {number} lineNumber - 行号（从1开始）
+   * @param {number} [endLine] - 可选的结束行号
+   */
+  const handleGoToLine = useCallback((lineNumber, endLine) => {
+    if (editorRef.current) {
+      editorRef.current.goToLine(lineNumber, 1, endLine);
+    }
+  }, []);
 
   return (
     <div className={`app ${theme}`}>
@@ -218,13 +275,35 @@ function App() {
           onViewModeChange={setViewMode}
         />
         
-        <main className="main-content">
+        <main 
+          className="main-content" 
+          ref={mainContentRef}
+          style={{ 
+            '--split-position': `${splitPosition}%`,
+            cursor: isDragging ? 'col-resize' : 'default'
+          }}
+        >
           <div className="editor-panel">
             <CodeEditor 
+              ref={editorRef}
               code={code}
               onChange={handleCodeChange}
               theme={theme}
             />
+          </div>
+          
+          {/* 可拖动的分割线 */}
+          <div 
+            className={`resize-divider ${isDragging ? 'dragging' : ''}`}
+            onMouseDown={handleMouseDown}
+          >
+            <div className="resize-handle">
+              <svg width="4" height="24" viewBox="0 0 4 24" fill="none">
+                <circle cx="2" cy="6" r="1" fill="currentColor" />
+                <circle cx="2" cy="12" r="1" fill="currentColor" />
+                <circle cx="2" cy="18" r="1" fill="currentColor" />
+              </svg>
+            </div>
           </div>
           
           <div className="visualization-panel">
@@ -264,11 +343,13 @@ function App() {
                       <ASTVisualizer3D 
                         graph={analysisResult.ast_graph}
                         theme={theme}
+                        onGoToLine={handleGoToLine}
                       />
                     ) : (
                       <ASTVisualizer 
                         graph={analysisResult.ast_graph}
                         theme={theme}
+                        onGoToLine={handleGoToLine}
                       />
                     )}
                   </Suspense>

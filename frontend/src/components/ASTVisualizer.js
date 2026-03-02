@@ -34,7 +34,7 @@ const ATTR_KEY_MAP = {
   'module': '模块',
 };
 
-function ASTVisualizer({ graph, theme }) {
+function ASTVisualizer({ graph, theme, onGoToLine }) {
   const containerRef = useRef(null);
   const cyRef = useRef(null);
   const [selectedNode, setSelectedNode] = useState(null);
@@ -49,9 +49,164 @@ function ASTVisualizer({ graph, theme }) {
   // Track timers and animation frames for cleanup
   const timersRef = useRef(new Set());
   const animationFramesRef = useRef(new Set());
+  
+  // 追踪Cytoscape初始化状态
+  const isInitializedRef = useRef(false);
+  const pendingElementsRef = useRef(null);
+  
+  // 搜索相关状态
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
+  const [highlightedNodeIds, setHighlightedNodeIds] = useState(new Set());
+  const searchInputRef = useRef(null);
 
   // Format attribute key using memoized map
   const formatAttrKey = useCallback((key) => ATTR_KEY_MAP[key] || key, []);
+  
+  // 搜索节点
+  const handleSearch = useCallback((query) => {
+    setSearchQuery(query);
+    setSelectedSearchIndex(-1);
+    
+    if (!query.trim() || !graph) {
+      setSearchResults([]);
+      setHighlightedNodeIds(new Set());
+      return;
+    }
+    
+    const lowerQuery = query.toLowerCase().trim();
+    const results = graph.nodes.filter(node => {
+      // 确保 node 是有效对象
+      if (!node || !node.id) return false;
+      
+      const name = (node.name || '').toLowerCase();
+      const type = (node.type || '').toLowerCase();
+      const label = (node.detailed_label || '').toLowerCase();
+      const description = (node.description || '').toLowerCase();
+      
+      return name.includes(lowerQuery) ||
+             type.includes(lowerQuery) ||
+             label.includes(lowerQuery) ||
+             description.includes(lowerQuery);
+    }).slice(0, 20); // 限制结果数量
+    
+    setSearchResults(results);
+    setHighlightedNodeIds(new Set(results.filter(n => n && n.id).map(n => n.id)));
+  }, [graph]);
+  
+  // 清除搜索
+  const clearSearch = useCallback(() => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setSelectedSearchIndex(-1);
+    setIsSearchOpen(false);
+    setHighlightedNodeIds(new Set());
+    
+    // 移除所有高亮
+    if (cyRef.current) {
+      cyRef.current.elements().removeClass('search-highlight search-selected');
+    }
+  }, []);
+  
+  // 聚焦到搜索结果
+  const focusSearchResult = useCallback((node, index) => {
+    // 严格的空值检查
+    if (!cyRef.current) return;
+    if (!node || typeof node !== 'object' || !node.id) return;
+    
+    setSelectedSearchIndex(index);
+    
+    // 移除之前的高亮
+    cyRef.current.elements().removeClass('search-selected');
+    
+    // 高亮选中的节点
+    const cyNode = cyRef.current.getElementById(node.id);
+    if (cyNode) {
+      cyNode.addClass('search-selected');
+      
+      // 动画聚焦到节点
+      cyRef.current.animate({
+        zoom: 1.5,
+        center: { eles: cyNode },
+        duration: 300
+      });
+      
+      // 更新选中节点信息
+      const nodeData = cyNode.data();
+      setSelectedNode({
+        id: nodeData.id,
+        type: nodeData.type,
+        name: nodeData.name,
+        label: nodeData.label,
+        lineno: nodeData.lineno,
+        docstring: nodeData.docstring,
+        sourceCode: nodeData.source_code,
+        icon: nodeData.icon,
+        description: nodeData.description,
+        explanation: nodeData.explanation,
+        attributes: nodeData.attributes,
+      });
+    }
+  }, []);
+  
+  // 跳转到编辑器对应行
+  const handleGoToLine = useCallback((node) => {
+    if (node && onGoToLine && node.lineno) {
+      onGoToLine(node.lineno, node.end_lineno);
+    }
+    // 清除搜索
+    clearSearch();
+  }, [onGoToLine, clearSearch]);
+  
+  // 键盘导航搜索结果
+  const handleSearchKeyDown = useCallback((e) => {
+    if (searchResults.length === 0) return;
+    
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        const nextIndex = (selectedSearchIndex + 1) % searchResults.length;
+        focusSearchResult(searchResults[nextIndex], nextIndex);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        const prevIndex = selectedSearchIndex <= 0 ? searchResults.length - 1 : selectedSearchIndex - 1;
+        focusSearchResult(searchResults[prevIndex], prevIndex);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedSearchIndex >= 0 && searchResults[selectedSearchIndex]) {
+          handleGoToLine(searchResults[selectedSearchIndex]);
+        } else if (searchResults.length > 0) {
+          focusSearchResult(searchResults[0], 0);
+        }
+        break;
+      case 'Escape':
+        clearSearch();
+        break;
+      default:
+        break;
+    }
+  }, [searchResults, selectedSearchIndex, focusSearchResult, handleGoToLine, clearSearch]);
+  
+  // 高亮搜索结果
+  useEffect(() => {
+    if (!cyRef.current) return;
+    
+    // 移除之前的搜索高亮
+    cyRef.current.elements().removeClass('search-highlight');
+    
+    // 高亮新的搜索结果
+    searchResults.forEach(node => {
+      if (!node || !node.id) return;
+      const cyNode = cyRef.current.getElementById(node.id);
+      if (cyNode) {
+        cyNode.addClass('search-highlight');
+      }
+    });
+  }, [searchResults]);
 
   // Filter elements based on detail level
   const filteredElements = useMemo(() => {
@@ -206,6 +361,27 @@ function ASTVisualizer({ graph, theme }) {
         });
 
         cyRef.current = cy;
+        
+        // 标记初始化完成
+        isInitializedRef.current = true;
+        
+        // 如果有待处理的元素，立即应用
+        if (pendingElementsRef.current) {
+          const pending = pendingElementsRef.current;
+          pendingElementsRef.current = null;
+          
+          setIsRendering(true);
+          cy.json({ elements: pending });
+          const layoutConfig = getLayoutConfig(pending.nodes.length, 'dagre');
+          const layout = cy.layout(layoutConfig);
+          layout.on('layoutstop', () => {
+            if (cyRef.current) {
+              cyRef.current.fit(undefined, 50);
+              setIsRendering(false);
+            }
+          });
+          layout.run();
+        }
 
         // Node click handler
         cy.on('tap', 'node', (evt) => {
@@ -397,6 +573,8 @@ function ASTVisualizer({ graph, theme }) {
           
           const particle = {
             id: particleId++,
+            sourceId: sourceNode.id(),
+            targetId: targetNode.id(),
             startX: sourcePos.x,
             startY: sourcePos.y,
             endX: targetPos.x,
@@ -473,12 +651,22 @@ function ASTVisualizer({ graph, theme }) {
         } catch (e) {}
         cyRef.current = null;
       }
+      
+      // 重置初始化状态，以便组件重新挂载时可以正确初始化
+      isInitializedRef.current = false;
+      pendingElementsRef.current = null;
     };
   }, []); // Only run once on mount
 
   // Update elements when data changes (incremental update)
   useEffect(() => {
-    if (!cyRef.current || cytoscapeElements.nodes.length === 0) return;
+    if (cytoscapeElements.nodes.length === 0) return;
+    
+    // 如果Cytoscape还没初始化完成，保存元素等待初始化
+    if (!isInitializedRef.current || !cyRef.current) {
+      pendingElementsRef.current = cytoscapeElements;
+      return;
+    }
     
     setIsRendering(true);
     
@@ -514,6 +702,18 @@ function ASTVisualizer({ graph, theme }) {
     let animationId = null;
     
     const handleKeyDown = (e) => {
+      // 如果搜索框或任何输入框聚焦，不处理键盘导航
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.isContentEditable
+      );
+      
+      if (isInputFocused) {
+        return;
+      }
+      
       const key = e.key.toLowerCase();
       if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
         e.preventDefault();
@@ -603,6 +803,25 @@ function ASTVisualizer({ graph, theme }) {
           </span>
         </div>
         <div className="toolbar-right">
+          {/* 搜索按钮 */}
+          <button 
+            className={`btn btn-ghost ${isSearchOpen ? 'active' : ''}`}
+            onClick={() => {
+              setIsSearchOpen(!isSearchOpen);
+              if (!isSearchOpen) {
+                setTimeout(() => searchInputRef.current?.focus(), 100);
+              } else {
+                clearSearch();
+              }
+            }}
+            title="搜索节点 (Ctrl+F)"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </button>
+          
           <select 
             className="simplify-select"
             value={layoutType}
@@ -652,6 +871,88 @@ function ASTVisualizer({ graph, theme }) {
       </div>
       
       <div className="visualizer-content">
+        {/* 搜索面板 */}
+        {isSearchOpen && (
+          <div className="search-panel">
+            <div className="search-input-wrapper">
+              <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                ref={searchInputRef}
+                type="text"
+                className="search-input"
+                placeholder="搜索函数、类、变量名..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+              />
+              {searchQuery && (
+                <button className="search-clear" onClick={clearSearch}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            
+            {/* 搜索结果列表 */}
+            {searchResults.length > 0 && (
+              <div className="search-results">
+                <div className="search-results-header">
+                  <span>找到 {searchResults.length} 个结果</span>
+                  <span className="search-hint">↑↓ 导航 · Enter 跳转 · Esc 关闭</span>
+                </div>
+                <div className="search-results-list">
+                  {searchResults.filter(node => node && node.id).map((node, index) => (
+                    <div
+                      key={node.id}
+                      className={`search-result-item ${index === selectedSearchIndex ? 'selected' : ''}`}
+                      onClick={() => {
+                        try {
+                          if (node && node.id) {
+                            focusSearchResult(node, index);
+                            handleGoToLine(node);
+                          }
+                        } catch (e) {
+                          console.warn('Search result click error:', e);
+                        }
+                      }}
+                      onMouseEnter={() => {
+                        try {
+                          if (node && node.id) {
+                            focusSearchResult(node, index);
+                          }
+                        } catch (e) {
+                          console.warn('Search result hover error:', e);
+                        }
+                      }}
+                    >
+                      <span className="result-icon">{node.icon || '•'}</span>
+                      <div className="result-content">
+                        <span className="result-name">{node.name || node.type}</span>
+                        <span className="result-type">{node.description || node.type}</span>
+                      </div>
+                      {node.lineno && (
+                        <span className="result-line">行 {node.lineno}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* 无结果提示 */}
+            {searchQuery && searchResults.length === 0 && (
+              <div className="search-no-results">
+                <span>未找到匹配的节点</span>
+              </div>
+            )}
+          </div>
+        )}
+        
         {isRendering && (
           <div className="rendering-overlay">
             <div className="rendering-spinner"></div>
@@ -679,8 +980,10 @@ function ASTVisualizer({ graph, theme }) {
           {signalParticles.map(particle => {
             const x = particle.startX + (particle.endX - particle.startX) * particle.progress;
             const y = particle.startY + (particle.endY - particle.startY) * particle.progress;
+            // 使用更唯一的 key：sourceId-targetId-timestamp 组合
+            const uniqueKey = `${particle.sourceId || 'src'}-${particle.targetId || 'tgt'}-${particle.id}-${particle.startTime || 0}`;
             return (
-              <g key={particle.id}>
+              <g key={uniqueKey}>
                 {/* Trail effect - simplified */}
                 <line
                   x1={particle.startX + (particle.endX - particle.startX) * Math.max(0, particle.progress - 0.2)}

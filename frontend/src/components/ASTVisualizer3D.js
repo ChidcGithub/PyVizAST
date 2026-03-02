@@ -197,6 +197,10 @@ function Node3D({ position, node, isSelected, isFocused, isDimmed, isSignal, onC
   const pointerDownTime = useRef(0);
   const signalRef = useRef(0);
   const [signalIntensity, setSignalIntensity] = useState(0);
+  // 使用 ref 追踪上次渲染的信号强度，避免频繁状态更新
+  const lastSignalIntensityRef = useRef(0);
+  // 状态更新阈值，只有变化超过此值才触发更新
+  const SIGNAL_UPDATE_THRESHOLD = 0.05;
   
   // Cleanup on unmount
   useEffect(() => {
@@ -231,13 +235,15 @@ function Node3D({ position, node, isSelected, isFocused, isDimmed, isSignal, onC
       signalRef.current = Math.max(signalRef.current - 0.03, 0);
     }
     
-    // Update signal intensity for render
-    if (signalRef.current !== signalIntensity) {
+    // 仅在信号强度变化超过阈值时才更新状态，减少不必要的重渲染
+    const intensityDiff = Math.abs(signalRef.current - lastSignalIntensityRef.current);
+    if (intensityDiff >= SIGNAL_UPDATE_THRESHOLD || 
+        (signalRef.current === 0 && lastSignalIntensityRef.current !== 0) ||
+        (signalRef.current === 1 && lastSignalIntensityRef.current !== 1)) {
+      lastSignalIntensityRef.current = signalRef.current;
       setSignalIntensity(signalRef.current);
     }
   });
-  
-  // Long press handlers
   const handlePointerDown = useCallback((e) => {
     e.stopPropagation();
     pointerDownTime.current = Date.now();
@@ -473,6 +479,18 @@ const Scene = forwardRef(({ nodes, edges, positions, selectedNode, focusedNode, 
   // Keyboard event handlers
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // 如果搜索框或任何输入框聚焦，不处理键盘导航
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.isContentEditable
+      );
+      
+      if (isInputFocused) {
+        return;
+      }
+      
       keysPressed.current.add(e.key.toLowerCase());
     };
     
@@ -691,7 +709,7 @@ const Scene = forwardRef(({ nodes, edges, positions, selectedNode, focusedNode, 
 /**
  * Main 3D Visualizer component
  */
-function ASTVisualizer3D({ graph, theme }) {
+function ASTVisualizer3D({ graph, theme, onGoToLine }) {
   const [selectedNode, setSelectedNode] = useState(null);
   const [focusedNode, setFocusedNode] = useState(null);
   const [signalParticles, setSignalParticles] = useState([]); // Particles traveling along edges
@@ -703,6 +721,14 @@ function ASTVisualizer3D({ graph, theme }) {
   // Track timers and animation frames for cleanup
   const timersRef = useRef(new Set());
   const animationFramesRef = useRef(new Set());
+  
+  // 搜索相关状态
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
+  const [highlightedNodeIds, setHighlightedNodeIds] = useState(new Set());
+  const searchInputRef = useRef(null);
   
   // Cleanup on unmount
   useEffect(() => {
@@ -722,6 +748,95 @@ function ASTVisualizer3D({ graph, theme }) {
       animationFrames.clear();
     };
   }, []);
+  
+  // 搜索节点
+  const handleSearch = useCallback((query) => {
+    setSearchQuery(query);
+    setSelectedSearchIndex(-1);
+    
+    if (!query.trim() || !graph) {
+      setSearchResults([]);
+      setHighlightedNodeIds(new Set());
+      return;
+    }
+    
+    const lowerQuery = query.toLowerCase().trim();
+    const results = graph.nodes.filter(node => {
+      // 确保 node 是有效对象
+      if (!node || !node.id) return false;
+      
+      const name = (node.name || '').toLowerCase();
+      const type = (node.type || '').toLowerCase();
+      const label = (node.detailed_label || '').toLowerCase();
+      const description = (node.description || '').toLowerCase();
+      
+      return name.includes(lowerQuery) ||
+             type.includes(lowerQuery) ||
+             label.includes(lowerQuery) ||
+             description.includes(lowerQuery);
+    }).slice(0, 20);
+    
+    setSearchResults(results);
+    setHighlightedNodeIds(new Set(results.filter(n => n && n.id).map(n => n.id)));
+  }, [graph]);
+  
+  // 清除搜索
+  const clearSearch = useCallback(() => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setSelectedSearchIndex(-1);
+    setIsSearchOpen(false);
+    setHighlightedNodeIds(new Set());
+    setFocusedNode(null);
+  }, []);
+  
+  // 聚焦到搜索结果
+  const focusSearchResult = useCallback((node, index) => {
+    // 严格的空值检查
+    if (!node || typeof node !== 'object' || !node.id) return;
+    setSelectedSearchIndex(index);
+    setSelectedNode(node);
+    setFocusedNode(node);
+  }, []);
+  
+  // 跳转到编辑器对应行
+  const handleGoToLine = useCallback((node) => {
+    if (node && onGoToLine && node.lineno) {
+      onGoToLine(node.lineno, node.end_lineno);
+    }
+    clearSearch();
+  }, [onGoToLine, clearSearch]);
+  
+  // 键盘导航搜索结果
+  const handleSearchKeyDown = useCallback((e) => {
+    if (searchResults.length === 0) return;
+    
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        const nextIndex = (selectedSearchIndex + 1) % searchResults.length;
+        focusSearchResult(searchResults[nextIndex], nextIndex);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        const prevIndex = selectedSearchIndex <= 0 ? searchResults.length - 1 : selectedSearchIndex - 1;
+        focusSearchResult(searchResults[prevIndex], prevIndex);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedSearchIndex >= 0 && searchResults[selectedSearchIndex]) {
+          handleGoToLine(searchResults[selectedSearchIndex]);
+        } else if (searchResults.length > 0) {
+          focusSearchResult(searchResults[0], 0);
+        }
+        break;
+      case 'Escape':
+        clearSearch();
+        break;
+      default:
+        break;
+    }
+  }, [searchResults, selectedSearchIndex, focusSearchResult, handleGoToLine, clearSearch]);
   
   // Filter nodes based on detail level
   const filteredElements = useMemo(() => {
@@ -930,6 +1045,23 @@ function ASTVisualizer3D({ graph, theme }) {
           </span>
         </div>
         <div className="toolbar-right">
+          {/* Search button */}
+          <button 
+            className={`btn btn-ghost ${isSearchOpen ? 'active' : ''}`}
+            onClick={() => {
+              setIsSearchOpen(!isSearchOpen);
+              if (!isSearchOpen) {
+                setTimeout(() => searchInputRef.current?.focus(), 100);
+              }
+            }}
+            title="Search nodes (Ctrl+F)"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </button>
+          
           <select 
             className="simplify-select"
             value={detailLevel}
@@ -957,6 +1089,73 @@ function ASTVisualizer3D({ graph, theme }) {
       </div>
       
       <div className="visualizer-3d-content">
+        {/* Search Panel */}
+        {isSearchOpen && (
+          <div className="search-panel">
+            <div className="search-input-container">
+              <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                ref={searchInputRef}
+                type="text"
+                className="search-input"
+                placeholder="搜索函数、类、变量名..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+              />
+              {searchQuery && (
+                <button className="search-clear" onClick={clearSearch}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            
+            {searchResults.length > 0 && (
+              <div className="search-results">
+                {searchResults.filter(node => node && node.id).map((node, index) => (
+                  <div
+                    key={node.id}
+                    className={`search-result-item ${index === selectedSearchIndex ? 'selected' : ''}`}
+                    onClick={() => {
+                      try {
+                        if (node && node.id) handleGoToLine(node);
+                      } catch (e) {
+                        console.warn('Search result click error:', e);
+                      }
+                    }}
+                    onMouseEnter={() => {
+                      try {
+                        if (node && node.id) focusSearchResult(node, index);
+                      } catch (e) {
+                        console.warn('Search result hover error:', e);
+                      }
+                    }}
+                  >
+                    <span className="result-icon">{node.icon || '•'}</span>
+                    <div className="result-content">
+                      <span className="result-name">{node.name || node.type}</span>
+                      <span className="result-type">{node.description || node.type}</span>
+                    </div>
+                    {node.lineno && <span className="result-line">行 {node.lineno}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {searchQuery && searchResults.length === 0 && (
+              <div className="search-no-results">
+                未找到匹配的节点
+              </div>
+            )}
+          </div>
+        )}
+        
         {!isLayoutReady ? (
           <div className="rendering-overlay">
             <div className="rendering-spinner"></div>

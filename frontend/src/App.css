@@ -18,15 +18,47 @@
 
 .main-content {
   flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
+  display: flex;
   overflow: hidden;
   position: relative;
 }
 
-/* Subtle vertical divider line */
-.main-content::before {
+.editor-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  position: relative;
+  width: calc(var(--split-position, 50%) - 4px);
+  min-width: 20%;
+  max-width: 80%;
+}
+
+.editor-panel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.01), transparent);
+  pointer-events: none;
+}
+
+/* 可拖动分割线样式 */
+.resize-divider {
+  width: 8px;
+  background: transparent;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 20;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.resize-divider::before {
   content: '';
   position: absolute;
   top: 0;
@@ -41,26 +73,50 @@
     var(--border-subtle) 90%,
     transparent
   );
-  z-index: 10;
-  pointer-events: none;
+  transform: translateX(-50%);
+  transition: width 0.15s ease, background 0.15s ease;
 }
 
-.editor-panel {
+.resize-divider:hover::before,
+.resize-divider.dragging::before {
+  width: 2px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--text-tertiary) 10%,
+    var(--text-secondary) 50%,
+    var(--text-tertiary) 90%,
+    transparent
+  );
+}
+
+.resize-handle {
   display: flex;
-  flex-direction: column;
-  background: var(--bg-secondary);
-  position: relative;
+  align-items: center;
+  justify-content: center;
+  width: 8px;
+  height: 48px;
+  background: var(--bg-elevated);
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  color: var(--text-tertiary);
 }
 
-.editor-panel::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 80px;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.01), transparent);
-  pointer-events: none;
+.resize-divider:hover .resize-handle,
+.resize-divider.dragging .resize-handle {
+  opacity: 1;
+}
+
+.resize-divider.dragging {
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(255, 255, 255, 0.03) 40%,
+    rgba(255, 255, 255, 0.05) 50%,
+    rgba(255, 255, 255, 0.03) 60%,
+    transparent
+  );
 }
 
 .visualization-panel {
@@ -69,6 +125,8 @@
   background: var(--bg-primary);
   overflow: hidden;
   position: relative;
+  flex: 1;
+  min-width: 20%;
 }
 
 .error-message {
@@ -200,20 +258,24 @@
 /* Responsive */
 @media (max-width: 1200px) {
   .main-content {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr 1fr;
-  }
-  
-  .main-content::before {
-    display: none;
+    flex-direction: column;
   }
   
   .editor-panel {
+    width: 100% !important;
+    min-width: 100%;
+    max-width: 100%;
+    height: 50%;
     border-bottom: 1px solid var(--border-subtle);
   }
   
-  .editor-panel::after {
+  .resize-divider {
     display: none;
+  }
+  
+  .visualization-panel {
+    height: 50%;
+    min-width: 100%;
   }
 }
 
@@ -222,7 +284,11 @@
     flex-direction: column;
   }
   
-  .main-content {
-    grid-template-rows: 40vh 60vh;
+  .editor-panel {
+    height: 40vh;
+  }
+  
+  .visualization-panel {
+    height: 60vh;
   }
 }

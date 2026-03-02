@@ -252,60 +252,144 @@ function PatchPanel({ code, onApplyPatch }) {
  * 这是一个简化版本,实际应用应该在后端进行
  */
 function applyPatchToCode(originalCode, patchContent) {
-  if (!patchContent) return null;
+  if (!patchContent || typeof patchContent !== 'string') {
+    console.error('补丁内容无效');
+    return null;
+  }
+  
+  if (!originalCode || typeof originalCode !== 'string') {
+    console.error('原始代码无效');
+    return null;
+  }
   
   try {
-    const lines = originalCode.split('\n');
-    const patchLines = patchContent.split('\n');
+    // 统一换行符处理（跨平台兼容）
+    const lines = originalCode.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    const patchLines = patchContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    
+    // 验证 diff 格式
+    const hasValidHeader = patchLines.some(line => line.startsWith('---')) && 
+                           patchLines.some(line => line.startsWith('+++'));
+    if (!hasValidHeader) {
+      console.error('无效的 unified diff 格式：缺少文件头');
+      return null;
+    }
     
     // 解析 hunks
     const hunks = [];
     let currentHunk = null;
+    let hunkLineCount = 0; // 用于验证
     
-    for (const line of patchLines) {
+    for (let i = 0; i < patchLines.length; i++) {
+      const line = patchLines[i];
+      
       if (line.startsWith('@@')) {
-        if (currentHunk) hunks.push(currentHunk);
+        // 保存前一个 hunk
+        if (currentHunk) {
+          hunks.push(currentHunk);
+        }
         
         // 解析 @@ -start,count +start,count @@
-        const match = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+        const match = line.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
         if (match) {
           currentHunk = {
-            oldStart: parseInt(match[1]),
-            newStart: parseInt(match[2]),
+            oldStart: parseInt(match[1], 10),
+            oldCount: match[2] ? parseInt(match[2], 10) : 1,
+            newStart: parseInt(match[3], 10),
+            newCount: match[4] ? parseInt(match[4], 10) : 1,
             additions: [],
             removals: [],
-            context: []
+            context: [],
+            expectedLines: 0
           };
+          hunkLineCount = 0;
+        } else {
+          console.error(`无效的 hunk 头格式: ${line}`);
+          return null;
         }
       } else if (currentHunk) {
+        // 解析 hunk 内容
         if (line.startsWith('+') && !line.startsWith('+++')) {
           currentHunk.additions.push(line.substring(1));
+          hunkLineCount++;
         } else if (line.startsWith('-') && !line.startsWith('---')) {
           currentHunk.removals.push(line.substring(1));
-        } else if (line.startsWith(' ') || line === '') {
-          currentHunk.context.push(line.startsWith(' ') ? line.substring(1) : '');
+          hunkLineCount++;
+        } else if (line.startsWith(' ')) {
+          currentHunk.context.push(line.substring(1));
+          hunkLineCount++;
+        } else if (line === '') {
+          // 空行作为上下文处理（diff 格式中空行表示空内容）
+          currentHunk.context.push('');
+          hunkLineCount++;
+        } else if (!line.startsWith('\\') && !line.startsWith('No newline')) {
+          // 忽略 "No newline at end of file" 标记
+          console.warn(`未预期的 diff 行: ${line}`);
         }
       }
     }
     
-    if (currentHunk) hunks.push(currentHunk);
-    
-    // 从后向前应用 hunks,避免行号偏移
-    hunks.sort((a, b) => b.oldStart - a.oldStart);
-    
-    for (const hunk of hunks) {
-      const startIdx = hunk.oldStart - 1;
-      const removeCount = hunk.removals.length || hunk.context.filter((_, i) => 
-        i < hunk.context.length - hunk.additions.length
-      ).length;
-      
-      // 移除旧行,添加新行
-      lines.splice(startIdx, removeCount, ...hunk.additions, ...hunk.context.slice(hunk.additions.length));
+    // 保存最后一个 hunk
+    if (currentHunk) {
+      hunks.push(currentHunk);
     }
     
-    return lines.join('\n');
+    // 验证是否有有效的 hunks
+    if (hunks.length === 0) {
+      console.error('未找到有效的 hunk');
+      return null;
+    }
+    
+    // 保存原始代码用于回滚
+    const originalLines = [...lines];
+    
+    try {
+      // 从后向前应用 hunks, 避免行号偏移
+      hunks.sort((a, b) => b.oldStart - a.oldStart);
+      
+      for (const hunk of hunks) {
+        const startIdx = hunk.oldStart - 1;
+        
+        // 边界检查
+        if (startIdx < 0 || startIdx > lines.length) {
+          console.error(`无效的起始行号: ${hunk.oldStart}`);
+          return null;
+        }
+        
+        // 验证上下文匹配
+        const contextMatch = hunk.context.every((ctxLine, idx) => {
+          const lineIdx = startIdx + hunk.removals.length + idx;
+          // 宽松匹配：忽略首尾空白差异
+          return lineIdx < lines.length && 
+                 lines[lineIdx].trim() === ctxLine.trim();
+        });
+        
+        if (!contextMatch && hunk.context.length > 0) {
+          console.warn('上下文不匹配，补丁可能不适用');
+        }
+        
+        // 计算要移除的行数
+        const removeCount = hunk.removals.length || 
+                           Math.max(0, hunk.context.length - hunk.additions.length);
+        
+        // 构建新行
+        const newLines = [...hunk.additions, ...hunk.context];
+        
+        // 应用修改
+        lines.splice(startIdx, removeCount, ...newLines);
+      }
+      
+      // 返回修改后的代码
+      return lines.join('\n');
+      
+    } catch (applyError) {
+      console.error('应用补丁时出错:', applyError);
+      // 返回 null 表示失败
+      return null;
+    }
+    
   } catch (err) {
-    console.error('应用补丁失败:', err);
+    console.error('解析补丁失败:', err);
     return null;
   }
 }
@@ -313,12 +397,12 @@ function applyPatchToCode(originalCode, patchContent) {
 // 获取分类图标
 function getCategoryIcon(category) {
   const icons = {
-    performance: '⚡',
-    readability: '📖',
-    security: '🔒',
-    best_practice: '✨',
+    performance: '性能优化',
+    readability: '可读性',
+    security: '安全性',
+    best_practice: '最佳实践',
   };
-  return icons[category] || '📝';
+  return icons[category] || '建议';
 }
 
 export default PatchPanel;

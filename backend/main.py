@@ -4,10 +4,15 @@ PyVizAST - FastAPI Backend
 """
 import ast
 import logging
+import json
+from pathlib import Path
 from typing import Optional, Dict, Any, List
-from fastapi import FastAPI, HTTPException
+
+import uvicorn
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ValidationError
 
 from .models.schemas import (
     CodeInput, AnalysisResult, ASTGraph,
@@ -18,6 +23,28 @@ from .models.schemas import (
 from .ast_parser import ASTParser, NodeMapper
 from .analyzers import ComplexityAnalyzer, PerformanceAnalyzer, CodeSmellDetector, SecurityScanner
 from .optimizers import SuggestionEngine, PatchGenerator
+
+
+# 自定义异常类
+class AnalysisError(Exception):
+    """分析过程中的错误"""
+    pass
+
+
+class CodeParsingError(AnalysisError):
+    """代码解析错误"""
+    pass
+
+
+class CodeTooLargeError(AnalysisError):
+    """代码过大错误"""
+    pass
+
+
+class ResourceNotFoundError(Exception):
+    """资源未找到错误"""
+    pass
+
 
 # 配置日志
 logging.basicConfig(
@@ -46,6 +73,78 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+
+# 全局异常处理器
+@app.exception_handler(ValidationError)
+async def validation_exception_handler(request: Request, exc: ValidationError):
+    """处理 Pydantic 验证错误"""
+    logger.warning(f"验证错误: {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": f"输入验证失败: {exc}"}
+    )
+
+
+@app.exception_handler(CodeParsingError)
+async def code_parsing_exception_handler(request: Request, exc: CodeParsingError):
+    """处理代码解析错误"""
+    logger.warning(f"代码解析错误: {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"detail": str(exc)}
+    )
+
+
+@app.exception_handler(CodeTooLargeError)
+async def code_too_large_exception_handler(request: Request, exc: CodeTooLargeError):
+    """处理代码过大错误"""
+    logger.warning(f"代码过大: {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+        content={"detail": str(exc)}
+    )
+
+
+@app.exception_handler(ResourceNotFoundError)
+async def resource_not_found_exception_handler(request: Request, exc: ResourceNotFoundError):
+    """处理资源未找到错误"""
+    logger.warning(f"资源未找到: {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={"detail": str(exc)}
+    )
+
+
+@app.exception_handler(AnalysisError)
+async def analysis_exception_handler(request: Request, exc: AnalysisError):
+    """处理分析过程中的错误"""
+    logger.error(f"分析错误: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": f"分析过程中发生错误: {str(exc)}"}
+    )
+
+
+@app.exception_handler(OSError)
+async def os_exception_handler(request: Request, exc: OSError):
+    """处理操作系统错误（如文件操作）"""
+    logger.error(f"系统错误: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "服务器内部错误，请稍后重试"}
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """处理所有未捕获的异常"""
+    logger.error(f"未处理的异常: {exc}", exc_info=True)
+    # 生产环境不返回详细错误信息
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "服务器内部错误"}
+    )
 
 
 # 本地模型定义
@@ -141,7 +240,13 @@ async def analyze_code(input_data: CodeInput):
         logger.debug(f"代码行数: {code_lines}, 简化模式: {auto_simplified}")
         
         # 解析AST
-        tree = ast.parse(code)
+        try:
+            tree = ast.parse(code)
+        except SyntaxError as e:
+            raise CodeParsingError(f"语法错误: {str(e)}")
+        except MemoryError:
+            raise CodeTooLargeError("代码过大，无法解析")
+        
         parser = get_parser({'simplified': auto_simplified, **options})
         ast_graph = parser.parse(code)
         
@@ -207,12 +312,15 @@ async def analyze_code(input_data: CodeInput):
             summary=summary
         )
     
-    except SyntaxError as e:
-        logger.warning(f"语法错误: {e}")
-        raise HTTPException(status_code=400, detail=f"语法错误: {str(e)}")
-    except Exception as e:
-        logger.error(f"分析错误: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"分析错误: {str(e)}")
+    except (CodeParsingError, CodeTooLargeError):
+        # 重新抛出已知异常，让全局处理器处理
+        raise
+    except RecursionError:
+        logger.error("递归深度超限")
+        raise AnalysisError("代码结构过于复杂，无法分析")
+    except MemoryError:
+        logger.error("内存不足")
+        raise CodeTooLargeError("代码过大，内存不足")
 
 
 @app.post("/api/ast")
@@ -232,8 +340,13 @@ async def get_ast(input_data: CodeInput):
         auto_simplified = code_lines > 500 or options.get('simplified', False)
         
         # 解析AST
-        parser = get_parser({'simplified': auto_simplified, **options})
-        ast_graph = parser.parse(code)
+        try:
+            parser = get_parser({'simplified': auto_simplified, **options})
+            ast_graph = parser.parse(code)
+        except SyntaxError as e:
+            raise CodeParsingError(f"语法错误: {str(e)}")
+        except MemoryError:
+            raise CodeTooLargeError("代码过大，无法解析")
         
         # 应用主题和布局
         theme = options.get('theme', 'default')
@@ -253,9 +366,8 @@ async def get_ast(input_data: CodeInput):
         else:
             return ast_graph
     
-    except SyntaxError as e:
-        logger.warning(f"语法错误: {e}")
-        raise HTTPException(status_code=400, detail=f"语法错误: {str(e)}")
+    except (CodeParsingError, CodeTooLargeError):
+        raise
 
 
 @app.post("/api/ast/filter")
@@ -278,18 +390,30 @@ async def filter_ast(input_data: CodeInput, node_types: Optional[str] = None, ma
         
         # 按类型过滤
         if node_types:
-            types = [NodeType[t.strip().upper()] for t in node_types.split(',')]
+            try:
+                types = [NodeType[t.strip().upper()] for t in node_types.split(',')]
+            except KeyError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"无效的节点类型: {e}"
+                )
             ast_graph = node_mapper.filter_by_type(ast_graph, types)
         
         # 按深度过滤
         if max_depth:
+            if max_depth < 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="最大深度必须大于0"
+                )
             ast_graph = node_mapper.filter_by_depth(ast_graph, max_depth)
         
         return node_mapper.to_cytoscape_elements(ast_graph)
     
-    except Exception as e:
-        logger.error(f"过滤AST节点错误: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except SyntaxError as e:
+        raise CodeParsingError(f"语法错误: {str(e)}")
 
 
 @app.post("/api/complexity", response_model=ComplexityMetrics)
@@ -304,10 +428,8 @@ async def get_complexity(input_data: CodeInput):
         tree = ast.parse(code)
         analyzer = AnalyzerFactory.create_complexity_analyzer()
         return analyzer.analyze(code, tree)
-    
     except SyntaxError as e:
-        logger.warning(f"语法错误: {e}")
-        raise HTTPException(status_code=400, detail=f"语法错误: {str(e)}")
+        raise CodeParsingError(f"语法错误: {str(e)}")
 
 
 @app.post("/api/performance")
@@ -328,10 +450,8 @@ async def get_performance_issues(input_data: CodeInput):
             "hotspots": hotspots,
             "issues": issues
         }
-    
     except SyntaxError as e:
-        logger.warning(f"语法错误: {e}")
-        raise HTTPException(status_code=400, detail=f"语法错误: {str(e)}")
+        raise CodeParsingError(f"语法错误: {str(e)}")
 
 
 @app.post("/api/security")
@@ -345,17 +465,15 @@ async def get_security_issues(input_data: CodeInput):
         code = input_data.code
         tree = ast.parse(code)
         scanner = AnalyzerFactory.create_security_scanner()
-        issues = scanner.scan(code, tree)
+        scanner.scan(code, tree)
         summary = scanner.get_security_summary()
         
         return {
-            "issues": issues,
+            "issues": scanner.issues,
             "summary": summary
         }
-    
     except SyntaxError as e:
-        logger.warning(f"语法错误: {e}")
-        raise HTTPException(status_code=400, detail=f"语法错误: {str(e)}")
+        raise CodeParsingError(f"语法错误: {str(e)}")
 
 
 @app.post("/api/suggestions")
@@ -397,10 +515,8 @@ async def get_suggestions(input_data: CodeInput):
             "by_category": by_category,
             "high_priority": suggestion_engine.get_high_priority_suggestions()
         }
-    
     except SyntaxError as e:
-        logger.warning(f"语法错误: {e}")
-        raise HTTPException(status_code=400, detail=f"语法错误: {str(e)}")
+        raise CodeParsingError(f"语法错误: {str(e)}")
 
 
 @app.post("/api/patches")
@@ -426,10 +542,8 @@ async def generate_patches(input_data: CodeInput):
             "patches": patches,
             "total": len(patches)
         }
-    
     except SyntaxError as e:
-        logger.warning(f"语法错误: {e}")
-        raise HTTPException(status_code=400, detail=f"语法错误: {str(e)}")
+        raise CodeParsingError(f"语法错误: {str(e)}")
 
 
 @app.post("/api/apply-patch")
@@ -443,12 +557,18 @@ async def apply_patch(request: PatchApplyRequest):
         patch_generator = AnalyzerFactory.create_patch_generator()
         result = patch_generator.apply_patch(request.code, request.patch)
         if result is None:
-            raise HTTPException(status_code=400, detail="补丁应用失败")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="补丁应用失败，格式不正确或与代码不匹配"
+            )
         return {"fixed_code": result}
-    
-    except Exception as e:
-        logger.error(f"补丁应用失败: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"补丁格式错误: {str(e)}"
+        )
 
 
 # 交互式学习模式端点
@@ -474,7 +594,7 @@ async def explain_node(node_id: str, input_data: CodeInput):
                 break
         
         if not node:
-            raise HTTPException(status_code=404, detail="节点未找到")
+            raise ResourceNotFoundError(f"节点未找到: {node_id}")
         
         # 生成解释
         explanation = _generate_node_explanation(node)
@@ -487,10 +607,10 @@ async def explain_node(node_id: str, input_data: CodeInput):
             related_concepts=explanation.get('related', [])
         )
     
-    except HTTPException:
+    except (ResourceNotFoundError, CodeParsingError):
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except SyntaxError as e:
+        raise CodeParsingError(f"语法错误: {str(e)}")
 
 
 # 挑战数据加载器
@@ -550,7 +670,7 @@ async def get_challenge(challenge_id: str):
                 "difficulty": challenge["difficulty"],
                 "hints": challenge.get("hints", [])
             }
-    raise HTTPException(status_code=404, detail="挑战未找到")
+    raise ResourceNotFoundError(f"挑战未找到: {challenge_id}")
 
 
 class ChallengeSubmission(BaseModel):
@@ -584,7 +704,7 @@ async def submit_challenge(submission: ChallengeSubmission):
                 feedback=_generate_challenge_feedback(correct, missed, wrong)
             )
     
-    raise HTTPException(status_code=404, detail="挑战未找到")
+    raise ResourceNotFoundError(f"挑战未找到: {submission.challenge_id}")
 
 
 def _generate_node_explanation(node) -> Dict[str, Any]:

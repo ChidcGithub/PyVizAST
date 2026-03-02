@@ -176,6 +176,33 @@ Contributions are welcome. Please submit pull requests to the main repository.
 
 <details> <summary>Version History</summary>
 
+### v0.3.3 (2026-03-02)
+**New Features:**
+- **Search Functionality**: Search nodes in 2D/3D AST view
+  - Search by function name, variable name, or node type
+  - Keyboard navigation (↑↓ to navigate, Enter to jump, Esc to close)
+  - Click search result to focus node and jump to editor line
+- **Resizable Panels**: Drag the divider between editor and visualization panels
+  - Adjust panel sizes by dragging the center divider
+  - Position saved during session (20%-80% range)
+  - Responsive design: auto-stacks on smaller screens
+
+**Backend Code Quality:**
+- Added input validation in `schemas.py` (code length, line number ranges, type whitelists)
+- Added custom exception classes for better error handling
+- Refactored exception handling in `main.py` with specific exception types
+- Improved production error messages (no stack trace exposure)
+
+**Frontend Bug Fixes:**
+- Fixed AST visualizer initialization issue (first analyze not showing graph)
+- Fixed 2D/3D switch requiring re-analyze
+- Fixed particle key generation strategy to prevent conflicts
+- Fixed `useFrame` state update causing potential infinite loops
+- Fixed keyboard navigation conflict with search input
+- Added `withRetry` wrapper to all API calls for better reliability
+- Improved optional chaining consistency in `AnalysisPanel.js`
+- Enhanced diff parsing in `PatchPanel.js` with better edge case handling
+
 ### v0.3.2 (2026-03-01)
 **Animation Redesign:**
 - Redesigned particle animations with clean white theme

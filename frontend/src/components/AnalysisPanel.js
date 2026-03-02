@@ -42,35 +42,51 @@ function AnalysisPanel({ result, activeTab, code, onApplyPatch }) {
 }
 
 const ComplexityPanel = React.memo(function ComplexityPanel({ result }) {
-  const { complexity, issues } = result;
-  const complexityIssues = issues?.filter(i => i.type === 'complexity') || [];
+  // 统一的空值检查
+  const complexity = result?.complexity;
+  const issues = result?.issues;
+  const complexityIssues = issues?.filter(i => i?.type === 'complexity') || [];
+
+  // 提取复杂度指标，使用默认值防止 undefined
+  const metrics = {
+    cyclomatic_complexity: complexity?.cyclomatic_complexity ?? 0,
+    cognitive_complexity: complexity?.cognitive_complexity ?? 0,
+    maintainability_index: complexity?.maintainability_index ?? 100,
+    max_nesting_depth: complexity?.max_nesting_depth ?? 0,
+    lines_of_code: complexity?.lines_of_code ?? 0,
+    function_count: complexity?.function_count ?? 0,
+    class_count: complexity?.class_count ?? 0,
+    avg_function_length: complexity?.avg_function_length ?? 0,
+    halstead_volume: complexity?.halstead_volume ?? 0,
+    halstead_difficulty: complexity?.halstead_difficulty ?? 0,
+  };
 
   return (
     <div className="panel-content">
       <div className="metrics-grid">
         <MetricCard
           title="圈复杂度"
-          value={complexity?.cyclomatic_complexity || 0}
-          status={getComplexityStatus(complexity?.cyclomatic_complexity)}
+          value={metrics.cyclomatic_complexity}
+          status={getComplexityStatus(metrics.cyclomatic_complexity)}
           description="代码分支数量"
         />
         <MetricCard
           title="认知复杂度"
-          value={complexity?.cognitive_complexity || 0}
-          status={getComplexityStatus(complexity?.cognitive_complexity)}
+          value={metrics.cognitive_complexity}
+          status={getComplexityStatus(metrics.cognitive_complexity)}
           description="理解代码的难度"
         />
         <MetricCard
           title="可维护性指数"
-          value={complexity?.maintainability_index?.toFixed(1) || 100}
-          status={getMaintainabilityStatus(complexity?.maintainability_index)}
+          value={metrics.maintainability_index.toFixed(1)}
+          status={getMaintainabilityStatus(metrics.maintainability_index)}
           description="越高越好"
           suffix="/100"
         />
         <MetricCard
           title="最大嵌套深度"
-          value={complexity?.max_nesting_depth || 0}
-          status={getNestingStatus(complexity?.max_nesting_depth)}
+          value={metrics.max_nesting_depth}
+          status={getNestingStatus(metrics.max_nesting_depth)}
           description="层级嵌套数"
         />
       </div>
@@ -78,12 +94,12 @@ const ComplexityPanel = React.memo(function ComplexityPanel({ result }) {
       <div className="section">
         <h3 className="section-title">详细指标</h3>
         <div className="detail-list">
-          <DetailItem label="代码行数" value={complexity?.lines_of_code || 0} />
-          <DetailItem label="函数数量" value={complexity?.function_count || 0} />
-          <DetailItem label="类数量" value={complexity?.class_count || 0} />
-          <DetailItem label="平均函数长度" value={`${(complexity?.avg_function_length || 0).toFixed(1)} 行`} />
-          <DetailItem label="Halstead 容量" value={(complexity?.halstead_volume || 0).toFixed(1)} />
-          <DetailItem label="Halstead 难度" value={(complexity?.halstead_difficulty || 0).toFixed(1)} />
+          <DetailItem label="代码行数" value={metrics.lines_of_code} />
+          <DetailItem label="函数数量" value={metrics.function_count} />
+          <DetailItem label="类数量" value={metrics.class_count} />
+          <DetailItem label="平均函数长度" value={`${metrics.avg_function_length.toFixed(1)} 行`} />
+          <DetailItem label="Halstead 容量" value={metrics.halstead_volume.toFixed(1)} />
+          <DetailItem label="Halstead 难度" value={metrics.halstead_difficulty.toFixed(1)} />
         </div>
       </div>
 
@@ -98,27 +114,29 @@ const ComplexityPanel = React.memo(function ComplexityPanel({ result }) {
 });
 
 const PerformancePanel = React.memo(function PerformancePanel({ result }) {
-  const { performance_hotspots, issues } = result;
-  const perfIssues = issues?.filter(i => i.type === 'performance') || [];
+  // 统一的空值检查
+  const performance_hotspots = result?.performance_hotspots ?? [];
+  const issues = result?.issues ?? [];
+  const perfIssues = issues.filter(i => i?.type === 'performance');
 
   return (
     <div className="panel-content">
       <div className="section">
-        <h3 className="section-title">性能热点 ({performance_hotspots?.length || 0})</h3>
-        {performance_hotspots?.length > 0 ? (
+        <h3 className="section-title">性能热点 ({performance_hotspots.length})</h3>
+        {performance_hotspots.length > 0 ? (
           <div className="hotspot-list">
             {performance_hotspots.map((hotspot, index) => (
-              <div key={hotspot.id || index} className="hotspot-card">
+              <div key={hotspot?.id ?? index} className="hotspot-card">
                 <div className="hotspot-header">
                   <AlertTriangle size={18} className="warning-icon" />
-                  <span className="hotspot-type">{hotspot.hotspot_type}</span>
-                  <span className="hotspot-complexity">{hotspot.estimated_complexity}</span>
+                  <span className="hotspot-type">{hotspot?.hotspot_type ?? '未知类型'}</span>
+                  <span className="hotspot-complexity">{hotspot?.estimated_complexity ?? 'N/A'}</span>
                 </div>
-                <p className="hotspot-description">{hotspot.description}</p>
-                {hotspot.suggestion && (
+                <p className="hotspot-description">{hotspot?.description ?? '无描述'}</p>
+                {hotspot?.suggestion && (
                   <p className="hotspot-suggestion">建议: {hotspot.suggestion}</p>
                 )}
-                {hotspot.lineno && (
+                {hotspot?.lineno && (
                   <span className="hotspot-location">行 {hotspot.lineno}</span>
                 )}
               </div>
@@ -143,7 +161,8 @@ const PerformancePanel = React.memo(function PerformancePanel({ result }) {
 });
 
 const SecurityPanel = React.memo(function SecurityPanel({ result }) {
-  const securityIssues = result.issues?.filter(i => i.type === 'security') || [];
+  // 统一的空值检查
+  const securityIssues = result?.issues?.filter(i => i?.type === 'security') ?? [];
 
   return (
     <div className="panel-content">
@@ -154,15 +173,15 @@ const SecurityPanel = React.memo(function SecurityPanel({ result }) {
           <>
             <div className="security-summary">
               <div className="summary-item critical">
-                <span className="count">{securityIssues.filter(i => i.severity === 'critical').length}</span>
+                <span className="count">{securityIssues.filter(i => i?.severity === 'critical').length}</span>
                 <span className="label">严重</span>
               </div>
               <div className="summary-item error">
-                <span className="count">{securityIssues.filter(i => i.severity === 'error').length}</span>
+                <span className="count">{securityIssues.filter(i => i?.severity === 'error').length}</span>
                 <span className="label">错误</span>
               </div>
               <div className="summary-item warning">
-                <span className="count">{securityIssues.filter(i => i.severity === 'warning').length}</span>
+                <span className="count">{securityIssues.filter(i => i?.severity === 'warning').length}</span>
                 <span className="label">警告</span>
               </div>
             </div>
@@ -181,7 +200,8 @@ const SecurityPanel = React.memo(function SecurityPanel({ result }) {
 });
 
 const SuggestionsPanel = React.memo(function SuggestionsPanel({ result }) {
-  const suggestions = result.suggestions || [];
+  // 统一的空值检查
+  const suggestions = result?.suggestions ?? [];
   const byCategory = groupByCategory(suggestions);
 
   return (
@@ -195,12 +215,12 @@ const SuggestionsPanel = React.memo(function SuggestionsPanel({ result }) {
               <div key={category} className="suggestion-category">
                 <h4 className="category-title">
                   {getCategoryLabel(category)}
-                  <span className="category-count">{items.length}</span>
+                  <span className="category-count">{items?.length ?? 0}</span>
                 </h4>
                 <div className="category-items">
-                  {items.map((suggestion, index) => (
-                    <SuggestionCard key={suggestion.id || index} suggestion={suggestion} />
-                  ))}
+                  {items?.map((suggestion, index) => (
+                    <SuggestionCard key={suggestion?.id ?? index} suggestion={suggestion} />
+                  )) ?? null}
                 </div>
               </div>
             ))}

@@ -146,32 +146,40 @@ export const getAST = async (code, format = 'cytoscape', theme = 'default') => {
  * 获取复杂度分析
  */
 export const getComplexity = async (code) => {
-  const response = await api.post('/api/complexity', { code });
-  return response.data;
+  return withRetry(async () => {
+    const response = await api.post('/api/complexity', { code });
+    return response.data;
+  });
 };
 
 /**
  * 获取性能问题
  */
 export const getPerformanceIssues = async (code) => {
-  const response = await api.post('/api/performance', { code });
-  return response.data;
+  return withRetry(async () => {
+    const response = await api.post('/api/performance', { code });
+    return response.data;
+  });
 };
 
 /**
  * 获取安全问题
  */
 export const getSecurityIssues = async (code) => {
-  const response = await api.post('/api/security', { code });
-  return response.data;
+  return withRetry(async () => {
+    const response = await api.post('/api/security', { code });
+    return response.data;
+  });
 };
 
 /**
  * 获取优化建议
  */
 export const getSuggestions = async (code) => {
-  const response = await api.post('/api/suggestions', { code });
-  return response.data;
+  return withRetry(async () => {
+    const response = await api.post('/api/suggestions', { code });
+    return response.data;
+  });
 };
 
 /**

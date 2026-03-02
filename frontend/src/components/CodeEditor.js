@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import Editor from '@monaco-editor/react';
 
 // Minimalist Monochrome Theme Definitions
@@ -56,9 +56,103 @@ const monochromeLightTheme = {
   }
 };
 
-function CodeEditor({ code, onChange, theme }) {
+const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref) {
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
+
+  // 暴露方法给父组件
+  useImperativeHandle(ref, () => ({
+    /**
+     * 跳转到指定行并高亮
+     * @param {number} lineNumber - 行号（从1开始）
+     * @param {number} [column] - 可选的列号
+     * @param {number} [endLine] - 可选的结束行号（用于选中多行）
+     */
+    goToLine: (lineNumber, column = 1, endLine = null) => {
+      if (!editorRef.current) return;
+      
+      const editor = editorRef.current;
+      const model = editor.getModel();
+      if (!model) return;
+      
+      // 确保行号在有效范围内
+      const lineCount = model.getLineCount();
+      const targetLine = Math.max(1, Math.min(lineNumber, lineCount));
+      const targetColumn = Math.max(1, column);
+      
+      // 设置选区
+      if (endLine && endLine > targetLine) {
+        const endLineNumber = Math.min(endLine, lineCount);
+        editor.setSelection({
+          startLineNumber: targetLine,
+          startColumn: 1,
+          endLineNumber: endLineNumber,
+          endColumn: model.getLineContent(endLineNumber).length + 1
+        });
+      } else {
+        // 选中整行
+        editor.setSelection({
+          startLineNumber: targetLine,
+          startColumn: 1,
+          endLineNumber: targetLine,
+          endColumn: model.getLineContent(targetLine).length + 1
+        });
+      }
+      
+      // 滚动到该行并居中显示
+      editor.revealLineInCenter(targetLine);
+      
+      // 聚焦编辑器
+      editor.focus();
+    },
+    
+    /**
+     * 高亮指定行范围（添加装饰）
+     * @param {number} startLine - 起始行
+     * @param {number} endLine - 结束行
+     * @returns {string} 装饰ID，用于后续清除
+     */
+    highlightLines: (startLine, endLine) => {
+      if (!editorRef.current || !monacoRef.current) return null;
+      
+      const editor = editorRef.current;
+      const monaco = monacoRef.current;
+      const model = editor.getModel();
+      if (!model) return null;
+      
+      const lineCount = model.getLineCount();
+      const start = Math.max(1, Math.min(startLine, lineCount));
+      const end = Math.max(start, Math.min(endLine, lineCount));
+      
+      // 添加行高亮装饰
+      const decorationIds = editor.deltaDecorations([], [
+        {
+          range: new monaco.Range(start, 1, end, model.getLineContent(end).length + 1),
+          options: {
+            isWholeLine: true,
+            className: 'highlighted-line',
+            glyphMarginClassName: 'highlighted-line-glyph',
+          }
+        }
+      ]);
+      
+      return decorationIds[0];
+    },
+    
+    /**
+     * 清除高亮装饰
+     * @param {string} decorationId - 装饰ID
+     */
+    clearHighlight: (decorationId) => {
+      if (!editorRef.current || !decorationId) return;
+      editorRef.current.deltaDecorations([decorationId], []);
+    },
+    
+    /**
+     * 获取编辑器实例
+     */
+    getEditor: () => editorRef.current
+  }));
 
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
@@ -152,6 +246,6 @@ function CodeEditor({ code, onChange, theme }) {
       </div>
     </div>
   );
-}
+});
 
 export default CodeEditor;
