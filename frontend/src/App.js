@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import LoadingOverlay from './components/LoadingOverlay';
 import ErrorBoundary from './components/ErrorBoundary';
+import ProjectAnalysisView from './components/ProjectAnalysisView';
 import { analyzeCode, checkServerHealth, getApiBaseUrl } from './api';
 import './App.css';
 import './components/components.css';
@@ -116,7 +117,12 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [theme, setTheme] = useState('dark');
   const [viewMode, setViewMode] = useState('2d'); // '2d' or '3d'
+  const [appViewMode, setAppViewMode] = useState('single'); // 'single' or 'project'
   const [serverStatus, setServerStatus] = useState({ checking: true, connected: false });
+  const [isProjectAnalyzing, setIsProjectAnalyzing] = useState(false); // 项目分析加载状态
+  
+  // ProjectAnalysisView 的 ref
+  const projectViewRef = useRef(null);
   
   // 分割线拖动状态
   const [splitPosition, setSplitPosition] = useState(50); // 百分比
@@ -195,6 +201,15 @@ function App() {
   }, []);
 
   const handleAnalyze = useCallback(async () => {
+    // 项目分析模式
+    if (appViewMode === 'project') {
+      if (projectViewRef.current) {
+        await projectViewRef.current.analyze();
+      }
+      return;
+    }
+
+    // 单文件分析模式
     if (!code.trim()) {
       setError('请输入Python代码');
       return;
@@ -234,7 +249,7 @@ function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [code, serverStatus.connected]);
+  }, [code, serverStatus.connected, appViewMode]);
 
   const handleCodeChange = useCallback((newCode) => {
     setCode(newCode);
@@ -260,130 +275,146 @@ function App() {
       <Header 
         onAnalyze={handleAnalyze}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        isLoading={isLoading}
+        isLoading={isLoading || isProjectAnalyzing}
         theme={theme}
         onThemeChange={setTheme}
+        viewMode={appViewMode}
+        onViewModeChange={setAppViewMode}
       />
       
       <div className="app-body">
-        <Sidebar 
-          isOpen={sidebarOpen}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          analysisResult={analysisResult}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-        />
-        
-        <main 
-          className="main-content" 
-          ref={mainContentRef}
-          style={{ 
-            '--split-position': `${splitPosition}%`,
-            cursor: isDragging ? 'col-resize' : 'default'
-          }}
-        >
-          <div className="editor-panel">
-            <CodeEditor 
-              ref={editorRef}
-              code={code}
-              onChange={handleCodeChange}
+        {appViewMode === 'project' ? (
+          // 项目分析视图
+          <main className="main-content project-mode">
+            <ProjectAnalysisView 
+              ref={projectViewRef}
               theme={theme}
+              onAnalysisStateChange={setIsProjectAnalyzing}
             />
-          </div>
-          
-          {/* 可拖动的分割线 */}
-          <div 
-            className={`resize-divider ${isDragging ? 'dragging' : ''}`}
-            onMouseDown={handleMouseDown}
-          >
-            <div className="resize-handle">
-              <svg width="4" height="24" viewBox="0 0 4 24" fill="none">
-                <circle cx="2" cy="6" r="1" fill="currentColor" />
-                <circle cx="2" cy="12" r="1" fill="currentColor" />
-                <circle cx="2" cy="18" r="1" fill="currentColor" />
-              </svg>
-            </div>
-          </div>
-          
-          <div className="visualization-panel">
-            {/* 服务器连接状态 */}
-            {!serverStatus.checking && !serverStatus.connected && (
-              <div className="server-status-error">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
-                  <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
-                  <line x1="6" y1="6" x2="6.01" y2="6" />
-                  <line x1="6" y1="18" x2="6.01" y2="18" />
-                </svg>
-                <div className="status-content">
-                  <strong>无法连接到后端服务器</strong>
-                  <p>API地址: {getApiBaseUrl()}</p>
-                  <p className="status-hint">请在终端运行: <code>python run.py backend</code></p>
+          </main>
+        ) : (
+          // 单文件分析视图
+          <>
+            <Sidebar 
+              isOpen={sidebarOpen}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              analysisResult={analysisResult}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+            />
+            
+            <main 
+              className="main-content" 
+              ref={mainContentRef}
+              style={{ 
+                '--split-position': `${splitPosition}%`,
+                cursor: isDragging ? 'col-resize' : 'default'
+              }}
+            >
+              <div className="editor-panel">
+                <CodeEditor 
+                  ref={editorRef}
+                  code={code}
+                  onChange={handleCodeChange}
+                  theme={theme}
+                />
+              </div>
+              
+              {/* 可拖动的分割线 */}
+              <div 
+                className={`resize-divider ${isDragging ? 'dragging' : ''}`}
+                onMouseDown={handleMouseDown}
+              >
+                <div className="resize-handle">
+                  <svg width="4" height="24" viewBox="0 0 4 24" fill="none">
+                    <circle cx="2" cy="6" r="1" fill="currentColor" />
+                    <circle cx="2" cy="12" r="1" fill="currentColor" />
+                    <circle cx="2" cy="18" r="1" fill="currentColor" />
+                  </svg>
                 </div>
               </div>
-            )}
-            
-            {error && (
-              <div className="error-message">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8" x2="12" y2="12" />
-                  <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-                {error}
-              </div>
-            )}
-            
-            <ErrorBoundary>
-              {analysisResult ? (
-                activeTab === 'ast' ? (
-                  <Suspense fallback={<ComponentLoader />}>
-                    {viewMode === '3d' ? (
-                      <ASTVisualizer3D 
-                        graph={analysisResult.ast_graph}
-                        theme={theme}
-                        onGoToLine={handleGoToLine}
-                      />
-                    ) : (
-                      <ASTVisualizer 
-                        graph={analysisResult.ast_graph}
-                        theme={theme}
-                        onGoToLine={handleGoToLine}
-                      />
-                    )}
-                  </Suspense>
-                ) : (
-                  <Suspense fallback={<ComponentLoader />}>
-                    <AnalysisPanel 
-                      result={analysisResult}
-                      activeTab={activeTab}
-                      code={code}
-                      onApplyPatch={handleCodeChange}
-                    />
-                  </Suspense>
-                )
-              ) : (
-                <div className="placeholder">
-                  <div className="placeholder-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <line x1="16" y1="13" x2="8" y2="13" />
-                      <line x1="16" y1="17" x2="8" y2="17" />
-                      <polyline points="10 9 9 9 8 9" />
+              
+              <div className="visualization-panel">
+                {/* 服务器连接状态 */}
+                {!serverStatus.checking && !serverStatus.connected && (
+                  <div className="server-status-error">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+                      <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+                      <line x1="6" y1="6" x2="6.01" y2="6" />
+                      <line x1="6" y1="18" x2="6.01" y2="18" />
                     </svg>
+                    <div className="status-content">
+                      <strong>无法连接到后端服务器</strong>
+                      <p>API地址: {getApiBaseUrl()}</p>
+                      <p className="status-hint">请在终端运行: <code>python run.py backend</code></p>
+                    </div>
                   </div>
-                  <h3>PyVizAST</h3>
-                  <p>Enter Python code and click Analyze to begin</p>
-                  <p className="placeholder-hint">
-                    AST visualization, complexity analysis, performance detection, security scanning
-                  </p>
-                </div>
-              )}
-            </ErrorBoundary>
-          </div>
-        </main>
+                )}
+                
+                {error && (
+                  <div className="error-message">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    {error}
+                  </div>
+                )}
+                
+                <ErrorBoundary>
+                  {analysisResult ? (
+                    activeTab === 'ast' ? (
+                      <Suspense fallback={<ComponentLoader />}>
+                        {viewMode === '3d' ? (
+                          <ASTVisualizer3D 
+                            graph={analysisResult.ast_graph}
+                            theme={theme}
+                            onGoToLine={handleGoToLine}
+                          />
+                        ) : (
+                          <ASTVisualizer 
+                            graph={analysisResult.ast_graph}
+                            theme={theme}
+                            onGoToLine={handleGoToLine}
+                          />
+                        )}
+                      </Suspense>
+                    ) : (
+                      <Suspense fallback={<ComponentLoader />}>
+                        <AnalysisPanel 
+                          result={analysisResult}
+                          activeTab={activeTab}
+                          code={code}
+                          onApplyPatch={handleCodeChange}
+                        />
+                      </Suspense>
+                    )
+                  ) : (
+                    <div className="placeholder">
+                      <div className="placeholder-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                          <line x1="16" y1="13" x2="8" y2="13" />
+                          <line x1="16" y1="17" x2="8" y2="17" />
+                          <polyline points="10 9 9 9 8 9" />
+                        </svg>
+                      </div>
+                      <h3>PyVizAST</h3>
+                      <p>Enter Python code and click Analyze to begin</p>
+                      <p className="placeholder-hint">
+                        AST visualization, complexity analysis, performance detection, security scanning
+                      </p>
+                    </div>
+                  )}
+                </ErrorBoundary>
+              </div>
+            </main>
+          </>
+        )}
       </div>
     </div>
   );

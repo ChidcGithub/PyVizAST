@@ -23,6 +23,12 @@
   position: relative;
 }
 
+/* 项目分析模式 - 全宽显示 */
+.main-content.project-mode {
+  padding: 0;
+  background: var(--bg-secondary);
+}
+
 .editor-panel {
   display: flex;
   flex-direction: column;
