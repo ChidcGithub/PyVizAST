@@ -2,7 +2,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.128+-green.svg)
-[![GitHub Release (including pre-releases)](https://img.shields.io/github/v/release/chidcGithub/PyVizAST?include_prereleases&label=Latest)](https://github.com/chidcGithub/PyVizAST/releases)
+[![GitHub Release (including pre-releases)](https://img.shields.io/github/v/release/chidcGithub/PyVizAST?include_prereleases&label=PyVizAST Latest Version)](https://github.com/chidcGithub/PyVizAST/releases)
 
 
 A Python AST Visualizer & Static Analyzer that transforms code into interactive graphs. Detect complexity, performance bottlenecks, and code smells with actionable refactoring suggestions.
