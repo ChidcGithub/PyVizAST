@@ -366,7 +366,12 @@ class SecurityScanner:
                     for keyword in node.keywords:
                         if keyword.arg in ('enabled', 'disable'):
                             if isinstance(keyword.value, ast.Constant):
-                                if keyword.value.value == False or keyword.value.value == True:
+                                # 检查 enabled=False 或 disable=True 的情况
+                                is_disabled = (
+                                    (keyword.arg == 'enabled' and keyword.value.value == False) or
+                                    (keyword.arg == 'disable' and keyword.value.value == True)
+                                )
+                                if is_disabled:
                                     self.issues.append(CodeIssue(
                                         id=self._generate_issue_id("csrf_disabled"),
                                         type="security",

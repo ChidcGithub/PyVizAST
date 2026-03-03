@@ -177,15 +177,25 @@ class NodeMapper:
             })
         
         links = []
+        skipped_edges = 0
         for edge in graph.edges:
+            # 检查边的源节点和目标节点是否存在
+            if edge.source not in node_id_to_index or edge.target not in node_id_to_index:
+                skipped_edges += 1
+                continue
+            
             links.append({
-                "source": node_id_to_index.get(edge.source, 0),
-                "target": node_id_to_index.get(edge.target, 0),
+                "source": node_id_to_index[edge.source],
+                "target": node_id_to_index[edge.target],
                 "type": edge.edge_type,
                 "label": edge.label
             })
         
-        return {"nodes": nodes, "links": links, "metadata": graph.metadata}
+        metadata = dict(graph.metadata) if graph.metadata else {}
+        if skipped_edges > 0:
+            metadata["skipped_edges"] = skipped_edges
+        
+        return {"nodes": nodes, "links": links, "metadata": metadata}
     
     def to_hierarchical_tree(self, graph: ASTGraph) -> Dict[str, Any]:
         """

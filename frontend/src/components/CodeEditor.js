@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import Editor from '@monaco-editor/react';
+import { useResizeObserver } from '../hooks/useResizeObserver';
 
 // Minimalist Monochrome Theme Definitions
 const monochromeDarkTheme = {
@@ -59,6 +60,20 @@ const monochromeLightTheme = {
 const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref) {
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
+  const containerRef = useRef(null);
+
+  // 使用我们的 ResizeObserver 来触发布局更新
+  // 这避免了 Monaco 内部的 ResizeObserver 与其他 ResizeObserver 冲突
+  // 注意：只在编辑器挂载后才调用 layout
+  useResizeObserver(containerRef, () => {
+    if (editorRef.current && monacoRef.current) {
+      try {
+        editorRef.current.layout();
+      } catch (e) {
+        // 忽略布局错误
+      }
+    }
+  }, { debounce: 50, immediate: false });
 
   // 暴露方法给父组件
   useImperativeHandle(ref, () => ({
@@ -164,6 +179,20 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref
     
     // Set initial theme
     monaco.editor.setTheme(theme === 'dark' ? 'monochrome-dark' : 'monochrome-light');
+    
+    // 首次挂载时触发布局，确保编辑器正确渲染
+    // 使用 setTimeout 确保 DOM 已完全更新
+    setTimeout(() => {
+      if (editorRef.current && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          editorRef.current.layout({
+            width: rect.width,
+            height: rect.height
+          });
+        }
+      }
+    }, 0);
   };
 
   const handleEditorChange = (value) => {
@@ -201,7 +230,7 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref
           </button>
         </div>
       </div>
-      <div className="editor-container">
+      <div className="editor-container" ref={containerRef}>
         <Editor
           height="100%"
           language="python"
@@ -216,12 +245,12 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref
           }
           options={{
             fontSize: 14,
-            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Consolas', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
             lineHeight: 22,
             padding: { top: 16, bottom: 16 },
             minimap: { enabled: false },
             scrollBeyondLastLine: false,
-            automaticLayout: true,
+            automaticLayout: false, // 禁用内置 ResizeObserver，使用我们自己的
             tabSize: 4,
             wordWrap: 'on',
             renderLineHighlight: 'all',

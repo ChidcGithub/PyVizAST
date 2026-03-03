@@ -1,5 +1,9 @@
 /* PyVizAST Global Styles - Premium Minimalist Theme */
 :root {
+  /* Font System */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  
   /* Deep Black Palette */
   --bg-primary: #000000;
   --bg-secondary: #09090b;
@@ -66,7 +70,7 @@ html {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-sans);
   background: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.5;
@@ -121,7 +125,7 @@ h3 { font-size: 1.25rem; }
 h4 { font-size: 1rem; }
 
 code, pre {
-  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  font-family: var(--font-mono);
   font-size: 0.9em;
 }
 

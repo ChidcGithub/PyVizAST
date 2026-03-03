@@ -3,13 +3,15 @@ PyVizAST - FastAPI Backend
 基于AST的Python代码可视化与优化分析器
 """
 import ast
-import logging
 import json
+import logging
+import os
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+from datetime import datetime
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request, status, UploadFile, File
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
@@ -23,12 +25,7 @@ from .models.schemas import (
 from .ast_parser import ASTParser, NodeMapper
 from .analyzers import ComplexityAnalyzer, PerformanceAnalyzer, CodeSmellDetector, SecurityScanner
 from .optimizers import SuggestionEngine, PatchGenerator
-from .project_analyzer import (
-    ProjectScanner, 
-    ScanResult, 
-    ProjectAnalysisResult,
-    process_files
-)
+from .utils.logger import get_logger, log_exception, init_logging
 
 
 # 自定义异常类
@@ -52,12 +49,8 @@ class ResourceNotFoundError(Exception):
     pass
 
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# 初始化日志系统
+logger = init_logging(level=logging.INFO)
 
 
 # 创建FastAPI应用
@@ -77,7 +70,7 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,  # 从环境变量读取允许的来源
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "Accept", "Content-Disposition"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
@@ -85,7 +78,7 @@ app.add_middleware(
 @app.exception_handler(ValidationError)
 async def validation_exception_handler(request: Request, exc: ValidationError):
     """处理 Pydantic 验证错误"""
-    logger.warning(f"验证错误: {exc}")
+    log_exception(logger, exc, f"请求路径: {request.url.path}")
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": f"输入验证失败: {exc}"}
@@ -95,7 +88,7 @@ async def validation_exception_handler(request: Request, exc: ValidationError):
 @app.exception_handler(CodeParsingError)
 async def code_parsing_exception_handler(request: Request, exc: CodeParsingError):
     """处理代码解析错误"""
-    logger.warning(f"代码解析错误: {exc}")
+    logger.warning(f"代码解析错误: {exc} | 路径: {request.url.path}")
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content={"detail": str(exc)}
@@ -105,7 +98,7 @@ async def code_parsing_exception_handler(request: Request, exc: CodeParsingError
 @app.exception_handler(CodeTooLargeError)
 async def code_too_large_exception_handler(request: Request, exc: CodeTooLargeError):
     """处理代码过大错误"""
-    logger.warning(f"代码过大: {exc}")
+    logger.warning(f"代码过大: {exc} | 路径: {request.url.path}")
     return JSONResponse(
         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
         content={"detail": str(exc)}
@@ -115,7 +108,7 @@ async def code_too_large_exception_handler(request: Request, exc: CodeTooLargeEr
 @app.exception_handler(ResourceNotFoundError)
 async def resource_not_found_exception_handler(request: Request, exc: ResourceNotFoundError):
     """处理资源未找到错误"""
-    logger.warning(f"资源未找到: {exc}")
+    logger.warning(f"资源未找到: {exc} | 路径: {request.url.path}")
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
         content={"detail": str(exc)}
@@ -125,7 +118,7 @@ async def resource_not_found_exception_handler(request: Request, exc: ResourceNo
 @app.exception_handler(AnalysisError)
 async def analysis_exception_handler(request: Request, exc: AnalysisError):
     """处理分析过程中的错误"""
-    logger.error(f"分析错误: {exc}", exc_info=True)
+    log_exception(logger, exc, f"请求路径: {request.url.path}")
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": f"分析过程中发生错误: {str(exc)}"}
@@ -135,7 +128,7 @@ async def analysis_exception_handler(request: Request, exc: AnalysisError):
 @app.exception_handler(OSError)
 async def os_exception_handler(request: Request, exc: OSError):
     """处理操作系统错误（如文件操作）"""
-    logger.error(f"系统错误: {exc}", exc_info=True)
+    log_exception(logger, exc, f"请求路径: {request.url.path}")
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "服务器内部错误，请稍后重试"}
@@ -145,7 +138,7 @@ async def os_exception_handler(request: Request, exc: OSError):
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     """处理所有未捕获的异常"""
-    logger.error(f"未处理的异常: {exc}", exc_info=True)
+    log_exception(logger, exc, f"请求路径: {request.url.path}")
     # 生产环境不返回详细错误信息
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -216,8 +209,6 @@ async def root():
             "performance": "/api/performance",
             "security": "/api/security",
             "suggestions": "/api/suggestions",
-            "project_upload": "/api/project/upload",
-            "project_analyze": "/api/project/analyze",
             "docs": "/docs"
         }
     }
@@ -255,6 +246,7 @@ async def analyze_code(input_data: CodeInput):
             try:
                 tree = ast.parse(code)
             except SyntaxError as e:
+                # 语法错误应该立即抛出，不需要重试
                 raise CodeParsingError(f"语法错误: {str(e)}")
             except MemoryError:
                 simplification_level += 1
@@ -278,6 +270,9 @@ async def analyze_code(input_data: CodeInput):
                             tree = ast.parse(code)
                             logger.info(f"已截取前 2000 行进行分析")
                             break
+                    except SyntaxError as e:
+                        # 截取后的代码可能有语法错误，直接抛出
+                        raise CodeParsingError(f"语法错误: {str(e)}")
                     except MemoryError:
                         pass
                     import gc
@@ -658,9 +653,6 @@ async def explain_node(node_id: str, input_data: CodeInput):
 
 
 # 挑战数据加载器
-import json
-from pathlib import Path
-
 def load_challenges() -> List[Dict[str, Any]]:
     """从 JSON 文件加载挑战数据"""
     challenges_path = Path(__file__).parent / "data" / "challenges.json"
@@ -843,174 +835,85 @@ def _generate_challenge_feedback(correct, missed, wrong):
     return " ".join(feedback) if feedback else "继续努力！"
 
 
-# ==================== 项目级分析端点 ====================
-
-# 项目扫描器实例
-_project_scanner: Optional[ProjectScanner] = None
-
-
-def get_project_scanner() -> ProjectScanner:
-    """获取项目扫描器实例（单例）"""
-    global _project_scanner
-    if _project_scanner is None:
-        _project_scanner = ProjectScanner()
-    return _project_scanner
+# 前端日志接收端点
+from pydantic import BaseModel
+from typing import List as TypingList
+from datetime import datetime
 
 
-@app.post("/api/project/upload")
-async def upload_project(file: UploadFile = File(...)):
+class FrontendLogEntry(BaseModel):
+    """前端日志条目模型"""
+    timestamp: str
+    level: str
+    message: str
+    userAgent: Optional[str] = None
+    url: Optional[str] = None
+    reason: Optional[str] = None
+    stack: Optional[str] = None
+    componentStack: Optional[str] = None
+    filename: Optional[str] = None
+    lineno: Optional[int] = None
+    colno: Optional[int] = None
+
+
+class FrontendLogsRequest(BaseModel):
+    """前端日志请求模型"""
+    logs: TypingList[FrontendLogEntry]
+
+
+# 确保日志目录存在
+LOGS_DIR = Path(__file__).parent.parent / "logs"
+
+
+def ensure_logs_dir():
+    """确保日志目录存在"""
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@app.post("/api/logs/frontend")
+async def receive_frontend_logs(request: FrontendLogsRequest):
     """
-    上传项目 zip 压缩包并扫描
-    
-    接收一个 zip 格式的压缩包，解压并扫描其中的所有 Python 文件。
-    返回文件路径列表作为测试响应。
+    接收前端日志并保存到文件
     """
-    logger.info(f"接收项目上传: {file.filename}")
+    ensure_logs_dir()
     
-    # 验证文件类型
-    if not file.filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="未提供文件名"
-        )
+    # 生成日志文件名（按日期）
+    today = datetime.now().strftime("%Y-%m-%d")
+    log_file = LOGS_DIR / f"frontend-{today}.log"
     
-    if not file.filename.lower().endswith('.zip'):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="仅支持 .zip 格式的压缩包"
-        )
-    
+    # 追加写入日志
     try:
-        # 读取文件内容
-        zip_bytes = await file.read()
+        with open(log_file, 'a', encoding='utf-8') as f:
+            for log_entry in request.logs:
+                # 格式化日志条目
+                log_line = (
+                    f"[{log_entry.timestamp}] "
+                    f"[{log_entry.level.upper()}] "
+                    f"{log_entry.message}"
+                )
+                
+                # 添加额外信息
+                extras = []
+                if log_entry.url:
+                    extras.append(f"url={log_entry.url}")
+                if log_entry.filename:
+                    extras.append(f"file={log_entry.filename}:{log_entry.lineno}:{log_entry.colno}")
+                if log_entry.stack:
+                    extras.append(f"stack={log_entry.stack[:500]}")  # 限制栈长度
+                if log_entry.componentStack:
+                    extras.append(f"componentStack={log_entry.componentStack[:500]}")
+                
+                if extras:
+                    log_line += f" | {' | '.join(extras)}"
+                
+                f.write(log_line + "\n")
         
-        if not zip_bytes:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="文件内容为空"
-            )
-        
-        logger.info(f"读取到 {len(zip_bytes)} 字节的 zip 数据")
-        
-        # 扫描项目
-        scanner = get_project_scanner()
-        scan_result = scanner.extract_and_scan(zip_bytes)
-        
-        if not scan_result.success:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=scan_result.error_message
-            )
-        
-        # 构建响应（暂时只返回文件路径列表）
-        file_paths = [f.path for f in scan_result.files]
-        skipped_count = len(scan_result.skipped_files)
-        
-        logger.info(f"项目扫描完成: {len(file_paths)} 个 Python 文件, {skipped_count} 个文件被跳过")
-        
-        return {
-            "success": True,
-            "filename": file.filename,
-            "total_files": len(scan_result.files),
-            "file_paths": file_paths,
-            "skipped_count": skipped_count,
-            "skipped_files": scan_result.skipped_files[:20],  # 最多显示20个跳过的文件
-        }
-        
-    except HTTPException:
-        # 重新抛出 HTTP 异常
-        raise
+        logger.debug(f"保存了 {len(request.logs)} 条前端日志")
+        return {"status": "ok", "count": len(request.logs)}
+    
     except Exception as e:
-        logger.error(f"项目上传处理失败: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"处理项目时发生错误: {str(e)}"
-        )
-
-
-@app.post("/api/project/analyze", response_model=ProjectAnalysisResult)
-async def analyze_project(file: UploadFile = File(...), quick_mode: bool = False):
-    """
-    上传项目并进行完整分析
-    
-    接收一个 zip 格式的压缩包，解压并分析其中的所有 Python 文件。
-    返回完整的分析结果，包括每个文件的复杂度、问题等。
-    
-    Args:
-        file: 上传的 zip 文件
-        quick_mode: 快速模式（仅复杂度分析，不检测性能/安全/代码异味）
-    """
-    logger.info(f"开始项目分析: {file.filename}, 快速模式: {quick_mode}")
-    
-    # 验证文件类型
-    if not file.filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="未提供文件名"
-        )
-    
-    if not file.filename.lower().endswith('.zip'):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="仅支持 .zip 格式的压缩包"
-        )
-    
-    try:
-        # 读取文件内容
-        zip_bytes = await file.read()
-        
-        if not zip_bytes:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="文件内容为空"
-            )
-        
-        # 扫描项目
-        scanner = get_project_scanner()
-        scan_result = scanner.extract_and_scan(zip_bytes)
-        
-        if not scan_result.success:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=scan_result.error_message
-            )
-        
-        # 处理文件：执行完整分析
-        process_result = process_files(scan_result.files, quick_mode=quick_mode)
-        
-        # 提取项目名称（从文件名）
-        project_name = file.filename.rsplit('.', 1)[0] if file.filename else "unknown"
-        
-        # 记录依赖信息
-        if process_result.dependencies:
-            logger.info(
-                f"项目分析完成: {project_name}, {len(process_result.files)} 个文件, "
-                f"{process_result.summary.total_issues} 个问题, "
-                f"{len(process_result.dependencies.internal)} 个文件有内部依赖, "
-                f"{len(process_result.cross_file_issues)} 个跨文件问题"
-            )
-        else:
-            logger.info(
-                f"项目分析完成: {project_name}, {len(process_result.files)} 个文件, "
-                f"{process_result.summary.total_issues} 个问题"
-            )
-        
-        return ProjectAnalysisResult(
-            project_name=project_name,
-            files=process_result.files,
-            summary=process_result.summary,
-            dependencies=process_result.dependencies,
-            cross_file_issues=process_result.cross_file_issues,
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"项目分析失败: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"分析项目时发生错误: {str(e)}"
-        )
+        logger.error(f"保存前端日志失败: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 if __name__ == "__main__":

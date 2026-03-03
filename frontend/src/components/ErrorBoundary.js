@@ -1,4 +1,5 @@
 import React from 'react';
+import { logReactError } from '../utils/logger';
 
 /**
  * 错误类型枚举
@@ -97,7 +98,8 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // 记录错误信息
+    // 记录错误信息到日志系统
+    logReactError(error, errorInfo);
     console.error('ErrorBoundary caught an error:', error, errorInfo);
     this.setState({ errorInfo });
     

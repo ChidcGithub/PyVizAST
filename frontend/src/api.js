@@ -300,41 +300,4 @@ export const checkServerHealth = async () => {
  */
 export const getApiBaseUrl = () => API_BASE_URL;
 
-/**
- * 上传并分析项目（zip文件）
- * @param {File} file - zip文件对象
- * @param {boolean} quickMode - 快速模式（仅复杂度分析）
- * @param {AbortSignal} signal - 可选的取消信号
- */
-export const analyzeProject = async (file, quickMode = false, signal = null) => {
-  const formData = new FormData();
-  formData.append('file', file);
-
-  const response = await api.post(`/api/project/analyze?quick_mode=${quickMode}`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-    timeout: 120000, // 项目分析可能需要更长时间，设置2分钟超时
-    signal,
-  });
-  return response.data;
-};
-
-/**
- * 上传项目并获取文件列表（快速预览）
- * @param {File} file - zip文件对象
- */
-export const uploadProject = async (file) => {
-  const formData = new FormData();
-  formData.append('file', file);
-
-  const response = await api.post('/api/project/upload', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-    timeout: 60000,
-  });
-  return response.data;
-};
-
 export default api;

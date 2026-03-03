@@ -49,6 +49,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
   // Track timers and animation frames for cleanup
   const timersRef = useRef(new Set());
   const animationFramesRef = useRef(new Set());
+  const particleCleanupRef = useRef([]); // 使用 ref 替代全局变量存储粒子清理函数
   
   // 追踪Cytoscape初始化状态
   const isInitializedRef = useRef(false);
@@ -557,11 +558,15 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
       cy.elements().removeClass('dimmed focused focused-neighbor focused-edge');
       
       // Create particles that travel along edges
-      let particleId = 0;
+      // 使用全局计数器确保 ID 唯一
+      const particleIdCounter = { current: Date.now() };
       
       propagationQueue.forEach(({ sourceNode, targetNode, delay }) => {
         // Create particle after delay (tracked for cleanup)
         const timerId = setTimeout(() => {
+          // 检查组件是否仍然挂载
+          if (!cyRef.current) return;
+          
           // Get current positions at animation time
           const sourcePos = sourceNode.renderedPosition();
           const targetPos = targetNode.renderedPosition();
@@ -571,8 +576,11 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
           const dy = targetPos.y - sourcePos.y;
           const edgeLength = Math.sqrt(dx * dx + dy * dy);
           
+          // 创建唯一的粒子 ID
+          const uniqueParticleId = particleIdCounter.current++;
+          
           const particle = {
-            id: particleId++,
+            id: uniqueParticleId,
             sourceId: sourceNode.id(),
             targetId: targetNode.id(),
             startX: sourcePos.x,
@@ -585,7 +593,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
           };
           
           // Add particle to state
-          setParticles(prev => [...prev, particle]);
+          setSignalParticles(prev => [...prev, particle]);
           
           // Add signal class to target node when particle is approaching
           let signalAdded = false;
@@ -593,8 +601,8 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
           
           // Animate particle (tracked for cleanup)
           const animateParticle = () => {
-            // 检查动画是否已取消
-            if (animationCancelled) return;
+            // 检查动画是否已取消或组件已卸载
+            if (animationCancelled || !cyRef.current) return;
             
             const elapsed = Date.now() - particle.startTime;
             const progress = Math.min(elapsed / particle.duration, 1);
@@ -606,16 +614,14 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
             }
             
             if (progress < 1) {
-              setParticles(prev => 
-                prev.map(p => p.id === particle.id ? { ...p, progress } : p)
+              setSignalParticles(prev => 
+                prev.map(p => p.id === uniqueParticleId ? { ...p, progress } : p)
               );
-              // 使用单一帧ID，而不是为每一帧创建新的
               const frameId = requestAnimationFrame(animateParticle);
-              // 存储当前帧ID以便取消
               particle.currentFrameId = frameId;
             } else {
               // Remove particle when done
-              setParticles(prev => prev.filter(p => p.id !== particle.id));
+              setSignalParticles(prev => prev.filter(p => p.id !== uniqueParticleId));
               
               // Transition to pulse effect
               targetNode.removeClass('signal-approaching');
@@ -635,9 +641,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
               cancelAnimationFrame(particle.currentFrameId);
             }
           };
-          // 将取消函数存储在 ref 中以便清理
-          if (!window.__particleCleanup) window.__particleCleanup = [];
-          window.__particleCleanup.push(cancelAnimation);
+          particleCleanupRef.current.push(cancelAnimation);
         }, delay);
         timersRef.current.add(timerId);
       });
@@ -649,9 +653,9 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
       mounted = false;
       
       // 取消所有粒子动画
-      if (window.__particleCleanup) {
-        window.__particleCleanup.forEach(cancel => cancel());
-        window.__particleCleanup = [];
+      if (particleCleanupRef.current) {
+        particleCleanupRef.current.forEach(cancel => cancel());
+        particleCleanupRef.current = [];
       }
       
       // Copy refs to local variables for cleanup
