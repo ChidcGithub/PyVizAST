@@ -53,8 +53,8 @@ function Header({
       
       <div className="header-center">
         <nav className="header-nav">
-          <a href="#features" className="nav-link">Features</a>
-          <a href="#docs" className="nav-link">Docs</a>
+          <a href="https://github.com/ChidcGithub/PyVizAST#features" className="nav-link">Features</a>
+          <a href="http://localhost:8000/docs" className="nav-link">Docs</a>
           <a href="https://github.com/ChidcGithub/PyVizAST" target="_blank" rel="noopener noreferrer" className="nav-link">
             GitHub
           </a>
