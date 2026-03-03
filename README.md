@@ -1,5 +1,11 @@
 # PyVizAST
 
+[![Version](https://img.shields.io/badge/version-0.4.0--beta-blue.svg)](https://github.com/ChidcGithub/PyVizAST/releases/tag/v0.4.0-beta)
+[![Python](https://img.shields.io/badge/python-3.8%2B-brightgreen.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-GPL%20v3-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Status](https://img.shields.io/badge/status-beta-orange.svg)](https://github.com/ChidcGithub/PyVizAST)
+
 A Python AST Visualizer & Static Analyzer that transforms code into interactive graphs. Detect complexity, performance bottlenecks, and code smells with actionable refactoring suggestions.
 
 ## Features
@@ -175,6 +181,43 @@ GNU General Public License v3.0
 Contributions are welcome. Please submit pull requests to the main repository.
 
 <details> <summary>Version History</summary>
+
+### v0.4.0-beta (2026-03-03)
+**Project-Level Analysis:**
+- **Multi-file Analysis**: Analyze entire Python projects with dependency tracking
+- **Dependency Graph**: Visualize module imports and relationships
+- **Circular Dependency Detection**: Identify and highlight circular imports
+- **Unused Export Detection**: Find unused functions and classes
+- **Project Metrics**: Lines of code, file count, average complexity
+
+**New Backend Module:**
+- `backend/project_analyzer/` - Complete project analysis system
+  - `scanner.py` - File discovery and parsing
+  - `dependency.py` - Import dependency graph construction
+  - `cycle_detector.py` - Circular dependency detection (Tarjan's algorithm)
+  - `symbol_extractor.py` - Function/class definition extraction
+  - `unused_exports.py` - Unused export detection
+  - `metrics.py` - Project-level metrics calculation
+  - `models.py` - Data models for project analysis
+
+**Frontend Improvements:**
+- New `ProjectAnalysisView` component for file list and project overview
+- Enhanced `ProjectVisualization` with dependency graph rendering
+- Improved graph visual design with black/white/gray color scheme
+- Different node shapes (rectangles, diamonds) and line styles (solid, dashed)
+- File double-click to enter edit mode with exit button
+- Editor now loads actual file content in project mode
+- Auto-open browser on backend startup
+
+**Bug Fixes:**
+- Fixed project analysis data format mismatch (module names vs file paths)
+- Fixed missing CSS styles for dependency graph visualization
+- Fixed AnalysisPanel data aggregation for project mode
+- Fixed editor showing sample code instead of actual file content
+
+**API Additions:**
+- `POST /api/project/analyze` - Analyze entire project
+- `POST /api/project/file` - Analyze single file in project context
 
 ### v0.4.0-alpha3 (2026-03-03)
 **Bug Fixes:**
