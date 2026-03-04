@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
-[![Status](https://img.shields.io/badge/Status-beta-orange.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Status](https://img.shields.io/badge/Status-beta3-orange.svg)](https://github.com/ChidcGithub/PyVizAST)
 
 A Python AST Visualizer & Static Analyzer that transforms code into interactive graphs. Detect complexity, performance bottlenecks, and code smells with actionable refactoring suggestions.
 
