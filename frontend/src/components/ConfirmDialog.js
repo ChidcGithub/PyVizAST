@@ -2,20 +2,20 @@ import React, { useEffect, useCallback } from 'react';
 import './components.css';
 
 /**
- * 自定义确认对话框组件
- * 用于替代浏览器原生的 confirm 对话框
+ * Custom Confirmation Dialog Component
+ * Used as a replacement for the browser's native confirm dialog
  */
 function ConfirmDialog({ 
   isOpen, 
-  title = '确认', 
+  title = 'Confirm', 
   message, 
-  confirmText = '确认', 
-  cancelText = '取消',
+  confirmText = 'Confirm', 
+  cancelText = 'Cancel',
   confirmVariant = 'primary', // 'primary' | 'danger'
   onConfirm, 
   onCancel 
 }) {
-  // ESC 键关闭对话框
+  // ESC key to close dialog
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Escape') {
       onCancel?.();
@@ -27,7 +27,7 @@ function ConfirmDialog({
   useEffect(() => {
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown);
-      // 禁止背景滚动
+      // Disable background scrolling
       document.body.style.overflow = 'hidden';
     }
     

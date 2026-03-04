@@ -1,5 +1,5 @@
 """
-Symbol Extractor - 提取模块中的符号定义和使用
+Symbol Extractor - Extract symbol definitions and usages from modules
 """
 import ast
 from pathlib import Path
@@ -14,78 +14,78 @@ logger = get_logger(__name__)
 
 @dataclass
 class SymbolDefinition:
-    """符号定义"""
+    """Symbol definition"""
     name: str
     type: str  # 'function', 'class', 'variable', 'constant', 'import'
     module: str
     lineno: int
     col_offset: int = 0
     is_public: bool = True
-    is_exported: bool = False  # 是否在 __all__ 中
+    is_exported: bool = False  # Whether in __all__
 
 
 @dataclass
 class SymbolUsage:
-    """符号使用"""
+    """Symbol usage"""
     name: str
     module: str
-    source_module: str  # 使用该符号的模块
+    source_module: str  # Module using this symbol
     lineno: int
-    context: str = ''  # 使用上下文
+    context: str = ''  # Usage context
 
 
 class SymbolExtractor:
-    """符号提取器"""
+    """Symbol Extractor"""
     
     def __init__(self):
         self.definitions: Dict[str, List[SymbolDefinition]] = defaultdict(list)
         self.usages: Dict[str, List[SymbolUsage]] = defaultdict(list)
-        self.module_exports: Dict[str, Set[str]] = {}  # module -> __all__ 内容
+        self.module_exports: Dict[str, Set[str]] = {}  # module -> __all__ content
     
     def extract_from_project(self, module_files: Dict[str, str]) -> Tuple[Dict[str, List[SymbolDefinition]], Dict[str, List[SymbolUsage]]]:
         """
-        从项目中提取所有符号
+        Extract all symbols from a project
         
         Args:
             module_files: {module_name: file_path}
         
         Returns:
-            (定义字典, 使用字典)
+            (definitions dict, usages dict)
         """
-        # 第一遍：提取所有定义
+        # First pass: extract all definitions
         for module_name, file_path in module_files.items():
             self._extract_definitions(module_name, file_path)
         
-        # 第二遍：提取所有使用
+        # Second pass: extract all usages
         for module_name, file_path in module_files.items():
             self._extract_usages(module_name, file_path)
         
         return dict(self.definitions), dict(self.usages)
     
     def _extract_definitions(self, module_name: str, file_path: str) -> None:
-        """提取模块中的符号定义"""
+        """Extract symbol definitions from a module"""
         try:
             content = Path(file_path).read_text(encoding='utf-8', errors='ignore')
             tree = ast.parse(content)
         except (SyntaxError, UnicodeDecodeError) as e:
-            logger.warning(f"解析文件失败: {file_path}: {e}")
+            logger.warning(f"Failed to parse file: {file_path}: {e}")
             return
         
-        # 检查 __all__
+        # Check __all__
         exports = self._extract_all(tree)
         self.module_exports[module_name] = exports
         
-        # 提取顶层定义
+        # Extract top-level definitions
         for node in ast.iter_child_nodes(tree):
             definition = self._node_to_definition(node, module_name)
             if definition:
-                # 检查是否公开
+                # Check if public
                 definition.is_public = not definition.name.startswith('_')
                 definition.is_exported = definition.name in exports if exports else definition.is_public
                 self.definitions[module_name].append(definition)
     
     def _extract_all(self, tree: ast.AST) -> Set[str]:
-        """提取 __all__ 内容"""
+        """Extract __all__ content"""
         for node in ast.iter_child_nodes(tree):
             if isinstance(node, ast.Assign):
                 for target in node.targets:
@@ -99,7 +99,7 @@ class SymbolExtractor:
         return set()
     
     def _node_to_definition(self, node: ast.AST, module_name: str) -> Optional[SymbolDefinition]:
-        """将 AST 节点转换为符号定义"""
+        """Convert AST node to symbol definition"""
         if isinstance(node, ast.FunctionDef) or isinstance(node, ast.AsyncFunctionDef):
             return SymbolDefinition(
                 name=node.name,
@@ -119,11 +119,11 @@ class SymbolExtractor:
             )
         
         elif isinstance(node, ast.Assign):
-            # 只处理单个目标的简单赋值
+            # Only handle simple assignments with single target
             if len(node.targets) == 1:
                 target = node.targets[0]
                 if isinstance(target, ast.Name):
-                    # 判断是否是常量（大写名称）
+                    # Determine if it's a constant (uppercase name)
                     is_constant = target.id.isupper() or (
                         target.id[0].isupper() and '_' in target.id
                     )
@@ -148,15 +148,15 @@ class SymbolExtractor:
         return None
     
     def _extract_usages(self, source_module: str, file_path: str) -> None:
-        """提取模块中的符号使用"""
+        """Extract symbol usages from a module"""
         try:
             content = Path(file_path).read_text(encoding='utf-8', errors='ignore')
             tree = ast.parse(content)
         except (SyntaxError, UnicodeDecodeError) as e:
-            logger.warning(f"解析文件失败: {file_path}: {e}")
+            logger.warning(f"Failed to parse file: {file_path}: {e}")
             return
         
-        # 使用访问者提取名称使用
+        # Use visitor to extract name usages
         visitor = UsageVisitor(source_module)
         visitor.visit(tree)
         
@@ -164,14 +164,14 @@ class SymbolExtractor:
             self.usages[name].extend(usages)
     
     def get_public_symbols(self, module_name: str) -> List[SymbolDefinition]:
-        """获取模块的公开符号"""
+        """Get public symbols of a module"""
         return [
             d for d in self.definitions.get(module_name, [])
             if d.is_public
         ]
     
     def get_exported_symbols(self, module_name: str) -> List[SymbolDefinition]:
-        """获取模块的导出符号"""
+        """Get exported symbols of a module"""
         return [
             d for d in self.definitions.get(module_name, [])
             if d.is_exported
@@ -179,7 +179,7 @@ class SymbolExtractor:
 
 
 class UsageVisitor(ast.NodeVisitor):
-    """符号使用访问者"""
+    """Symbol usage visitor"""
     
     def __init__(self, source_module: str):
         self.source_module = source_module
@@ -200,13 +200,13 @@ class UsageVisitor(ast.NodeVisitor):
         self.generic_visit(node)
     
     def visit_Name(self, node: ast.Name) -> None:
-        # 只记录使用（读取），不记录定义
+        # Only record usages (loads), not definitions
         if isinstance(node.ctx, ast.Load):
-            # 排除局部定义的名称
+            # Exclude locally defined names
             if node.id not in self._definition_names:
                 self.usages[node.id].append(SymbolUsage(
                     name=node.id,
-                    module='',  # 需要后续解析
+                    module='',  # Needs resolution later
                     source_module=self.source_module,
                     lineno=node.lineno,
                     context='load',
@@ -214,11 +214,11 @@ class UsageVisitor(ast.NodeVisitor):
         self.generic_visit(node)
     
     def visit_Attribute(self, node: ast.Attribute) -> None:
-        # 记录属性访问
+        # Record attribute access
         if isinstance(node.ctx, ast.Load):
             self.usages[node.attr].append(SymbolUsage(
                 name=node.attr,
-                module='',  # 需要后续解析
+                module='',  # Needs resolution later
                 source_module=self.source_module,
                 lineno=node.lineno,
                 context='attribute',

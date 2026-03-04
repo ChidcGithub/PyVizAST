@@ -1,5 +1,5 @@
 """
-Dependency Analyzer - 分析模块依赖关系
+Dependency Analyzer - Analyze module dependencies
 """
 import ast
 from pathlib import Path
@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 
 @dataclass
 class ModuleInfo:
-    """模块信息"""
+    """Module information"""
     path: str
     imports: List[ImportInfo] = field(default_factory=list)
     exports: List[str] = field(default_factory=list)
@@ -23,9 +23,9 @@ class ModuleInfo:
 
 
 class DependencyAnalyzer:
-    """依赖分析器"""
+    """Dependency Analyzer"""
     
-    # 标准 library 模块（部分列表）
+    # Standard library modules (partial list)
     STDLIB_MODULES = {
         'os', 'sys', 're', 'json', 'io', 'math', 'random', 'datetime',
         'collections', 'itertools', 'functools', 'typing', 'pathlib',
@@ -46,7 +46,7 @@ class DependencyAnalyzer:
         'types', 'weakref', 'builtins', '__future__',
     }
     
-    # 常见第三方库
+    # Common third-party libraries
     THIRD_PARTY_MODULES = {
         'numpy', 'pandas', 'matplotlib', 'scipy', 'sklearn', 'tensorflow',
         'torch', 'keras', 'requests', 'flask', 'django', 'fastapi',
@@ -66,10 +66,10 @@ class DependencyAnalyzer:
     
     def __init__(self, project_root: str):
         """
-        初始化依赖分析器
+        Initialize the dependency analyzer
         
         Args:
-            project_root: 项目根目录
+            project_root: Project root directory
         """
         self.project_root = Path(project_root).resolve()
         self.modules: Dict[str, ModuleInfo] = {}
@@ -78,22 +78,22 @@ class DependencyAnalyzer:
     
     def analyze(self, file_paths: List[str]) -> DependencyGraph:
         """
-        分析依赖关系
+        Analyze dependencies
         
         Args:
-            file_paths: 文件路径列表
+            file_paths: List of file paths
         
         Returns:
-            依赖图
+            Dependency graph
         """
-        # 第一遍：收集所有模块信息
+        # First pass: collect all module information
         for file_path in file_paths:
             self._analyze_file(file_path)
         
-        # 第二遍：构建依赖图
+        # Second pass: build dependency graph
         self._build_dependency_graph()
         
-        # 构建返回结果
+        # Build return result
         nodes = list(self.module_paths.keys())
         edges = []
         
@@ -105,7 +105,7 @@ class DependencyAnalyzer:
                     'type': 'import',
                 })
         
-        logger.info(f"依赖分析完成: {len(nodes)} 个模块, {len(edges)} 个依赖关系")
+        logger.info(f"Dependency analysis complete: {len(nodes)} modules, {len(edges)} dependencies")
         
         return DependencyGraph(
             nodes=nodes,
@@ -114,27 +114,27 @@ class DependencyAnalyzer:
         )
     
     def _analyze_file(self, file_path: str) -> None:
-        """分析单个文件的导入和导出"""
+        """Analyze imports and exports of a single file"""
         path = Path(file_path)
         
         try:
             content = path.read_text(encoding='utf-8', errors='ignore')
             tree = ast.parse(content)
         except (SyntaxError, UnicodeDecodeError) as e:
-            logger.warning(f"解析文件失败: {file_path}: {e}")
+            logger.warning(f"Failed to parse file: {file_path}: {e}")
             return
         
-        # 计算模块名
+        # Calculate module name
         relative_path = path.relative_to(self.project_root)
         module_name = self._path_to_module_name(relative_path)
         
-        # 记录模块路径
+        # Record module path
         self.module_paths[module_name] = str(relative_path).replace('\\', '/')
         
-        # 分析导入
+        # Analyze imports
         imports = self._extract_imports(tree)
         
-        # 分析导出（顶层定义）
+        # Analyze exports (top-level definitions)
         exports = self._extract_exports(tree)
         
         self.modules[module_name] = ModuleInfo(
@@ -145,21 +145,21 @@ class DependencyAnalyzer:
         )
     
     def _path_to_module_name(self, relative_path: Path) -> str:
-        """将文件路径转换为模块名"""
+        """Convert file path to module name"""
         parts = list(relative_path.parts)
         
-        # 移除 .py 后缀
+        # Remove .py suffix
         if parts and parts[-1].endswith('.py'):
             parts[-1] = parts[-1][:-3]
         
-        # 处理 __init__.py
+        # Handle __init__.py
         if parts and parts[-1] == '__init__':
             parts = parts[:-1]
         
         return '.'.join(parts) if parts else '__main__'
     
     def _extract_imports(self, tree: ast.AST) -> List[ImportInfo]:
-        """提取导入信息"""
+        """Extract import information"""
         imports = []
         
         for node in ast.walk(tree):
@@ -190,7 +190,7 @@ class DependencyAnalyzer:
         return imports
     
     def _extract_exports(self, tree: ast.AST) -> List[str]:
-        """提取导出符号（顶层定义）"""
+        """Extract exported symbols (top-level definitions)"""
         exports = []
         
         for node in ast.iter_child_nodes(tree):
@@ -209,31 +209,31 @@ class DependencyAnalyzer:
         return exports
     
     def _build_dependency_graph(self) -> None:
-        """构建依赖图"""
+        """Build dependency graph"""
         for module_name, module_info in self.modules.items():
             for imp in module_info.imports:
                 target_module = self._resolve_import(module_name, imp)
                 
                 if target_module and target_module in self.module_paths:
-                    # 只记录项目内部的依赖
+                    # Only record internal project dependencies
                     self.dependency_graph[module_name].add(target_module)
     
     def _resolve_import(self, source_module: str, imp: ImportInfo) -> Optional[str]:
         """
-        解析导入，返回目标模块名
+        Resolve import and return target module name
         
         Args:
-            source_module: 源模块名
-            imp: 导入信息
+            source_module: Source module name
+            imp: Import information
         
         Returns:
-            目标模块名，如果无法解析则返回 None
+            Target module name, or None if unresolved
         """
         if imp.is_relative:
-            # 相对导入
+            # Relative import
             parts = source_module.split('.')
             
-            # 根据 level 向上跳
+            # Go up based on level
             if imp.level > len(parts):
                 return None
             
@@ -244,11 +244,11 @@ class DependencyAnalyzer:
             else:
                 target = '.'.join(base_parts)
             
-            # 检查是否存在
+            # Check if exists
             if target in self.module_paths:
                 return target
             
-            # 可能是包内的模块
+            # Might be a module within a package
             for name in imp.names:
                 potential = f"{target}.{name}" if target else name
                 if potential in self.module_paths:
@@ -257,19 +257,19 @@ class DependencyAnalyzer:
             return target if target else None
         
         else:
-            # 绝对导入
+            # Absolute import
             module = imp.module or imp.names[0] if imp.names else ''
             
-            # 检查是否是标准库或第三方库
+            # Check if it's a standard library or third-party library
             top_level = module.split('.')[0] if module else ''
             if top_level in self.STDLIB_MODULES or top_level in self.THIRD_PARTY_MODULES:
                 return None
             
-            # 检查是否是项目内部模块
+            # Check if it's an internal project module
             if module in self.module_paths:
                 return module
             
-            # 检查部分匹配
+            # Check partial match
             for known_module in self.module_paths:
                 if known_module.startswith(module + '.') or known_module == module:
                     return module
@@ -277,15 +277,15 @@ class DependencyAnalyzer:
             return None
     
     def get_module_imports(self, module_name: str) -> List[ImportInfo]:
-        """获取模块的所有导入"""
+        """Get all imports of a module"""
         return self.modules.get(module_name, ModuleInfo(path='')).imports
     
     def get_module_exports(self, module_name: str) -> List[str]:
-        """获取模块的所有导出"""
+        """Get all exports of a module"""
         return self.modules.get(module_name, ModuleInfo(path='')).exports
     
     def get_dependents(self, module_name: str) -> List[str]:
-        """获取依赖某个模块的所有模块"""
+        """Get all modules that depend on a module"""
         dependents = []
         for source, targets in self.dependency_graph.items():
             if module_name in targets:
@@ -293,5 +293,5 @@ class DependencyAnalyzer:
         return dependents
     
     def get_dependencies(self, module_name: str) -> List[str]:
-        """获取模块的所有依赖"""
+        """Get all dependencies of a module"""
         return list(self.dependency_graph.get(module_name, set()))

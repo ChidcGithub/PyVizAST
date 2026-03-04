@@ -1,5 +1,5 @@
 """
-Circular Dependency Detector - 检测循环依赖
+Circular Dependency Detector - Detect circular dependencies
 """
 from typing import List, Dict, Set, Tuple, Optional
 from collections import defaultdict
@@ -13,44 +13,44 @@ logger = get_logger(__name__)
 
 @dataclass
 class CycleInfo:
-    """循环依赖信息"""
+    """Circular dependency information"""
     modules: List[str]
     length: int
     severity: str  # 'critical', 'warning', 'info'
 
 
 class CycleDetector:
-    """循环依赖检测器"""
+    """Circular Dependency Detector"""
     
     def __init__(self, dependency_graph: Dict[str, List[str]]):
         """
-        初始化检测器
+        Initialize the detector
         
         Args:
-            dependency_graph: 依赖图 {module: [dependencies]}
+            dependency_graph: Dependency graph {module: [dependencies]}
         """
         self.graph = dependency_graph
         self.adjacency = defaultdict(set)
         
-        # 构建邻接表
+        # Build adjacency list
         for module, deps in dependency_graph.items():
             for dep in deps:
                 self.adjacency[module].add(dep)
     
     def detect(self) -> List[GlobalIssue]:
         """
-        检测所有循环依赖
+        Detect all circular dependencies
         
         Returns:
-            循环依赖问题列表
+            List of circular dependency issues
         """
         cycles = self._find_all_cycles()
         issues = []
         
-        seen_cycles = set()  # 用于去重
+        seen_cycles = set()  # For deduplication
         
         for cycle in cycles:
-            # 标准化循环（从最小元素开始）
+            # Normalize cycle (start from smallest element)
             normalized = self._normalize_cycle(cycle)
             cycle_key = tuple(normalized)
             
@@ -58,7 +58,7 @@ class CycleDetector:
                 continue
             seen_cycles.add(cycle_key)
             
-            # 确定严重程度
+            # Determine severity
             severity = self._get_severity(normalized)
             
             issue = GlobalIssue(
@@ -77,29 +77,29 @@ class CycleDetector:
             issues.append(issue)
         
         if issues:
-            logger.warning(f"检测到 {len(issues)} 个循环依赖")
+            logger.warning(f"Detected {len(issues)} circular dependencies")
         
         return issues
     
     def _find_all_cycles(self) -> List[List[str]]:
-        """使用迭代式 DFS 查找所有循环（避免递归栈溢出）"""
+        """Find all cycles using iterative DFS (avoid recursion stack overflow)"""
         cycles = []
         visited = set()
         
-        # 使用显式栈进行迭代式 DFS
-        # 栈元素: (node, path, rec_stack_set)
+        # Use explicit stack for iterative DFS
+        # Stack element: (node, path, rec_stack_set)
         for start_node in list(self.adjacency.keys()):
             if start_node in visited:
                 continue
             
-            # 每个起始节点的独立 DFS
+            # Independent DFS for each starting node
             stack = [(start_node, [], set())]
             
             while stack:
                 node, path, rec_stack = stack.pop()
                 
                 if node in rec_stack:
-                    # 找到循环：从循环起点到当前节点
+                    # Found a cycle: from cycle start to current node
                     cycle_start = path.index(node) if node in path else -1
                     if cycle_start >= 0:
                         cycle = path[cycle_start:] + [node]
@@ -107,19 +107,19 @@ class CycleDetector:
                     continue
                 
                 if node in visited and node not in rec_stack:
-                    # 已访问过且不在当前递归栈中，跳过
+                    # Already visited and not in current recursion stack, skip
                     continue
                 
-                # 标记访问
+                # Mark as visited
                 new_path = path + [node]
                 new_rec_stack = rec_stack | {node}
                 visited.add(node)
                 
-                # 遍历邻居（逆序以保持原有顺序）
+                # Traverse neighbors (reverse order to maintain original order)
                 neighbors = list(self.adjacency.get(node, []))
                 for neighbor in reversed(neighbors):
                     if neighbor in new_rec_stack:
-                        # 找到循环
+                        # Found a cycle
                         cycle_start = new_path.index(neighbor) if neighbor in new_path else -1
                         if cycle_start >= 0:
                             cycle = new_path[cycle_start:] + [neighbor]
@@ -131,35 +131,35 @@ class CycleDetector:
     
     def _normalize_cycle(self, cycle: List[str]) -> List[str]:
         """
-        标准化循环表示
-        从最小的模块名开始，保持循环方向
+        Normalize cycle representation
+        Start from smallest module name, maintain cycle direction
         """
         if len(cycle) <= 1:
             return cycle
         
-        # 移除重复的末尾元素
+        # Remove duplicate trailing element
         if cycle[0] == cycle[-1]:
             cycle = cycle[:-1]
         
         if not cycle:
             return cycle
         
-        # 找到最小元素的位置
+        # Find position of smallest element
         min_idx = cycle.index(min(cycle))
         
-        # 旋转使最小元素在开头
+        # Rotate to put smallest element first
         normalized = cycle[min_idx:] + cycle[:min_idx]
         
         return normalized
     
     def _get_severity(self, cycle: List[str]) -> str:
         """
-        确定循环依赖的严重程度
+        Determine severity of circular dependency
         
-        规则：
-        - 2 个模块的直接循环: critical
-        - 3-4 个模块: warning
-        - 5+ 个模块: info
+        Rules:
+        - 2-module direct cycle: critical
+        - 3-4 modules: warning
+        - 5+ modules: info
         """
         length = len(cycle)
         
@@ -171,35 +171,35 @@ class CycleDetector:
             return 'info'
     
     def _generate_message(self, cycle: List[str]) -> str:
-        """生成问题描述"""
+        """Generate issue description"""
         if len(cycle) <= 2:
-            return f"直接循环依赖: {' <-> '.join(cycle)}"
+            return f"Direct circular dependency: {' <-> '.join(cycle)}"
         else:
-            return f"循环依赖链 ({len(cycle)} 个模块): {' -> '.join(cycle)} -> {cycle[0]}"
+            return f"Circular dependency chain ({len(cycle)} modules): {' -> '.join(cycle)} -> {cycle[0]}"
     
     def _generate_suggestion(self, cycle: List[str]) -> str:
-        """生成修复建议"""
+        """Generate fix suggestion"""
         if len(cycle) <= 2:
             return (
-                "建议重构以打破循环：\n"
-                "1. 将共享逻辑提取到独立的公共模块\n"
-                "2. 使用依赖注入代替直接导入\n"
-                "3. 考虑使用接口/抽象基类"
+                "Suggestions to break the cycle:\n"
+                "1. Extract shared logic into a separate common module\n"
+                "2. Use dependency injection instead of direct imports\n"
+                "3. Consider using interfaces/abstract base classes"
             )
         else:
             return (
-                "建议简化模块结构：\n"
-                "1. 检查依赖链中的每个环节是否必要\n"
-                "2. 考虑引入中间模块解耦\n"
-                "3. 使用延迟导入"
+                "Suggestions to simplify module structure:\n"
+                "1. Check if each link in the dependency chain is necessary\n"
+                "2. Consider introducing an intermediate module for decoupling\n"
+                "3. Use lazy imports"
             )
     
     def get_strongly_connected_components(self) -> List[Set[str]]:
         """
-        使用迭代式 Tarjan 算法查找强连通分量
+        Find strongly connected components using iterative Tarjan's algorithm
         
         Returns:
-            强连通分量列表
+            List of strongly connected components
         """
         index_counter = [0]
         stack = []
@@ -208,8 +208,8 @@ class CycleDetector:
         on_stack = {}
         sccs = []
         
-        # 使用显式栈进行迭代式处理
-        # 栈元素: (node, 'enter'|'exit', neighbors_iterator)
+        # Use explicit stack for iterative processing
+        # Stack element: (node, 'enter'|'exit', neighbors_iterator)
         for node in list(self.adjacency.keys()):
             if node in index:
                 continue
@@ -220,32 +220,32 @@ class CycleDetector:
                 current, state, neighbors_iter = process_stack.pop()
                 
                 if state == 'enter':
-                    # 首次访问节点
+                    # First visit to node
                     index[current] = index_counter[0]
                     lowlinks[current] = index_counter[0]
                     index_counter[0] += 1
                     stack.append(current)
                     on_stack[current] = True
                     
-                    # 创建邻居迭代器
+                    # Create neighbor iterator
                     neighbor_list = list(self.adjacency.get(current, []))
                     process_stack.append((current, 'exit', iter(neighbor_list)))
                     
                 elif state == 'exit':
-                    # 处理邻居
+                    # Process neighbors
                     try:
                         successor = next(neighbors_iter)
                         if successor not in index:
-                            # 后继未访问，先访问后继
+                            # Successor not visited, visit it first
                             process_stack.append((current, 'exit', neighbors_iter))
                             process_stack.append((successor, 'enter', None))
                         elif on_stack.get(successor, False):
                             lowlinks[current] = min(lowlinks[current], index[successor])
                         else:
-                            # 继续下一个邻居
+                            # Continue to next neighbor
                             process_stack.append((current, 'exit', neighbors_iter))
                     except StopIteration:
-                        # 所有邻居处理完毕，检查是否是 SCC 根
+                        # All neighbors processed, check if SCC root
                         if lowlinks[current] == index[current]:
                             scc = set()
                             while True:

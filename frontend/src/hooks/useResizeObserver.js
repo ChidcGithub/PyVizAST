@@ -1,17 +1,17 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 
 /**
- * 安全的 ResizeObserver Hook
- * 自动处理 ResizeObserver 的常见问题，包括：
- * 1. 循环通知错误
- * 2. 组件卸载时的清理
- * 3. 防抖处理
+ * Safe ResizeObserver Hook
+ * Automatically handles common ResizeObserver issues, including:
+ * 1. Circular notification errors
+ * 2. Cleanup on component unmount
+ * 3. Debounce handling
  * 
- * @param {React.RefObject} elementRef - 要观察的元素 ref
- * @param {Function} callback - resize 回调函数
- * @param {Object} options - 配置选项
- * @param {number} options.debounce - 防抖延迟（毫秒），默认 100
- * @param {boolean} options.immediate - 是否立即执行一次回调
+ * @param {React.RefObject} elementRef - Element ref to observe
+ * @param {Function} callback - Resize callback function
+ * @param {Object} options - Configuration options
+ * @param {number} options.debounce - Debounce delay (milliseconds), default 100
+ * @param {boolean} options.immediate - Whether to execute callback immediately
  */
 export function useResizeObserver(elementRef, callback, options = {}) {
   const { debounce = 100, immediate = false } = options;
@@ -20,12 +20,12 @@ export function useResizeObserver(elementRef, callback, options = {}) {
   const callbackRef = useRef(callback);
   const rafRef = useRef(null);
 
-  // 更新回调引用
+  // Update callback reference
   useEffect(() => {
     callbackRef.current = callback;
   }, [callback]);
 
-  // 清理函数
+  // Cleanup function
   const cleanup = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -39,7 +39,7 @@ export function useResizeObserver(elementRef, callback, options = {}) {
       try {
         observerRef.current.disconnect();
       } catch (e) {
-        // 忽略 disconnect 错误
+        // Ignore disconnect errors
       }
       observerRef.current = null;
     }
@@ -49,31 +49,31 @@ export function useResizeObserver(elementRef, callback, options = {}) {
     const element = elementRef.current;
     if (!element) return;
 
-    // 清理之前的 observer
+    // Cleanup previous observer
     cleanup();
 
-    // 创建 ResizeObserver
+    // Create ResizeObserver
     const handleResize = (entries) => {
-      // 取消之前的 RAF
+      // Cancel previous RAF
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current);
       }
 
-      // 使用 RAF 确保在浏览器绘制后执行
+      // Use RAF to ensure execution after browser paint
       rafRef.current = requestAnimationFrame(() => {
-        // 清除之前的防抖计时器
+        // Clear previous debounce timer
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
         }
 
-        // 防抖处理
+        // Debounce handling
         timeoutRef.current = setTimeout(() => {
           try {
             if (callbackRef.current && observerRef.current) {
               callbackRef.current(entries);
             }
           } catch (e) {
-            // 忽略回调中的错误，避免触发 ResizeObserver 循环
+            // Ignore errors in callback to avoid triggering ResizeObserver loop
             if (process.env.NODE_ENV === 'development') {
               console.debug('ResizeObserver callback error (suppressed):', e);
             }
@@ -86,7 +86,7 @@ export function useResizeObserver(elementRef, callback, options = {}) {
       observerRef.current = new ResizeObserver(handleResize);
       observerRef.current.observe(element);
 
-      // 立即执行一次
+      // Execute immediately once
       if (immediate) {
         const rect = element.getBoundingClientRect();
         callbackRef.current([{
@@ -109,11 +109,11 @@ export function useResizeObserver(elementRef, callback, options = {}) {
 }
 
 /**
- * 获取元素尺寸的 Hook
- * 基于 useResizeObserver 的简化版本
+ * Hook to get element dimensions
+ * Simplified version based on useResizeObserver
  * 
- * @param {React.RefObject} elementRef - 要观察的元素 ref
- * @returns {Object} 包含 width, height 的尺寸对象
+ * @param {React.RefObject} elementRef - Element ref to observe
+ * @returns {Object} Size object containing width and height
  */
 export function useElementSize(elementRef) {
   const [size, setSize] = useState({ width: 0, height: 0 });

@@ -62,26 +62,26 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref
   const monacoRef = useRef(null);
   const containerRef = useRef(null);
 
-  // 使用我们的 ResizeObserver 来触发布局更新
-  // 这避免了 Monaco 内部的 ResizeObserver 与其他 ResizeObserver 冲突
-  // 注意：只在编辑器挂载后才调用 layout
+  // Use our ResizeObserver to trigger layout updates
+  // This avoids conflicts between Monaco's internal ResizeObserver and other ResizeObservers
+  // Note: Only call layout after the editor is mounted
   useResizeObserver(containerRef, () => {
     if (editorRef.current && monacoRef.current) {
       try {
         editorRef.current.layout();
       } catch (e) {
-        // 忽略布局错误
+        // Ignore layout errors
       }
     }
   }, { debounce: 50, immediate: false });
 
-  // 暴露方法给父组件
+  // Expose methods to parent component
   useImperativeHandle(ref, () => ({
     /**
-     * 跳转到指定行并高亮
-     * @param {number} lineNumber - 行号（从1开始）
-     * @param {number} [column] - 可选的列号
-     * @param {number} [endLine] - 可选的结束行号（用于选中多行）
+     * Jump to specified line and highlight
+     * @param {number} lineNumber - Line number (1-based)
+     * @param {number} [column] - Optional column number
+     * @param {number} [endLine] - Optional end line number (for multi-line selection)
      */
     goToLine: (lineNumber, column = 1, endLine = null) => {
       if (!editorRef.current) return;
@@ -90,12 +90,12 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref
       const model = editor.getModel();
       if (!model) return;
       
-      // 确保行号在有效范围内
+      // Ensure line number is within valid range
       const lineCount = model.getLineCount();
       const targetLine = Math.max(1, Math.min(lineNumber, lineCount));
       const targetColumn = Math.max(1, column);
       
-      // 设置选区
+      // Set selection
       if (endLine && endLine > targetLine) {
         const endLineNumber = Math.min(endLine, lineCount);
         editor.setSelection({
@@ -105,7 +105,7 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref
           endColumn: model.getLineContent(endLineNumber).length + 1
         });
       } else {
-        // 选中整行
+        // Select entire line
         editor.setSelection({
           startLineNumber: targetLine,
           startColumn: 1,
@@ -114,18 +114,18 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref
         });
       }
       
-      // 滚动到该行并居中显示
+      // Scroll to the line and center it
       editor.revealLineInCenter(targetLine);
       
-      // 聚焦编辑器
+      // Focus the editor
       editor.focus();
     },
     
     /**
-     * 高亮指定行范围（添加装饰）
-     * @param {number} startLine - 起始行
-     * @param {number} endLine - 结束行
-     * @returns {string} 装饰ID，用于后续清除
+     * Highlight specified line range (add decoration)
+     * @param {number} startLine - Start line
+     * @param {number} endLine - End line
+     * @returns {string} Decoration ID for later removal
      */
     highlightLines: (startLine, endLine) => {
       if (!editorRef.current || !monacoRef.current) return null;
@@ -139,7 +139,7 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref
       const start = Math.max(1, Math.min(startLine, lineCount));
       const end = Math.max(start, Math.min(endLine, lineCount));
       
-      // 添加行高亮装饰
+      // Add line highlight decoration
       const decorationIds = editor.deltaDecorations([], [
         {
           range: new monaco.Range(start, 1, end, model.getLineContent(end).length + 1),
@@ -155,8 +155,8 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref
     },
     
     /**
-     * 清除高亮装饰
-     * @param {string} decorationId - 装饰ID
+     * Clear highlight decoration
+     * @param {string} decorationId - Decoration ID
      */
     clearHighlight: (decorationId) => {
       if (!editorRef.current || !decorationId) return;
@@ -164,7 +164,7 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref
     },
     
     /**
-     * 获取编辑器实例
+     * Get editor instance
      */
     getEditor: () => editorRef.current
   }));
@@ -180,8 +180,8 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref
     // Set initial theme
     monaco.editor.setTheme(theme === 'dark' ? 'monochrome-dark' : 'monochrome-light');
     
-    // 首次挂载时触发布局，确保编辑器正确渲染
-    // 使用 setTimeout 确保 DOM 已完全更新
+    // Trigger layout on first mount to ensure editor renders correctly
+    // Use setTimeout to ensure DOM is fully updated
     setTimeout(() => {
       if (editorRef.current && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
@@ -218,12 +218,12 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref
           </div>
         </div>
         <div className="editor-actions">
-          <button className="btn btn-ghost" title="格式化代码">
+          <button className="btn btn-ghost" title="Format code">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 10H3M21 6H3M21 14H3M21 18H3" />
             </svg>
           </button>
-          <button className="btn btn-ghost" title="清空" onClick={() => onChange('')}>
+          <button className="btn btn-ghost" title="Clear" onClick={() => onChange('')}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
             </svg>
@@ -250,7 +250,7 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref
             padding: { top: 16, bottom: 16 },
             minimap: { enabled: false },
             scrollBeyondLastLine: false,
-            automaticLayout: false, // 禁用内置 ResizeObserver，使用我们自己的
+            automaticLayout: false, // Disable built-in ResizeObserver, use our own
             tabSize: 4,
             wordWrap: 'on',
             renderLineHighlight: 'all',

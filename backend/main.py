@@ -1,6 +1,6 @@
 """
 PyVizAST - FastAPI Backend
-基于AST的Python代码可视化与优化分析器
+AST-based Python Code Visualizer and Optimization Analyzer
 """
 import ast
 import json
@@ -41,67 +41,67 @@ from .project_analyzer import (
 )
 
 
-# 自定义异常类
+# Custom exception classes
 class AnalysisError(Exception):
-    """分析过程中的错误"""
+    """Error during analysis"""
     pass
 
 
 class CodeParsingError(AnalysisError):
-    """代码解析错误"""
+    """Code parsing error"""
     pass
 
 
 class CodeTooLargeError(AnalysisError):
-    """代码过大错误"""
+    """Code too large error"""
     pass
 
 
 class ResourceNotFoundError(Exception):
-    """资源未找到错误"""
+    """Resource not found error"""
     pass
 
 
-# 初始化日志系统
+# Initialize logging system
 logger = init_logging(level=logging.INFO)
 
 
-# 创建FastAPI应用
+# Create FastAPI application
 app = FastAPI(
     title="PyVizAST API",
-    description="Python AST可视化与静态分析API",
+    description="Python AST Visualization and Static Analysis API",
     version="0.1.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
 
-# 配置CORS
+# Configure CORS
 import os
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,  # 从环境变量读取允许的来源
+    allow_origins=ALLOWED_ORIGINS,  # Read allowed origins from environment variable
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
 
-# 全局异常处理器
+# Global exception handlers
 @app.exception_handler(ValidationError)
 async def validation_exception_handler(request: Request, exc: ValidationError):
-    """处理 Pydantic 验证错误"""
-    log_exception(logger, exc, f"请求路径: {request.url.path}")
+    """Handle Pydantic validation errors"""
+    log_exception(logger, exc, f"Request path: {request.url.path}")
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": f"输入验证失败: {exc}"}
+        content={"detail": f"Input validation failed: {exc}"}
     )
 
 
 @app.exception_handler(CodeParsingError)
 async def code_parsing_exception_handler(request: Request, exc: CodeParsingError):
-    """处理代码解析错误"""
-    logger.warning(f"代码解析错误: {exc} | 路径: {request.url.path}")
+    """Handle code parsing errors"""
+    logger.warning(f"Code parsing error: {exc} | Path: {request.url.path}")
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content={"detail": str(exc)}
@@ -110,8 +110,8 @@ async def code_parsing_exception_handler(request: Request, exc: CodeParsingError
 
 @app.exception_handler(CodeTooLargeError)
 async def code_too_large_exception_handler(request: Request, exc: CodeTooLargeError):
-    """处理代码过大错误"""
-    logger.warning(f"代码过大: {exc} | 路径: {request.url.path}")
+    """Handle code too large errors"""
+    logger.warning(f"Code too large: {exc} | Path: {request.url.path}")
     return JSONResponse(
         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
         content={"detail": str(exc)}
@@ -120,8 +120,8 @@ async def code_too_large_exception_handler(request: Request, exc: CodeTooLargeEr
 
 @app.exception_handler(ResourceNotFoundError)
 async def resource_not_found_exception_handler(request: Request, exc: ResourceNotFoundError):
-    """处理资源未找到错误"""
-    logger.warning(f"资源未找到: {exc} | 路径: {request.url.path}")
+    """Handle resource not found errors"""
+    logger.warning(f"Resource not found: {exc} | Path: {request.url.path}")
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
         content={"detail": str(exc)}
@@ -130,44 +130,44 @@ async def resource_not_found_exception_handler(request: Request, exc: ResourceNo
 
 @app.exception_handler(AnalysisError)
 async def analysis_exception_handler(request: Request, exc: AnalysisError):
-    """处理分析过程中的错误"""
-    log_exception(logger, exc, f"请求路径: {request.url.path}")
+    """Handle errors during analysis"""
+    log_exception(logger, exc, f"Request path: {request.url.path}")
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": f"分析过程中发生错误: {str(exc)}"}
+        content={"detail": f"Error during analysis: {str(exc)}"}
     )
 
 
 @app.exception_handler(OSError)
 async def os_exception_handler(request: Request, exc: OSError):
-    """处理操作系统错误（如文件操作）"""
-    log_exception(logger, exc, f"请求路径: {request.url.path}")
+    """Handle OS errors (e.g., file operations)"""
+    log_exception(logger, exc, f"Request path: {request.url.path}")
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "服务器内部错误，请稍后重试"}
+        content={"detail": "Internal server error, please try again later"}
     )
 
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    """处理所有未捕获的异常"""
-    log_exception(logger, exc, f"请求路径: {request.url.path}")
-    # 生产环境不返回详细错误信息
+    """Handle all uncaught exceptions"""
+    log_exception(logger, exc, f"Request path: {request.url.path}")
+    # Don't return detailed error info in production
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "服务器内部错误"}
+        content={"detail": "Internal server error"}
     )
 
 
-# 本地模型定义
+# Local model definitions
 class PatchApplyRequest(BaseModel):
-    """补丁应用请求模型"""
+    """Patch apply request model"""
     code: str
     patch: str
 
 
 class AnalyzerFactory:
-    """分析器工厂 - 每次请求创建新实例避免状态污染"""
+    """Analyzer factory - creates new instances per request to avoid state pollution"""
     
     @staticmethod
     def create_complexity_analyzer() -> ComplexityAnalyzer:
@@ -199,7 +199,7 @@ class AnalyzerFactory:
 
 
 def get_parser(options: dict = None) -> ASTParser:
-    """获取配置化的解析器实例"""
+    """Get configured parser instance"""
     options = options or {}
     max_nodes = options.get('max_nodes', 2000)
     simplified = options.get('simplified', False)
@@ -209,11 +209,11 @@ def get_parser(options: dict = None) -> ASTParser:
 
 @app.get("/")
 async def root():
-    """API根端点"""
+    """API root endpoint"""
     return {
         "name": "PyVizAST API",
         "version": "0.1.0",
-        "description": "Python AST可视化与静态分析器",
+        "description": "Python AST Visualizer and Static Analyzer",
         "status": "running",
         "endpoints": {
             "analyze": "/api/analyze",
@@ -229,80 +229,80 @@ async def root():
 
 @app.get("/api/health")
 async def health_check():
-    """健康检查端点"""
+    """Health check endpoint"""
     return {"status": "healthy", "service": "PyVizAST API"}
 
 
 @app.post("/api/analyze", response_model=AnalysisResult)
 async def analyze_code(input_data: CodeInput):
     """
-    完整代码分析
-    解析AST、分析复杂度、检测问题、生成优化建议
+    Complete code analysis
+    Parse AST, analyze complexity, detect issues, generate optimization suggestions
     """
-    logger.info(f"开始分析代码, 文件名: {input_data.filename or '未指定'}")
+    logger.info(f"Starting code analysis, filename: {input_data.filename or 'unspecified'}")
     
     try:
         code = input_data.code
         filename = input_data.filename
         options = input_data.options or {}
         
-        # 检测代码大小，自动启用简化模式
+        # Detect code size, automatically enable simplified mode
         code_lines = len(code.splitlines())
         auto_simplified = code_lines > 500
-        logger.debug(f"代码行数: {code_lines}, 简化模式: {auto_simplified}")
+        logger.debug(f"Code lines: {code_lines}, simplified mode: {auto_simplified}")
         
-        # 解析AST - 使用渐进式策略处理大文件
+        # Parse AST - use progressive strategy for large files
         tree = None
-        simplification_level = 0  # 0=正常, 1=简化, 2=激进简化
+        simplification_level = 0  # 0=normal, 1=simplified, 2=aggressive simplification
         
         while tree is None and simplification_level <= 2:
             try:
                 tree = ast.parse(code)
             except SyntaxError as e:
-                # 语法错误应该立即抛出，不需要重试
-                raise CodeParsingError(f"语法错误: {str(e)}")
+                # Syntax errors should be raised immediately, no retry needed
+                raise CodeParsingError(f"Syntax error: {str(e)}")
             except MemoryError:
                 simplification_level += 1
                 if simplification_level == 1:
-                    # 第一次内存错误：尝试简化模式
-                    logger.warning(f"代码过大 ({code_lines} 行)，尝试简化模式...")
+                    # First memory error: try simplified mode
+                    logger.warning(f"Code too large ({code_lines} lines), trying simplified mode...")
                     auto_simplified = True
                     import gc
-                    gc.collect()  # 强制垃圾回收
+                    gc.collect()  # Force garbage collection
                 elif simplification_level == 2:
-                    # 第二次内存错误：尝试激进简化
-                    logger.warning("简化模式仍不足，尝试激进简化...")
-                    # 尝试只解析代码结构（去除函数体内容）
+                    # Second memory error: try aggressive simplification
+                    logger.warning("Simplified mode insufficient, trying aggressive simplification...")
+                    # Try to parse only code structure (remove function body content)
                     try:
-                        # 只保留代码的结构框架
+                        # Keep only code structure framework
                         lines = code.splitlines()
                         if len(lines) > 2000:
-                            # 对于超大文件，只分析前 2000 行
+                            # For very large files, only analyze first 2000 lines
                             code = '\n'.join(lines[:2000])
                             code_lines = 2000
                             tree = ast.parse(code)
-                            logger.info(f"已截取前 2000 行进行分析")
+                            logger.info(f"Truncated to first 2000 lines for analysis")
                             break
                     except SyntaxError as e:
-                        # 截取后的代码可能有语法错误，直接抛出
-                        raise CodeParsingError(f"语法错误: {str(e)}")
+                        # Truncated code may have syntax errors, raise directly
+                        raise CodeParsingError(f"Syntax error: {str(e)}")
                     except MemoryError:
                         pass
                     import gc
                     gc.collect()
                 else:
-                    # 最终失败
+                    # Final failure
                     raise CodeTooLargeError(
-                        f"代码过大 ({code_lines} 行)，无法解析。"
-                        f"建议：1) 将代码拆分为多个文件；"
-                        f"2) 使用更强大的机器；"
-                        f"3) 只分析部分代码。"
+                        f"Code too large ({code_lines} lines), cannot parse. "
+                        f"Suggestions: 1) Split code into multiple files; "
+                        f"2) Use a more powerful machine; "
+                        f"3) Analyze only part of the code."
                     )
         
         parser = get_parser({'simplified': auto_simplified, **options})
         ast_graph = parser.parse(code)
         
-        # 创建新的分析器实例
+        # Create new analyzer instances
         theme = options.get('theme', 'default')
         node_mapper = AnalyzerFactory.create_node_mapper(theme)
         complexity_analyzer = AnalyzerFactory.create_complexity_analyzer()
@@ -311,23 +311,24 @@ async def analyze_code(input_data: CodeInput):
         security_scanner = AnalyzerFactory.create_security_scanner()
         suggestion_engine = AnalyzerFactory.create_suggestion_engine()
         
-        # 应用主题
+        # Apply theme
         ast_graph = node_mapper.apply_theme_to_graph(ast_graph)
         ast_graph = node_mapper.calculate_node_sizes(ast_graph)
         
-        # 复杂度分析
+        # Complexity analysis
         complexity = complexity_analyzer.analyze(code, tree)
         
-        # 性能分析
-        performance_hotspots = performance_analyzer.analyze(code, tree)
+        # Performance analysis
+        performance_analyzer.analyze(code, tree)
+        performance_hotspots = performance_analyzer.hotspots
         
-        # 代码异味检测
+        # Code smell detection
         code_smell_detector.analyze(code, tree)
         
-        # 安全扫描
+        # Security scan
         security_scanner.scan(code, tree)
         
-        # 合并所有问题
+        # Merge all issues
         all_issues = (
             complexity_analyzer.get_issues() +
             performance_analyzer.get_issues() +
@@ -335,10 +336,10 @@ async def analyze_code(input_data: CodeInput):
             security_scanner.issues
         )
         
-        # 生成优化建议
+        # Generate optimization suggestions
         suggestions = suggestion_engine.generate_suggestions(code, tree, all_issues)
         
-        # 生成统计摘要
+        # Generate statistics summary
         summary = {
             "total_issues": len(all_issues),
             "critical_issues": sum(1 for i in all_issues if i.severity == SeverityLevel.CRITICAL),
@@ -351,7 +352,7 @@ async def analyze_code(input_data: CodeInput):
             "node_statistics": node_mapper.get_statistics(ast_graph)
         }
         
-        logger.info(f"分析完成, 发现 {len(all_issues)} 个问题")
+        logger.info(f"Analysis complete, found {len(all_issues)} issues")
         
         return AnalysisResult(
             filename=filename,
@@ -365,42 +366,42 @@ async def analyze_code(input_data: CodeInput):
         )
     
     except (CodeParsingError, CodeTooLargeError):
-        # 重新抛出已知异常，让全局处理器处理
+        # Re-raise known exceptions, let global handler process
         raise
     except RecursionError:
-        logger.error("递归深度超限")
-        raise AnalysisError("代码结构过于复杂，无法分析")
+        logger.error("Recursion depth exceeded")
+        raise AnalysisError("Code structure too complex to analyze")
     except MemoryError:
-        logger.error("内存不足")
-        raise CodeTooLargeError("代码过大，内存不足")
+        logger.error("Out of memory")
+        raise CodeTooLargeError("Code too large, out of memory")
 
 
 @app.post("/api/ast")
 async def get_ast(input_data: CodeInput):
     """
-    获取AST图结构
-    用于可视化
+    Get AST graph structure
+    For visualization
     """
-    logger.debug(f"获取AST图结构")
+    logger.debug(f"Getting AST graph structure")
     
     try:
         code = input_data.code
         options = input_data.options or {}
         
-        # 自动简化大文件
+        # Auto-simplify large files
         code_lines = len(code.splitlines())
         auto_simplified = code_lines > 500 or options.get('simplified', False)
         
-        # 解析AST
+        # Parse AST
         try:
             parser = get_parser({'simplified': auto_simplified, **options})
             ast_graph = parser.parse(code)
         except SyntaxError as e:
-            raise CodeParsingError(f"语法错误: {str(e)}")
+            raise CodeParsingError(f"Syntax error: {str(e)}")
         except MemoryError:
-            raise CodeTooLargeError("代码过大，无法解析")
+            raise CodeTooLargeError("Code too large to parse")
         
-        # 应用主题和布局
+        # Apply theme and layout
         theme = options.get('theme', 'default')
         format_type = options.get('format', 'cytoscape')
         
@@ -408,7 +409,7 @@ async def get_ast(input_data: CodeInput):
         ast_graph = node_mapper.apply_theme_to_graph(ast_graph)
         ast_graph = node_mapper.calculate_node_sizes(ast_graph)
         
-        # 转换格式
+        # Convert format
         if format_type == 'cytoscape':
             return node_mapper.to_cytoscape_elements(ast_graph)
         elif format_type == 'd3':
@@ -425,9 +426,9 @@ async def get_ast(input_data: CodeInput):
 @app.post("/api/ast/filter")
 async def filter_ast(input_data: CodeInput, node_types: Optional[str] = None, max_depth: Optional[int] = None):
     """
-    过滤AST节点
+    Filter AST nodes
     """
-    logger.debug(f"过滤AST节点, 类型: {node_types}, 最大深度: {max_depth}")
+    logger.debug(f"Filtering AST nodes, types: {node_types}, max depth: {max_depth}")
     
     try:
         from .models.schemas import NodeType
@@ -440,23 +441,23 @@ async def filter_ast(input_data: CodeInput, node_types: Optional[str] = None, ma
         
         node_mapper = AnalyzerFactory.create_node_mapper()
         
-        # 按类型过滤
+        # Filter by type
         if node_types:
             try:
                 types = [NodeType[t.strip().upper()] for t in node_types.split(',')]
             except KeyError as e:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"无效的节点类型: {e}"
+                    detail=f"Invalid node type: {e}"
                 )
             ast_graph = node_mapper.filter_by_type(ast_graph, types)
         
-        # 按深度过滤
+        # Filter by depth
         if max_depth:
             if max_depth < 1:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="最大深度必须大于0"
+                    detail="Max depth must be greater than 0"
                 )
             ast_graph = node_mapper.filter_by_depth(ast_graph, max_depth)
         
@@ -465,15 +466,15 @@ async def filter_ast(input_data: CodeInput, node_types: Optional[str] = None, ma
     except HTTPException:
         raise
     except SyntaxError as e:
-        raise CodeParsingError(f"语法错误: {str(e)}")
+        raise CodeParsingError(f"Syntax error: {str(e)}")
 
 
 @app.post("/api/complexity", response_model=ComplexityMetrics)
 async def get_complexity(input_data: CodeInput):
     """
-    获取复杂度分析结果
+    Get complexity analysis results
     """
-    logger.debug("获取复杂度分析")
+    logger.debug("Getting complexity analysis")
     
     try:
         code = input_data.code
@@ -481,15 +482,15 @@ async def get_complexity(input_data: CodeInput):
         analyzer = AnalyzerFactory.create_complexity_analyzer()
         return analyzer.analyze(code, tree)
     except SyntaxError as e:
-        raise CodeParsingError(f"语法错误: {str(e)}")
+        raise CodeParsingError(f"Syntax error: {str(e)}")
 
 
 @app.post("/api/performance")
 async def get_performance_issues(input_data: CodeInput):
     """
-    获取性能热点分析
+    Get performance hotspot analysis
     """
-    logger.debug("获取性能热点分析")
+    logger.debug("Getting performance hotspot analysis")
     
     try:
         code = input_data.code
@@ -503,15 +504,15 @@ async def get_performance_issues(input_data: CodeInput):
             "issues": issues
         }
     except SyntaxError as e:
-        raise CodeParsingError(f"语法错误: {str(e)}")
+        raise CodeParsingError(f"Syntax error: {str(e)}")
 
 
 @app.post("/api/security")
 async def get_security_issues(input_data: CodeInput):
     """
-    获取安全扫描结果
+    Get security scan results
     """
-    logger.debug("获取安全扫描结果")
+    logger.debug("Getting security scan results")
     
     try:
         code = input_data.code
@@ -525,28 +526,28 @@ async def get_security_issues(input_data: CodeInput):
             "summary": summary
         }
     except SyntaxError as e:
-        raise CodeParsingError(f"语法错误: {str(e)}")
+        raise CodeParsingError(f"Syntax error: {str(e)}")
 
 
 @app.post("/api/suggestions")
 async def get_suggestions(input_data: CodeInput):
     """
-    获取优化建议
+    Get optimization suggestions
     """
-    logger.debug("获取优化建议")
+    logger.debug("Getting optimization suggestions")
     
     try:
         code = input_data.code
         tree = ast.parse(code)
         
-        # 创建新的分析器实例
+        # Create new analyzer instances
         complexity_analyzer = AnalyzerFactory.create_complexity_analyzer()
         performance_analyzer = AnalyzerFactory.create_performance_analyzer()
         code_smell_detector = AnalyzerFactory.create_code_smell_detector()
         security_scanner = AnalyzerFactory.create_security_scanner()
         suggestion_engine = AnalyzerFactory.create_suggestion_engine()
         
-        # 运行完整分析获取问题
+        # Run complete analysis to get issues
         complexity_analyzer.analyze(code, tree)
         performance_analyzer.analyze(code, tree)
         code_smell_detector.analyze(code, tree)
@@ -568,25 +569,25 @@ async def get_suggestions(input_data: CodeInput):
             "high_priority": suggestion_engine.get_high_priority_suggestions()
         }
     except SyntaxError as e:
-        raise CodeParsingError(f"语法错误: {str(e)}")
+        raise CodeParsingError(f"Syntax error: {str(e)}")
 
 
 @app.post("/api/patches")
 async def generate_patches(input_data: CodeInput):
     """
-    生成自动修复补丁
+    Generate auto-fix patches
     """
-    logger.debug("生成自动修复补丁")
+    logger.debug("Generating auto-fix patches")
     
     try:
         code = input_data.code
         tree = ast.parse(code)
         
-        # 创建新实例
+        # Create new instances
         suggestion_engine = AnalyzerFactory.create_suggestion_engine()
         patch_generator = AnalyzerFactory.create_patch_generator()
         
-        # 获取建议
+        # Get suggestions
         suggestions = suggestion_engine.generate_suggestions(code, tree)
         patches = patch_generator.generate_all_patches(code, suggestions)
         
@@ -595,15 +596,15 @@ async def generate_patches(input_data: CodeInput):
             "total": len(patches)
         }
     except SyntaxError as e:
-        raise CodeParsingError(f"语法错误: {str(e)}")
+        raise CodeParsingError(f"Syntax error: {str(e)}")
 
 
 @app.post("/api/apply-patch")
 async def apply_patch(request: PatchApplyRequest):
     """
-    应用补丁到代码
+    Apply patch to code
     """
-    logger.debug("应用补丁到代码")
+    logger.debug("Applying patch to code")
     
     try:
         patch_generator = AnalyzerFactory.create_patch_generator()
@@ -611,7 +612,7 @@ async def apply_patch(request: PatchApplyRequest):
         if result is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="补丁应用失败，格式不正确或与代码不匹配"
+                detail="Patch application failed, invalid format or doesn't match code"
             )
         return {"fixed_code": result}
     except HTTPException:
@@ -619,17 +620,17 @@ async def apply_patch(request: PatchApplyRequest):
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"补丁格式错误: {str(e)}"
+            detail=f"Patch format error: {str(e)}"
         )
 
 
-# 交互式学习模式端点
+# Interactive learning mode endpoints
 @app.post("/api/learn/node/{node_id}")
 async def explain_node(node_id: str, input_data: CodeInput):
     """
-    解释AST节点（学习模式）
+    Explain AST node (learning mode)
     """
-    logger.debug(f"解释AST节点: {node_id}")
+    logger.debug(f"Explaining AST node: {node_id}")
     
     try:
         code = input_data.code
@@ -638,7 +639,7 @@ async def explain_node(node_id: str, input_data: CodeInput):
         parser = get_parser(options)
         ast_graph = parser.parse(code)
         
-        # 查找节点
+        # Find node
         node = None
         for n in ast_graph.nodes:
             if n.id == node_id:
@@ -646,9 +647,9 @@ async def explain_node(node_id: str, input_data: CodeInput):
                 break
         
         if not node:
-            raise ResourceNotFoundError(f"节点未找到: {node_id}")
+            raise ResourceNotFoundError(f"Node not found: {node_id}")
         
-        # 生成解释
+        # Generate explanation
         explanation = _generate_node_explanation(node)
         
         return LearningModeResult(
@@ -662,27 +663,27 @@ async def explain_node(node_id: str, input_data: CodeInput):
     except (ResourceNotFoundError, CodeParsingError):
         raise
     except SyntaxError as e:
-        raise CodeParsingError(f"语法错误: {str(e)}")
+        raise CodeParsingError(f"Syntax error: {str(e)}")
 
 
-# 挑战数据加载器
+# Challenge data loader
 def load_challenges() -> List[Dict[str, Any]]:
-    """从 JSON 文件加载挑战数据"""
+    """Load challenge data from JSON file"""
     challenges_path = Path(__file__).parent / "data" / "challenges.json"
     try:
         with open(challenges_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
             return data.get("challenges", [])
     except FileNotFoundError:
-        logger.warning(f"挑战数据文件未找到: {challenges_path}")
+        logger.warning(f"Challenge data file not found: {challenges_path}")
         return []
     except json.JSONDecodeError as e:
-        logger.error(f"挑战数据 JSON 解析错误: {e}")
+        logger.error(f"Challenge data JSON parse error: {e}")
         return []
 
 
 def get_challenges_cache() -> List[Dict[str, Any]]:
-    """获取挑战数据（带缓存）"""
+    """Get challenge data (with cache)"""
     if not hasattr(get_challenges_cache, '_cache'):
         get_challenges_cache._cache = load_challenges()
     return get_challenges_cache._cache
@@ -690,8 +691,8 @@ def get_challenges_cache() -> List[Dict[str, Any]]:
 
 @app.get("/api/challenges")
 async def get_challenges():
-    """获取挑战列表"""
-    logger.debug("获取挑战列表")
+    """Get challenge list"""
+    logger.debug("Getting challenge list")
     challenges = get_challenges_cache()
     return [
         {
@@ -706,8 +707,8 @@ async def get_challenges():
 
 @app.get("/api/challenges/{challenge_id}")
 async def get_challenge(challenge_id: str):
-    """获取挑战详情"""
-    logger.debug(f"获取挑战详情: {challenge_id}")
+    """Get challenge details"""
+    logger.debug(f"Getting challenge details: {challenge_id}")
     challenges = get_challenges_cache()
     for challenge in challenges:
         if challenge["id"] == challenge_id:
@@ -719,7 +720,7 @@ async def get_challenge(challenge_id: str):
                 "difficulty": challenge["difficulty"],
                 "hints": challenge.get("hints", [])
             }
-    raise ResourceNotFoundError(f"挑战未找到: {challenge_id}")
+    raise ResourceNotFoundError(f"Challenge not found: {challenge_id}")
 
 
 class ChallengeSubmission(BaseModel):
@@ -729,8 +730,8 @@ class ChallengeSubmission(BaseModel):
 
 @app.post("/api/challenges/submit")
 async def submit_challenge(submission: ChallengeSubmission):
-    """提交挑战答案"""
-    logger.debug(f"提交挑战答案: {submission.challenge_id}")
+    """Submit challenge answer"""
+    logger.debug(f"Submitting challenge answer: {submission.challenge_id}")
     challenges = get_challenges_cache()
     for challenge in challenges:
         if challenge["id"] == submission.challenge_id:
@@ -753,19 +754,19 @@ async def submit_challenge(submission: ChallengeSubmission):
                 feedback=_generate_challenge_feedback(correct, missed, wrong)
             )
     
-    raise ResourceNotFoundError(f"挑战未找到: {submission.challenge_id}")
+    raise ResourceNotFoundError(f"Challenge not found: {submission.challenge_id}")
 
 
 def _generate_node_explanation(node) -> Dict[str, Any]:
-    """生成节点解释"""
-    node_name = node.name or "未命名"
+    """Generate node explanation"""
+    node_name = node.name or "unnamed"
     
     explanations = {
         "function": {
-            "explanation": f"这是一个函数定义节点。函数名是 '{node_name}'，"
-                          f"它包含{len(node.children)}个子节点。",
-            "doc": "在Python中，函数是使用def关键字定义的代码块，"
-                   "可以接收参数并返回值。函数有助于代码复用和模块化。",
+            "explanation": f"This is a function definition node. Function name is '{node_name}', "
+                          f"it contains {len(node.children)} child nodes.",
+            "doc": "In Python, functions are code blocks defined using the def keyword, "
+                   "which can receive parameters and return values. Functions help with code reuse and modularization.",
             "examples": [
                 "def greet(name):\n    return f'Hello, {name}!'",
                 "def add(a, b=0):\n    return a + b"
@@ -773,9 +774,9 @@ def _generate_node_explanation(node) -> Dict[str, Any]:
             "related": ["parameters", "return statement", "decorators"]
         },
         "class": {
-            "explanation": f"这是一个类定义节点。类名是 '{node_name}'。",
-            "doc": "类是对象的蓝图，包含属性和方法。"
-                   "Python支持面向对象编程，包括继承、封装和多态。",
+            "explanation": f"This is a class definition node. Class name is '{node_name}'.",
+            "doc": "Classes are blueprints for objects, containing attributes and methods. "
+                   "Python supports object-oriented programming, including inheritance, encapsulation, and polymorphism.",
             "examples": [
                 "class Dog:\n    def __init__(self, name):\n        self.name = name",
                 "class Cat(Animal):\n    def speak(self):\n        print('Meow')"
@@ -783,9 +784,9 @@ def _generate_node_explanation(node) -> Dict[str, Any]:
             "related": ["inheritance", "methods", "attributes", "__init__"]
         },
         "for": {
-            "explanation": "这是一个for循环节点，用于遍历可迭代对象。",
-            "doc": "for循环是Python中最常用的迭代结构，"
-                   "可以遍历列表、元组、字典、字符串等可迭代对象。",
+            "explanation": "This is a for loop node, used to iterate over iterable objects.",
+            "doc": "For loops are the most common iteration structure in Python, "
+                   "can iterate over lists, tuples, dictionaries, strings, and other iterable objects.",
             "examples": [
                 "for i in range(10):\n    print(i)",
                 "for item in my_list:\n    process(item)"
@@ -793,9 +794,9 @@ def _generate_node_explanation(node) -> Dict[str, Any]:
             "related": ["while loop", "range()", "iterators", "enumerate()"]
         },
         "if": {
-            "explanation": "这是一个if条件判断节点，用于根据条件执行不同的代码。",
-            "doc": "if语句根据条件表达式的真假来决定执行哪个分支。"
-                   "可以配合elif和else使用。",
+            "explanation": "This is an if conditional node, used to execute different code based on conditions.",
+            "doc": "If statements decide which branch to execute based on the truth value of the condition expression. "
+                   "Can be used with elif and else.",
             "examples": [
                 "if x > 0:\n    print('positive')\nelse:\n    print('non-positive')",
                 "if x > 10 and y > 10:\n    return 'large'"
@@ -803,8 +804,8 @@ def _generate_node_explanation(node) -> Dict[str, Any]:
             "related": ["elif", "else", "conditional expressions", "boolean logic"]
         },
         "call": {
-            "explanation": f"这是一个函数调用节点，调用 '{node_name}' 函数。",
-            "doc": "函数调用会执行函数定义中的代码，并可以传递参数和接收返回值。",
+            "explanation": f"This is a function call node, calling '{node_name}' function.",
+            "doc": "Function calls execute the code in the function definition, can pass arguments and receive return values.",
             "examples": [
                 "result = len(my_list)",
                 "greeting = greet('World')"
@@ -812,9 +813,9 @@ def _generate_node_explanation(node) -> Dict[str, Any]:
             "related": ["arguments", "parameters", "return value", "built-in functions"]
         },
         "assign": {
-            "explanation": "这是一个赋值节点，将值绑定到变量名。",
-            "doc": "赋值操作将右侧的值绑定到左侧的变量名。"
-                   "Python支持多重赋值和解包赋值。",
+            "explanation": "This is an assignment node, binding a value to a variable name.",
+            "doc": "Assignment operations bind the right-hand value to the left-hand variable name. "
+                   "Python supports multiple assignment and unpacking assignment.",
             "examples": [
                 "x = 10",
                 "a, b = 1, 2",
@@ -825,7 +826,7 @@ def _generate_node_explanation(node) -> Dict[str, Any]:
     }
     
     return explanations.get(node.type.value, {
-        "explanation": f"这是一个{node.type.value}类型的AST节点。",
+        "explanation": f"This is an AST node of type {node.type.value}.",
         "doc": None,
         "examples": [],
         "related": []
@@ -833,29 +834,25 @@ def _generate_node_explanation(node) -> Dict[str, Any]:
 
 
 def _generate_challenge_feedback(correct, missed, wrong):
-    """生成挑战反馈"""
+    """Generate challenge feedback"""
     feedback = []
     
     if correct:
-        feedback.append(f"太棒了！你正确识别了: {', '.join(correct)}")
+        feedback.append(f"Great job! You correctly identified: {', '.join(correct)}")
     
     if missed:
-        feedback.append(f"你遗漏了: {', '.join(missed)}")
+        feedback.append(f"You missed: {', '.join(missed)}")
     
     if wrong:
-        feedback.append(f"错误识别: {', '.join(wrong)}")
+        feedback.append(f"Incorrectly identified: {', '.join(wrong)}")
     
-    return " ".join(feedback) if feedback else "继续努力！"
+    return " ".join(feedback) if feedback else "Keep trying!"
 
 
-# 前端日志接收端点
-from pydantic import BaseModel
-from typing import List as TypingList
-from datetime import datetime
-
+# Frontend log receiving endpoint
 
 class FrontendLogEntry(BaseModel):
-    """前端日志条目模型"""
+    """Frontend log entry model"""
     timestamp: str
     level: str
     message: str
@@ -870,49 +867,49 @@ class FrontendLogEntry(BaseModel):
 
 
 class FrontendLogsRequest(BaseModel):
-    """前端日志请求模型"""
-    logs: TypingList[FrontendLogEntry]
+    """Frontend logs request model"""
+    logs: List[FrontendLogEntry]
 
 
-# 确保日志目录存在
+# Ensure log directory exists
 LOGS_DIR = Path(__file__).parent.parent / "logs"
 
 
 def ensure_logs_dir():
-    """确保日志目录存在"""
+    """Ensure log directory exists"""
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @app.post("/api/logs/frontend")
 async def receive_frontend_logs(request: FrontendLogsRequest):
     """
-    接收前端日志并保存到文件
+    Receive frontend logs and save to file
     """
     ensure_logs_dir()
     
-    # 生成日志文件名（按日期）
+    # Generate log filename (by date)
     today = datetime.now().strftime("%Y-%m-%d")
     log_file = LOGS_DIR / f"frontend-{today}.log"
     
-    # 追加写入日志
+    # Append logs
     try:
         with open(log_file, 'a', encoding='utf-8') as f:
             for log_entry in request.logs:
-                # 格式化日志条目
+                # Format log entry
                 log_line = (
                     f"[{log_entry.timestamp}] "
                     f"[{log_entry.level.upper()}] "
                     f"{log_entry.message}"
                 )
                 
-                # 添加额外信息
+                # Add extra info
                 extras = []
                 if log_entry.url:
                     extras.append(f"url={log_entry.url}")
                 if log_entry.filename:
                     extras.append(f"file={log_entry.filename}:{log_entry.lineno}:{log_entry.colno}")
                 if log_entry.stack:
-                    extras.append(f"stack={log_entry.stack[:500]}")  # 限制栈长度
+                    extras.append(f"stack={log_entry.stack[:500]}")  # Limit stack length
                 if log_entry.componentStack:
                     extras.append(f"componentStack={log_entry.componentStack[:500]}")
                 
@@ -921,15 +918,15 @@ async def receive_frontend_logs(request: FrontendLogsRequest):
                 
                 f.write(log_line + "\n")
         
-        logger.debug(f"保存了 {len(request.logs)} 条前端日志")
+        logger.debug(f"Saved {len(request.logs)} frontend log entries")
         return {"status": "ok", "count": len(request.logs)}
     
     except Exception as e:
-        logger.error(f"保存前端日志失败: {e}")
+        logger.error(f"Failed to save frontend logs: {e}")
         return {"status": "error", "message": str(e)}
 
 
-# ============== 项目级分析端点 ==============
+# ============== Project-level Analysis Endpoints ==============
 
 import tempfile
 import shutil
@@ -942,7 +939,7 @@ from typing import Optional
 
 @dataclass
 class ProjectStorageEntry:
-    """项目存储条目"""
+    """Project storage entry"""
     scan_result: Any
     project_root: str
     temp_dir: str
@@ -954,29 +951,29 @@ class ProjectStorageEntry:
 
 class ProjectStorage:
     """
-    项目存储管理器
-    - 支持最大条目限制
-    - 支持 TTL 过期清理
-    - 线程安全
+    Project storage manager
+    - Supports maximum entry limit
+    - Supports TTL expiration cleanup
+    - Thread-safe
     """
     
     def __init__(self, max_entries: int = 50, ttl_seconds: float = 3600):
         """
-        初始化项目存储
+        Initialize project storage
         
         Args:
-            max_entries: 最大存储条目数
-            ttl_seconds: 条目过期时间（秒）
+            max_entries: Maximum number of entries to store
+            ttl_seconds: Entry expiration time (seconds)
         """
         self._storage: Dict[str, ProjectStorageEntry] = {}
         self._lock = threading.RLock()
         self._max_entries = max_entries
         self._ttl_seconds = ttl_seconds
-        self._cleanup_interval = 300  # 清理间隔（秒）
+        self._cleanup_interval = 300  # Cleanup interval (seconds)
         self._last_cleanup = time.time()
     
     def _cleanup_expired(self) -> None:
-        """清理过期条目"""
+        """Clean up expired entries"""
         now = time.time()
         expired_keys = []
         
@@ -988,44 +985,44 @@ class ProjectStorage:
             self._remove_entry(key)
         
         if expired_keys:
-            logger.debug(f"清理了 {len(expired_keys)} 个过期项目存储条目")
+            logger.debug(f"Cleaned up {len(expired_keys)} expired project storage entries")
     
     def _remove_entry(self, key: str) -> None:
-        """移除条目并清理临时目录"""
+        """Remove entry and clean up temporary directory"""
         entry = self._storage.pop(key, None)
         if entry:
             try:
                 shutil.rmtree(entry.temp_dir, ignore_errors=True)
             except Exception as e:
-                logger.warning(f"清理临时目录失败: {e}")
+                logger.warning(f"Failed to clean up temporary directory: {e}")
     
     def _evict_oldest_if_needed(self) -> None:
-        """如果超过最大条目数，移除最旧的条目"""
+        """If exceeding max entries, remove oldest entry"""
         if len(self._storage) >= self._max_entries:
-            # 找到最旧的条目
+            # Find oldest entry
             oldest_key = min(
                 self._storage.keys(),
                 key=lambda k: self._storage[k].last_accessed
             )
             self._remove_entry(oldest_key)
-            logger.debug(f"移除最旧的项目存储条目: {oldest_key}")
+            logger.debug(f"Removed oldest project storage entry: {oldest_key}")
     
     def _maybe_cleanup(self) -> None:
-        """定期清理检查"""
+        """Periodic cleanup check"""
         now = time.time()
         if now - self._last_cleanup > self._cleanup_interval:
             self._cleanup_expired()
             self._last_cleanup = now
     
     def set(self, project_id: str, entry: ProjectStorageEntry) -> None:
-        """存储项目条目"""
+        """Store project entry"""
         with self._lock:
             self._maybe_cleanup()
             self._evict_oldest_if_needed()
             self._storage[project_id] = entry
     
     def get(self, project_id: str) -> Optional[ProjectStorageEntry]:
-        """获取项目条目并更新访问时间"""
+        """Get project entry and update access time"""
         with self._lock:
             entry = self._storage.get(project_id)
             if entry:
@@ -1033,7 +1030,7 @@ class ProjectStorage:
             return entry
     
     def delete(self, project_id: str) -> bool:
-        """删除项目条目"""
+        """Delete project entry"""
         with self._lock:
             if project_id in self._storage:
                 self._remove_entry(project_id)
@@ -1041,7 +1038,7 @@ class ProjectStorage:
             return False
     
     def clear(self) -> None:
-        """清空所有条目"""
+        """Clear all entries"""
         with self._lock:
             for key in list(self._storage.keys()):
                 self._remove_entry(key)
@@ -1050,56 +1047,56 @@ class ProjectStorage:
         return len(self._storage)
 
 
-# 项目存储实例
+# Project storage instance
 _project_storage = ProjectStorage(max_entries=50, ttl_seconds=3600)
 
 
 class ProjectUploadResponse(BaseModel):
-    """项目上传响应"""
+    """Project upload response"""
     project_id: str
     project_name: str
     total_files: int
     file_paths: List[str]
     skipped_count: int
-    message: str = "项目上传成功"
+    message: str = "Project uploaded successfully"
 
 
 class QuickModeOptions(BaseModel):
-    """快速模式选项"""
+    """Quick mode options"""
     quick_mode: bool = False
 
 
 @app.post("/api/project/upload", response_model=ProjectUploadResponse)
 async def upload_project(file: UploadFile = File(...)):
     """
-    上传项目 ZIP 文件
+    Upload project ZIP file
     """
-    logger.info(f"上传项目: {file.filename}")
+    logger.info(f"Uploading project: {file.filename}")
     
     if not file.filename or not file.filename.lower().endswith('.zip'):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="请上传 .zip 格式的项目压缩包"
+            detail="Please upload a .zip format project archive"
         )
     
-    # 保存上传的文件到临时目录
+    # Save uploaded file to temporary directory
     temp_dir = tempfile.mkdtemp(prefix='pyvizast_upload_')
     temp_file = Path(temp_dir) / file.filename
     
     try:
-        # 写入上传的文件
+        # Write uploaded file
         content = await file.read()
         with open(temp_file, 'wb') as f:
             f.write(content)
         
-        # 扫描项目
+        # Scan project
         scanner = ProjectScanner()
         scan_result, project_root = scanner.scan_zip(str(temp_file), Path(file.filename).stem)
         
-        # 生成项目 ID
+        # Generate project ID
         project_id = f"proj_{int(time.time() * 1000)}"
         
-        # 存储项目信息（使用新的 ProjectStorage 类）
+        # Store project info (using new ProjectStorage class)
         now = time.time()
         entry = ProjectStorageEntry(
             scan_result=scan_result,
@@ -1112,7 +1109,7 @@ async def upload_project(file: UploadFile = File(...)):
         )
         _project_storage.set(project_id, entry)
         
-        logger.info(f"项目上传成功: {project_id}, {scan_result.total_files} 个文件, 当前存储: {len(_project_storage)} 个项目")
+        logger.info(f"Project uploaded successfully: {project_id}, {scan_result.total_files} files, current storage: {len(_project_storage)} projects")
         
         return ProjectUploadResponse(
             project_id=project_id,
@@ -1123,12 +1120,12 @@ async def upload_project(file: UploadFile = File(...)):
         )
     
     except Exception as e:
-        # 清理临时目录
+        # Clean up temporary directory
         shutil.rmtree(temp_dir, ignore_errors=True)
-        logger.error(f"项目上传失败: {e}")
+        logger.error(f"Project upload failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"项目上传失败: {str(e)}"
+            detail=f"Project upload failed: {str(e)}"
         )
 
 
@@ -1138,15 +1135,15 @@ async def analyze_project(
     quick_mode: bool = Form(False)
 ):
     """
-    分析上传的项目
-    直接接收 ZIP 文件并分析，一步完成
+    Analyze uploaded project
+    Receive ZIP file directly and analyze, single step
     """
-    logger.info(f"分析项目: {file.filename}, 快速模式: {quick_mode}")
+    logger.info(f"Analyzing project: {file.filename}, quick mode: {quick_mode}")
     
     if not file.filename or not file.filename.lower().endswith('.zip'):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="请上传 .zip 格式的项目压缩包"
+            detail="Please upload a .zip format project archive"
         )
     
     start_time = time.time()
@@ -1154,48 +1151,48 @@ async def analyze_project(
     temp_file = Path(temp_dir) / file.filename
     
     try:
-        # 写入上传的文件
+        # Write uploaded file
         content = await file.read()
         with open(temp_file, 'wb') as f:
             f.write(content)
         
-        # 扫描项目
+        # Scan project
         scanner = ProjectScanner()
         scan_result, project_root = scanner.scan_zip(str(temp_file), Path(file.filename).stem)
         
-        # 分析依赖关系
-        logger.debug("分析依赖关系...")
+        # Analyze dependencies
+        logger.debug("Analyzing dependencies...")
         dependency_analyzer = DependencyAnalyzer(project_root)
         module_files = {f.relative_path: f.path for f in scan_result.file_infos}
         dependency_graph = dependency_analyzer.analyze(list(module_files.values()))
         
-        # 检测循环依赖
-        logger.debug("检测循环依赖...")
+        # Detect circular dependencies
+        logger.debug("Detecting circular dependencies...")
         cycle_detector = CycleDetector(dependency_graph.adjacency_list)
         circular_issues = cycle_detector.detect()
         
-        # 检测未使用的导出
-        logger.debug("检测未使用的导出...")
+        # Detect unused exports
+        logger.debug("Detecting unused exports...")
         unused_detector = UnusedExportDetector(dependency_analyzer)
         unused_issues = unused_detector.detect(module_files) if not quick_mode else []
         
-        # 合并全局问题
+        # Merge global issues
         global_issues = circular_issues + unused_issues
         
-        # 分析每个文件
+        # Analyze each file
         file_results: List[FileAnalysisResult] = []
         
         for file_info in scan_result.file_infos:
             if quick_mode and file_info.is_test:
-                # 快速模式下跳过测试文件
+                # Skip test files in quick mode
                 continue
             
             try:
                 file_result = await _analyze_single_file(file_info, project_root)
                 file_results.append(file_result)
             except Exception as e:
-                logger.warning(f"分析文件失败 {file_info.relative_path}: {e}")
-                # 添加一个空结果
+                logger.warning(f"Failed to analyze file {file_info.relative_path}: {e}")
+                # Add an empty result
                 file_results.append(FileAnalysisResult(
                     file=file_info,
                     summary=FileSummary(),
@@ -1205,14 +1202,14 @@ async def analyze_project(
                     suggestions=[],
                 ))
         
-        # 聚合项目指标
+        # Aggregate project metrics
         metrics_aggregator = ProjectMetricsAggregator()
         metrics = metrics_aggregator.aggregate(file_results, scan_result, global_issues)
         
-        # 计算分析时间
+        # Calculate analysis time
         analysis_time_ms = (time.time() - start_time) * 1000
         
-        # 构建依赖关系数据
+        # Build dependency data
         dependencies = {
             'dependency_graph': dependency_graph.adjacency_list,
             'nodes': dependency_graph.nodes,
@@ -1222,9 +1219,9 @@ async def analyze_project(
             ],
         }
         
-        logger.info(f"项目分析完成: {len(file_results)} 个文件, "
-                   f"{len(global_issues)} 个全局问题, "
-                   f"耗时 {analysis_time_ms:.2f}ms")
+        logger.info(f"Project analysis complete: {len(file_results)} files, "
+                   f"{len(global_issues)} global issues, "
+                   f"took {analysis_time_ms:.2f}ms")
         
         return {
             'scan_result': scan_result.model_dump(),
@@ -1236,20 +1233,20 @@ async def analyze_project(
         }
     
     except Exception as e:
-        logger.error(f"项目分析失败: {e}")
+        logger.error(f"Project analysis failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"项目分析失败: {str(e)}"
+            detail=f"Project analysis failed: {str(e)}"
         )
     
     finally:
-        # 清理临时目录
+        # Clean up temporary directory
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 async def _analyze_single_file(file_info: FileInfo, project_root: str) -> FileAnalysisResult:
     """
-    分析单个文件
+    Analyze single file
     """
     from pathlib import Path as PathlibPath
     
@@ -1259,10 +1256,10 @@ async def _analyze_single_file(file_info: FileInfo, project_root: str) -> FileAn
         code = file_path.read_text(encoding='utf-8', errors='ignore')
         tree = ast.parse(code)
     except SyntaxError as e:
-        # 读取文件内容用于编辑
+        # Read file content for editing
         try:
             code_content = file_path.read_text(encoding='utf-8', errors='ignore')
-        except:
+        except Exception:
             code_content = ""
         return FileAnalysisResult(
             file=file_info,
@@ -1275,7 +1272,7 @@ async def _analyze_single_file(file_info: FileInfo, project_root: str) -> FileAn
                 'id': f'syntax_error_{file_info.relative_path}',
                 'type': 'code_smell',
                 'severity': 'error',
-                'message': f"语法错误: {str(e)}",
+                'message': f"Syntax error: {str(e)}",
                 'lineno': e.lineno,
             }],
             complexity={},
@@ -1283,10 +1280,10 @@ async def _analyze_single_file(file_info: FileInfo, project_root: str) -> FileAn
             suggestions=[],
         )
     except Exception as e:
-        # 读取文件内容用于编辑
+        # Read file content for editing
         try:
             code_content = file_path.read_text(encoding='utf-8', errors='ignore')
-        except:
+        except Exception:
             code_content = ""
         return FileAnalysisResult(
             file=file_info,
@@ -1298,25 +1295,25 @@ async def _analyze_single_file(file_info: FileInfo, project_root: str) -> FileAn
             suggestions=[],
         )
     
-    # 运行分析器
+    # Run analyzers
     complexity_analyzer = ComplexityAnalyzer()
     performance_analyzer = PerformanceAnalyzer()
     code_smell_detector = CodeSmellDetector()
     security_scanner = SecurityScanner()
     
-    # 复杂度分析
+    # Complexity analysis
     complexity = complexity_analyzer.analyze(code, tree)
     
-    # 性能分析
+    # Performance analysis
     performance_analyzer.analyze(code, tree)
     
-    # 代码异味检测
+    # Code smell detection
     code_smell_detector.analyze(code, tree)
     
-    # 安全扫描
+    # Security scan
     security_scanner.scan(code, tree)
     
-    # 合并问题
+    # Merge issues
     all_issues = (
         complexity_analyzer.get_issues() +
         performance_analyzer.get_issues() +
@@ -1324,7 +1321,7 @@ async def _analyze_single_file(file_info: FileInfo, project_root: str) -> FileAn
         security_scanner.issues
     )
     
-    # 构建摘要
+    # Build summary
     summary = FileSummary(
         issue_count=len(all_issues),
         cyclomatic_complexity=complexity.cyclomatic_complexity,
@@ -1336,7 +1333,7 @@ async def _analyze_single_file(file_info: FileInfo, project_root: str) -> FileAn
     
     return FileAnalysisResult(
         file=file_info,
-        content=code,  # 包含文件内容
+        content=code,  # Include file content
         summary=summary,
         issues=[issue.model_dump() for issue in all_issues],
         complexity=complexity.model_dump(),

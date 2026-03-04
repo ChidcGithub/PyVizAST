@@ -1,5 +1,5 @@
 """
-Unused Export Detector - 检测未被使用的导出符号
+Unused Export Detector - Detect unused exported symbols
 """
 import ast
 from pathlib import Path
@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 
 @dataclass
 class UnusedSymbol:
-    """未使用的符号"""
+    """Unused symbol"""
     name: str
     module: str
     type: str
@@ -26,9 +26,9 @@ class UnusedSymbol:
 
 
 class UnusedExportDetector:
-    """未使用导出检测器"""
+    """Unused Export Detector"""
     
-    # 常见的隐式使用入口点
+    # Common implicit entry points
     ENTRY_POINTS = {
         'main',
         '__main__',
@@ -40,7 +40,7 @@ class UnusedExportDetector:
         'get_app',
     }
     
-    # 特殊方法（通常不会直接调用）
+    # Special methods (usually not called directly)
     MAGIC_METHODS = {
         '__init__', '__new__', '__del__',
         '__repr__', '__str__', '__format__',
@@ -70,59 +70,59 @@ class UnusedExportDetector:
     
     def __init__(self, dependency_analyzer: DependencyAnalyzer):
         """
-        初始化检测器
+        Initialize the detector
         
         Args:
-            dependency_analyzer: 依赖分析器
+            dependency_analyzer: Dependency analyzer
         """
         self.dependency_analyzer = dependency_analyzer
         self.symbol_extractor = SymbolExtractor()
         
-        # 内部状态
+        # Internal state
         self.exported_symbols: Dict[str, List[SymbolDefinition]] = {}
         self.used_symbols: Dict[str, Set[str]] = defaultdict(set)
     
     def detect(self, module_files: Dict[str, str]) -> List[GlobalIssue]:
         """
-        检测未使用的导出符号
+        Detect unused exported symbols
         
         Args:
             module_files: {module_name: file_path}
         
         Returns:
-            未使用导出问题列表
+            List of unused export issues
         """
-        # 提取所有符号定义和使用
+        # Extract all symbol definitions and usages
         definitions, usages = self.symbol_extractor.extract_from_project(module_files)
         
-        # 构建模块到文件的映射
+        # Build module to file mapping
         self._build_usage_map(usages, module_files)
         
         issues = []
         
         for module_name, defs in definitions.items():
             for definition in defs:
-                # 只检查公开符号
+                # Only check public symbols
                 if not definition.is_public:
                     continue
                 
-                # 跳过特殊方法
+                # Skip special methods
                 if definition.name in self.MAGIC_METHODS:
                     continue
                 
-                # 跳过入口点
+                # Skip entry points
                 if definition.name in self.ENTRY_POINTS:
                     continue
                 
-                # 检查是否被使用
+                # Check if used
                 if self._is_symbol_used(definition, module_name, module_files):
                     continue
                 
-                # 找到未使用的符号
+                # Found unused symbol
                 issue = GlobalIssue(
                     issue_type='unused_export',
                     severity='info',
-                    message=f"符号 '{definition.name}' 已导出但未被项目内其他模块使用",
+                    message=f"Symbol '{definition.name}' is exported but not used by other modules in the project",
                     locations=[
                         {
                             'file_path': module_name,
@@ -136,70 +136,70 @@ class UnusedExportDetector:
                 issues.append(issue)
         
         if issues:
-            logger.info(f"检测到 {len(issues)} 个可能未使用的导出符号")
+            logger.info(f"Detected {len(issues)} possibly unused exported symbols")
         
         return issues
     
     def _build_usage_map(self, usages: Dict[str, List[SymbolUsage]], 
                          module_files: Dict[str, str]) -> None:
-        """构建符号使用映射"""
+        """Build symbol usage mapping"""
         for symbol_name, usage_list in usages.items():
             for usage in usage_list:
-                # 尝试解析符号来源
+                # Try to resolve symbol source
                 source_module = usage.source_module
                 
-                # 获取该模块的依赖
+                # Get dependencies of this module
                 deps = self.dependency_analyzer.get_dependencies(source_module)
                 
-                # 记录使用
+                # Record usage
                 self.used_symbols[symbol_name].add(source_module)
                 
-                # 如果有来源模块信息，也记录
+                # If source module info exists, record it too
                 if usage.module:
                     self.used_symbols[symbol_name].add(usage.module)
     
     def _is_symbol_used(self, definition: SymbolDefinition, module_name: str,
                         module_files: Dict[str, str]) -> bool:
         """
-        检查符号是否被使用
+        Check if a symbol is used
         
         Args:
-            definition: 符号定义
-            module_name: 定义所在的模块
-            module_files: 模块文件映射
+            definition: Symbol definition
+            module_name: Module where the symbol is defined
+            module_files: Module file mapping
         
         Returns:
-            是否被使用
+            Whether the symbol is used
         """
         symbol_name = definition.name
         
-        # 检查是否在 __all__ 中
+        # Check if in __all__
         exports = self.symbol_extractor.module_exports.get(module_name, set())
         if symbol_name in exports:
-            # 在 __all__ 中，可能是公共 API，不报告
+            # In __all__, possibly a public API, don't report
             return True
         
-        # 获取依赖此模块的其他模块
+        # Get modules that depend on this module
         dependents = self.dependency_analyzer.get_dependents(module_name)
         
         if not dependents:
-            # 没有模块依赖此模块，检查是否是入口点
+            # No modules depend on this module, check if it's an entry point
             return self._is_entry_module(module_name, module_files)
         
-        # 检查是否在依赖模块中被使用
+        # Check if used in dependent modules
         for dependent in dependents:
             if symbol_name in self.used_symbols:
-                # 检查使用是否来自依赖模块
+                # Check if usage is from dependent module
                 usages = self.used_symbols[symbol_name]
                 if dependent in usages:
                     return True
         
-        # 检查模块内部使用
+        # Check internal usage
         return self._is_used_internally(definition, module_name, module_files)
     
     def _is_entry_module(self, module_name: str, module_files: Dict[str, str]) -> bool:
-        """检查是否是入口模块"""
-        # __main__.py 或包含 main() 函数的模块
+        """Check if it's an entry module"""
+        # __main__.py or module with main() function
         if '__main__' in module_name:
             return True
         
@@ -213,7 +213,7 @@ class UnusedExportDetector:
                     if isinstance(node, ast.FunctionDef) and node.name == 'main':
                         return True
                     if isinstance(node, ast.If):
-                        # 检查 if __name__ == '__main__':
+                        # Check if __name__ == '__main__':
                         if self._is_main_block(node):
                             return True
             except Exception:
@@ -222,7 +222,7 @@ class UnusedExportDetector:
         return False
     
     def _is_main_block(self, node: ast.If) -> bool:
-        """检查是否是 if __name__ == '__main__' 块"""
+        """Check if it's an if __name__ == '__main__' block"""
         test = node.test
         if isinstance(test, ast.Compare):
             if len(test.ops) == 1 and isinstance(test.ops[0], ast.Eq):
@@ -233,7 +233,7 @@ class UnusedExportDetector:
     
     def _is_used_internally(self, definition: SymbolDefinition, module_name: str,
                            module_files: Dict[str, str]) -> bool:
-        """检查符号是否在模块内部被使用"""
+        """Check if symbol is used internally in the module"""
         file_path = module_files.get(module_name)
         if not file_path:
             return False
@@ -242,12 +242,12 @@ class UnusedExportDetector:
             content = Path(file_path).read_text(encoding='utf-8', errors='ignore')
             tree = ast.parse(content)
             
-            # 查找符号的所有使用
+            # Find all usages of the symbol
             for node in ast.walk(tree):
                 if isinstance(node, ast.Name) and node.id == definition.name:
-                    # 检查是否是使用（而非定义）
+                    # Check if it's a usage (not definition)
                     if isinstance(node.ctx, ast.Load):
-                        # 检查行号是否在定义之后
+                        # Check if line number is after definition
                         if node.lineno > definition.lineno:
                             return True
             
@@ -256,16 +256,16 @@ class UnusedExportDetector:
             return False
     
     def _generate_suggestion(self, definition: SymbolDefinition) -> str:
-        """生成修复建议"""
+        """Generate fix suggestion"""
         suggestions = []
         
         if definition.type == 'function':
-            suggestions.append("如果此函数是公共 API，考虑在 __all__ 中显式声明")
-            suggestions.append("如果此函数不再需要，可以删除或标记为私有（添加下划线前缀）")
+            suggestions.append("If this function is a public API, consider explicitly declaring it in __all__")
+            suggestions.append("If this function is no longer needed, you can delete it or mark it as private (add underscore prefix)")
         elif definition.type == 'class':
-            suggestions.append("如果此类是公共 API，考虑在 __all__ 中显式声明")
-            suggestions.append("如果此类是内部实现，考虑添加下划线前缀")
+            suggestions.append("If this class is a public API, consider explicitly declaring it in __all__")
+            suggestions.append("If this class is internal implementation, consider adding an underscore prefix")
         else:
-            suggestions.append("考虑将此符号添加到 __all__ 或标记为私有")
+            suggestions.append("Consider adding this symbol to __all__ or marking it as private")
         
         return '\n'.join(suggestions)

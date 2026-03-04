@@ -6,9 +6,9 @@ from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
-# 常量定义
-MAX_CODE_LENGTH = 5000000  # 最大代码长度（字符数）- 支持大型项目文件（五百万字符）
-MAX_FILENAME_LENGTH = 255  # 最大文件名长度
+# Constants
+MAX_CODE_LENGTH = 5000000  # Maximum code length (characters) - supports large project files (5 million characters)
+MAX_FILENAME_LENGTH = 255  # Maximum filename length
 
 
 class SeverityLevel(str, Enum):
@@ -19,36 +19,36 @@ class SeverityLevel(str, Enum):
 
 
 class NodeType(str, Enum):
-    """AST节点类型分类"""
-    # 结构节点
+    """AST node type classification"""
+    # Structure nodes
     MODULE = "module"
     FUNCTION = "function"
     CLASS = "class"
     
-    # 控制流
+    # Control flow
     IF = "if"
     FOR = "for"
     WHILE = "while"
     TRY = "try"
     WITH = "with"
     
-    # 表达式
+    # Expressions
     CALL = "call"
     BINARY_OP = "binary_op"
     COMPARE = "compare"
     LAMBDA = "lambda"
     
-    # 数据结构
+    # Data structures
     LIST = "list"
     DICT = "dict"
     SET = "set"
     TUPLE = "tuple"
     
-    # 变量
+    # Variables
     ASSIGN = "assign"
     NAME = "name"
     
-    # 其他
+    # Others
     IMPORT = "import"
     RETURN = "return"
     YIELD = "yield"
@@ -56,31 +56,31 @@ class NodeType(str, Enum):
 
 
 class ASTNode(BaseModel):
-    """AST节点可视化模型"""
-    id: str = Field(..., min_length=1, description="节点唯一标识")
+    """AST node visualization model"""
+    id: str = Field(..., min_length=1, description="Unique node identifier")
     type: NodeType
-    name: Optional[str] = Field(None, max_length=500, description="节点名称")
-    lineno: Optional[int] = Field(None, ge=1, description="起始行号")
-    col_offset: Optional[int] = Field(None, ge=0, description="起始列偏移")
-    end_lineno: Optional[int] = Field(None, ge=1, description="结束行号")
-    end_col_offset: Optional[int] = Field(None, ge=0, description="结束列偏移")
+    name: Optional[str] = Field(None, max_length=500, description="Node name")
+    lineno: Optional[int] = Field(None, ge=1, description="Starting line number")
+    col_offset: Optional[int] = Field(None, ge=0, description="Starting column offset")
+    end_lineno: Optional[int] = Field(None, ge=1, description="Ending line number")
+    end_col_offset: Optional[int] = Field(None, ge=0, description="Ending column offset")
     
-    # 可视化属性
+    # Visualization properties
     color: str = "#4A90D9"
     shape: str = "circle"
     size: int = Field(default=20, ge=1, le=100)
     
-    # 图标和描述（用于学习模式）
+    # Icon and description (for learning mode)
     icon: str = "•"
     description: str = ""
     detailed_label: str = ""
     explanation: str = ""
     
-    # 子节点和关系
+    # Children and relationships
     children: List[str] = Field(default_factory=list)
     parent: Optional[str] = None
     
-    # 详细信息
+    # Detailed information
     docstring: Optional[str] = None
     source_code: Optional[str] = None
     attributes: Dict[str, Any] = Field(default_factory=dict)
@@ -88,15 +88,15 @@ class ASTNode(BaseModel):
     @field_validator('end_lineno')
     @classmethod
     def validate_end_lineno(cls, v: Optional[int], info) -> Optional[int]:
-        """验证结束行号不小于起始行号"""
+        """Validate that end line number is not less than start line number"""
         if v is not None and info.data.get('lineno') is not None:
             if v < info.data['lineno']:
-                raise ValueError('结束行号不能小于起始行号')
+                raise ValueError('End line number cannot be less than start line number')
         return v
 
 
 class ASTEdge(BaseModel):
-    """AST节点之间的边"""
+    """Edge between AST nodes"""
     id: str
     source: str
     target: str
@@ -105,54 +105,55 @@ class ASTEdge(BaseModel):
 
 
 class ASTGraph(BaseModel):
-    """完整的AST图结构"""
+    """Complete AST graph structure"""
     nodes: List[ASTNode]
     edges: List[ASTEdge]
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 class CodeIssue(BaseModel):
-    """代码问题"""
-    id: str = Field(..., min_length=1, description="问题唯一标识")
-    type: str = Field(..., min_length=1, description="问题类型")
+    """Code issue"""
+    id: str = Field(..., min_length=1, description="Unique issue identifier")
+    type: str = Field(..., min_length=1, description="Issue type")
     severity: SeverityLevel
-    message: str = Field(..., min_length=1, max_length=2000, description="问题描述")
-    lineno: Optional[int] = Field(None, ge=1, description="起始行号")
-    col_offset: Optional[int] = Field(None, ge=0, description="起始列偏移")
-    end_lineno: Optional[int] = Field(None, ge=1, description="结束行号")
-    end_col_offset: Optional[int] = Field(None, ge=0, description="结束列偏移")
+    message: str = Field(..., min_length=1, max_length=2000, description="Issue description")
+    lineno: Optional[int] = Field(None, ge=1, description="Starting line number")
+    col_offset: Optional[int] = Field(None, ge=0, description="Starting column offset")
+    end_lineno: Optional[int] = Field(None, ge=1, description="Ending line number")
+    end_col_offset: Optional[int] = Field(None, ge=0, description="Ending column offset")
     node_id: Optional[str] = None
-    source_snippet: Optional[str] = Field(None, max_length=5000, description="源代码片段")
-    documentation_url: Optional[str] = Field(None, max_length=500, description="文档链接")
-    
+    source_snippet: Optional[str] = Field(None, max_length=5000, description="Source code snippet")
+    documentation_url: Optional[str] = Field(None, max_length=500, description="Documentation URL")
+    suggestion: Optional[str] = Field(None, max_length=1000, description="Fix suggestion")
+
     @field_validator('type')
     @classmethod
     def validate_type(cls, v: str) -> str:
-        """验证问题类型"""
+        """Validate issue type"""
         allowed_types = {'complexity', 'performance', 'code_smell', 'security'}
         if v not in allowed_types:
-            raise ValueError(f'问题类型必须是: {allowed_types}')
+            raise ValueError(f'Issue type must be one of: {allowed_types}')
         return v
 
 
 class ComplexityMetrics(BaseModel):
-    """复杂度指标"""
-    cyclomatic_complexity: int = Field(default=0, ge=0, description="圈复杂度")
-    cognitive_complexity: int = Field(default=0, ge=0, description="认知复杂度")
-    lines_of_code: int = Field(default=0, ge=0, description="代码行数")
-    maintainability_index: float = Field(default=0.0, ge=0, le=100, description="可维护性指数")
-    halstead_volume: float = Field(default=0.0, ge=0, description="Halstead 容量")
-    halstead_difficulty: float = Field(default=0.0, ge=0, description="Halstead 难度")
+    """Complexity metrics"""
+    cyclomatic_complexity: int = Field(default=0, ge=0, description="Cyclomatic complexity")
+    cognitive_complexity: int = Field(default=0, ge=0, description="Cognitive complexity")
+    lines_of_code: int = Field(default=0, ge=0, description="Lines of code")
+    maintainability_index: float = Field(default=0.0, ge=0, le=100, description="Maintainability index")
+    halstead_volume: float = Field(default=0.0, ge=0, description="Halstead volume")
+    halstead_difficulty: float = Field(default=0.0, ge=0, description="Halstead difficulty")
     
-    # 函数级别
-    function_count: int = Field(default=0, ge=0, description="函数数量")
-    class_count: int = Field(default=0, ge=0, description="类数量")
-    max_nesting_depth: int = Field(default=0, ge=0, description="最大嵌套深度")
-    avg_function_length: float = Field(default=0.0, ge=0, description="平均函数长度")
+    # Function level
+    function_count: int = Field(default=0, ge=0, description="Number of functions")
+    class_count: int = Field(default=0, ge=0, description="Number of classes")
+    max_nesting_depth: int = Field(default=0, ge=0, description="Maximum nesting depth")
+    avg_function_length: float = Field(default=0.0, ge=0, description="Average function length")
 
 
 class PerformanceHotspot(BaseModel):
-    """性能热点"""
+    """Performance hotspot"""
     id: str
     node_id: str
     hotspot_type: str  # "nested_loop", "recursion", "inefficient_operation"
@@ -163,59 +164,59 @@ class PerformanceHotspot(BaseModel):
 
 
 class OptimizationSuggestion(BaseModel):
-    """优化建议"""
-    id: str = Field(..., min_length=1, description="建议唯一标识")
+    """Optimization suggestion"""
+    id: str = Field(..., min_length=1, description="Unique suggestion identifier")
     issue_id: Optional[str] = None
     node_id: Optional[str] = None
-    category: str = Field(..., min_length=1, description="建议类别")
-    title: str = Field(..., min_length=1, max_length=200, description="建议标题")
-    description: str = Field(..., min_length=1, max_length=5000, description="建议描述")
-    before_code: Optional[str] = Field(None, max_length=MAX_CODE_LENGTH, description="修改前代码")
-    after_code: Optional[str] = Field(None, max_length=MAX_CODE_LENGTH, description="修改后代码")
-    estimated_improvement: Optional[str] = Field(None, max_length=100, description="预估改进")
-    patch_diff: Optional[str] = Field(None, max_length=MAX_CODE_LENGTH, description="补丁差异")
+    category: str = Field(..., min_length=1, description="Suggestion category")
+    title: str = Field(..., min_length=1, max_length=200, description="Suggestion title")
+    description: str = Field(..., min_length=1, max_length=5000, description="Suggestion description")
+    before_code: Optional[str] = Field(None, max_length=MAX_CODE_LENGTH, description="Code before change")
+    after_code: Optional[str] = Field(None, max_length=MAX_CODE_LENGTH, description="Code after change")
+    estimated_improvement: Optional[str] = Field(None, max_length=100, description="Estimated improvement")
+    patch_diff: Optional[str] = Field(None, max_length=MAX_CODE_LENGTH, description="Patch diff")
     auto_fixable: bool = False
-    priority: int = Field(default=1, ge=1, le=5, description="优先级（1-5）")
+    priority: int = Field(default=1, ge=1, le=5, description="Priority (1-5)")
     
     @field_validator('category')
     @classmethod
     def validate_category(cls, v: str) -> str:
-        """验证建议类别"""
+        """Validate suggestion category"""
         allowed_categories = {'performance', 'readability', 'security', 'best_practice'}
         if v not in allowed_categories:
-            raise ValueError(f'建议类别必须是: {allowed_categories}')
+            raise ValueError(f'Suggestion category must be one of: {allowed_categories}')
         return v
 
 
 class AnalysisResult(BaseModel):
-    """完整分析结果"""
-    # 基本信息
+    """Complete analysis result"""
+    # Basic information
     filename: Optional[str] = None
     total_lines: int = 0
     
-    # AST图
+    # AST graph
     ast_graph: ASTGraph
     
-    # 复杂度分析
+    # Complexity analysis
     complexity: ComplexityMetrics
     
-    # 问题列表
+    # Issue list
     issues: List[CodeIssue] = Field(default_factory=list)
     
-    # 性能热点
+    # Performance hotspots
     performance_hotspots: List[PerformanceHotspot] = Field(default_factory=list)
     
-    # 优化建议
+    # Optimization suggestions
     suggestions: List[OptimizationSuggestion] = Field(default_factory=list)
     
-    # 统计信息
+    # Statistics
     summary: Dict[str, Any] = Field(default_factory=dict)
 
 
 class CodeInput(BaseModel):
-    """代码输入模型"""
-    code: str = Field(..., min_length=1, max_length=MAX_CODE_LENGTH, description="Python代码")
-    filename: Optional[str] = Field(None, max_length=MAX_FILENAME_LENGTH, description="文件名")
+    """Code input model"""
+    code: str = Field(..., min_length=1, max_length=MAX_CODE_LENGTH, description="Python code")
+    filename: Optional[str] = Field(None, max_length=MAX_FILENAME_LENGTH, description="Filename")
     options: Dict[str, Any] = Field(default_factory=dict)
     
     model_config = ConfigDict(str_strip_whitespace=True)
@@ -223,33 +224,33 @@ class CodeInput(BaseModel):
     @field_validator('code')
     @classmethod
     def validate_code(cls, v: str) -> str:
-        """验证代码不为空且长度合理"""
+        """Validate code is not empty and has reasonable length"""
         if not v or not v.strip():
-            raise ValueError('代码不能为空')
+            raise ValueError('Code cannot be empty')
         if len(v) > MAX_CODE_LENGTH:
-            raise ValueError(f'代码长度超过限制（最大 {MAX_CODE_LENGTH} 字符）')
+            raise ValueError(f'Code length exceeds limit (max {MAX_CODE_LENGTH} characters)')
         return v
     
     @field_validator('filename')
     @classmethod
     def validate_filename(cls, v: Optional[str]) -> Optional[str]:
-        """验证文件名格式"""
+        """Validate filename format"""
         if v is None:
             return v
-        # 移除前后空白
+        # Strip whitespace
         v = v.strip()
         if not v:
             return None
-        # 检查危险字符
+        # Check for dangerous characters
         dangerous_chars = ['..', '/', '\\', '\x00']
         for char in dangerous_chars:
             if char in v:
-                raise ValueError(f'文件名包含不允许的字符: {char}')
+                raise ValueError(f'Filename contains disallowed character: {char}')
         return v
 
 
 class LearningModeResult(BaseModel):
-    """学习模式结果"""
+    """Learning mode result"""
     node_id: str
     explanation: str
     python_doc: Optional[str] = None
@@ -258,7 +259,7 @@ class LearningModeResult(BaseModel):
 
 
 class ChallengeResult(BaseModel):
-    """挑战模式结果"""
+    """Challenge mode result"""
     challenge_id: str
     score: int
     max_score: int

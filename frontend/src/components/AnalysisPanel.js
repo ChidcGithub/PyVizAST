@@ -42,12 +42,12 @@ function AnalysisPanel({ result, activeTab, code, onApplyPatch }) {
 }
 
 const ComplexityPanel = React.memo(function ComplexityPanel({ result }) {
-  // 统一的空值检查
+  // Unified null check
   const complexity = result?.complexity;
   const issues = result?.issues;
   const complexityIssues = issues?.filter(i => i?.type === 'complexity') || [];
 
-  // 提取复杂度指标，使用默认值防止 undefined
+  // Extract complexity metrics, use default values to prevent undefined
   const metrics = {
     cyclomatic_complexity: complexity?.cyclomatic_complexity ?? 0,
     cognitive_complexity: complexity?.cognitive_complexity ?? 0,
@@ -65,47 +65,47 @@ const ComplexityPanel = React.memo(function ComplexityPanel({ result }) {
     <div className="panel-content">
       <div className="metrics-grid">
         <MetricCard
-          title="圈复杂度"
+          title="Cyclomatic Complexity"
           value={metrics.cyclomatic_complexity}
           status={getComplexityStatus(metrics.cyclomatic_complexity)}
-          description="代码分支数量"
+          description="Number of code branches"
         />
         <MetricCard
-          title="认知复杂度"
+          title="Cognitive Complexity"
           value={metrics.cognitive_complexity}
           status={getComplexityStatus(metrics.cognitive_complexity)}
-          description="理解代码的难度"
+          description="Code understanding difficulty"
         />
         <MetricCard
-          title="可维护性指数"
+          title="Maintainability Index"
           value={metrics.maintainability_index.toFixed(1)}
           status={getMaintainabilityStatus(metrics.maintainability_index)}
-          description="越高越好"
+          description="Higher is better"
           suffix="/100"
         />
         <MetricCard
-          title="最大嵌套深度"
+          title="Max Nesting Depth"
           value={metrics.max_nesting_depth}
           status={getNestingStatus(metrics.max_nesting_depth)}
-          description="层级嵌套数"
+          description="Nested levels count"
         />
       </div>
 
       <div className="section">
-        <h3 className="section-title">详细指标</h3>
+        <h3 className="section-title">Detailed Metrics</h3>
         <div className="detail-list">
-          <DetailItem label="代码行数" value={metrics.lines_of_code} />
-          <DetailItem label="函数数量" value={metrics.function_count} />
-          <DetailItem label="类数量" value={metrics.class_count} />
-          <DetailItem label="平均函数长度" value={`${metrics.avg_function_length.toFixed(1)} 行`} />
-          <DetailItem label="Halstead 容量" value={metrics.halstead_volume.toFixed(1)} />
-          <DetailItem label="Halstead 难度" value={metrics.halstead_difficulty.toFixed(1)} />
+          <DetailItem label="Lines of Code" value={metrics.lines_of_code} />
+          <DetailItem label="Function Count" value={metrics.function_count} />
+          <DetailItem label="Class Count" value={metrics.class_count} />
+          <DetailItem label="Avg Function Length" value={`${metrics.avg_function_length.toFixed(1)} lines`} />
+          <DetailItem label="Halstead Volume" value={metrics.halstead_volume.toFixed(1)} />
+          <DetailItem label="Halstead Difficulty" value={metrics.halstead_difficulty.toFixed(1)} />
         </div>
       </div>
 
       {complexityIssues.length > 0 && (
         <div className="section">
-          <h3 className="section-title">复杂度问题 ({complexityIssues.length})</h3>
+          <h3 className="section-title">Complexity Issues ({complexityIssues.length})</h3>
           <IssueList issues={complexityIssues} />
         </div>
       )}
@@ -114,7 +114,7 @@ const ComplexityPanel = React.memo(function ComplexityPanel({ result }) {
 });
 
 const PerformancePanel = React.memo(function PerformancePanel({ result }) {
-  // 统一的空值检查
+  // Unified null check
   const performance_hotspots = result?.performance_hotspots ?? [];
   const issues = result?.issues ?? [];
   const perfIssues = issues.filter(i => i?.type === 'performance');
@@ -122,22 +122,22 @@ const PerformancePanel = React.memo(function PerformancePanel({ result }) {
   return (
     <div className="panel-content">
       <div className="section">
-        <h3 className="section-title">性能热点 ({performance_hotspots.length})</h3>
+        <h3 className="section-title">Performance Hotspots ({performance_hotspots.length})</h3>
         {performance_hotspots.length > 0 ? (
           <div className="hotspot-list">
             {performance_hotspots.map((hotspot, index) => (
               <div key={hotspot?.id ?? index} className="hotspot-card">
                 <div className="hotspot-header">
                   <AlertTriangle size={18} className="warning-icon" />
-                  <span className="hotspot-type">{hotspot?.hotspot_type ?? '未知类型'}</span>
+                  <span className="hotspot-type">{hotspot?.hotspot_type ?? 'Unknown type'}</span>
                   <span className="hotspot-complexity">{hotspot?.estimated_complexity ?? 'N/A'}</span>
                 </div>
-                <p className="hotspot-description">{hotspot?.description ?? '无描述'}</p>
+                <p className="hotspot-description">{hotspot?.description ?? 'No description'}</p>
                 {hotspot?.suggestion && (
-                  <p className="hotspot-suggestion">建议: {hotspot.suggestion}</p>
+                  <p className="hotspot-suggestion">Suggestion: {hotspot.suggestion}</p>
                 )}
                 {hotspot?.lineno && (
-                  <span className="hotspot-location">行 {hotspot.lineno}</span>
+                  <span className="hotspot-location">Line {hotspot.lineno}</span>
                 )}
               </div>
             ))}
@@ -145,14 +145,14 @@ const PerformancePanel = React.memo(function PerformancePanel({ result }) {
         ) : (
           <div className="empty-state">
             <CheckCircle size={48} className="success-icon" />
-            <p>未发现性能热点</p>
+            <p>No performance hotspots found</p>
           </div>
         )}
       </div>
 
       {perfIssues.length > 0 && (
         <div className="section">
-          <h3 className="section-title">性能问题 ({perfIssues.length})</h3>
+          <h3 className="section-title">Performance Issues ({perfIssues.length})</h3>
           <IssueList issues={perfIssues} />
         </div>
       )}
@@ -161,28 +161,28 @@ const PerformancePanel = React.memo(function PerformancePanel({ result }) {
 });
 
 const SecurityPanel = React.memo(function SecurityPanel({ result }) {
-  // 统一的空值检查
+  // Unified null check
   const securityIssues = result?.issues?.filter(i => i?.type === 'security') ?? [];
 
   return (
     <div className="panel-content">
       <div className="section">
-        <h3 className="section-title">安全扫描结果</h3>
+        <h3 className="section-title">Security Scan Results</h3>
         
         {securityIssues.length > 0 ? (
           <>
             <div className="security-summary">
               <div className="summary-item critical">
                 <span className="count">{securityIssues.filter(i => i?.severity === 'critical').length}</span>
-                <span className="label">严重</span>
+                <span className="label">Critical</span>
               </div>
               <div className="summary-item error">
                 <span className="count">{securityIssues.filter(i => i?.severity === 'error').length}</span>
-                <span className="label">错误</span>
+                <span className="label">Error</span>
               </div>
               <div className="summary-item warning">
                 <span className="count">{securityIssues.filter(i => i?.severity === 'warning').length}</span>
-                <span className="label">警告</span>
+                <span className="label">Warning</span>
               </div>
             </div>
             
@@ -191,7 +191,7 @@ const SecurityPanel = React.memo(function SecurityPanel({ result }) {
         ) : (
           <div className="empty-state">
             <CheckCircle size={48} className="success-icon" />
-            <p>未发现安全问题</p>
+            <p>No security issues found</p>
           </div>
         )}
       </div>
@@ -200,14 +200,14 @@ const SecurityPanel = React.memo(function SecurityPanel({ result }) {
 });
 
 const SuggestionsPanel = React.memo(function SuggestionsPanel({ result }) {
-  // 统一的空值检查
+  // Unified null check
   const suggestions = result?.suggestions ?? [];
   const byCategory = groupByCategory(suggestions);
 
   return (
     <div className="panel-content">
       <div className="section">
-        <h3 className="section-title">优化建议 ({suggestions.length})</h3>
+        <h3 className="section-title">Optimization Suggestions ({suggestions.length})</h3>
         
         {suggestions.length > 0 ? (
           <div className="suggestions-list">
@@ -228,7 +228,7 @@ const SuggestionsPanel = React.memo(function SuggestionsPanel({ result }) {
         ) : (
           <div className="empty-state">
             <CheckCircle size={48} className="success-icon" />
-            <p>代码质量良好，无需优化</p>
+            <p>Code quality is good, no optimization needed</p>
           </div>
         )}
       </div>
@@ -240,23 +240,23 @@ function LearnPanel({ result }) {
   return (
     <div className="panel-content">
       <div className="section">
-        <h3 className="section-title">学习模式</h3>
+        <h3 className="section-title">Learning Mode</h3>
         <p className="section-description">
-          点击AST图中的任意节点，查看该语法结构的详细解释和Python文档。
+          Click any node in the AST graph to see detailed explanations and Python documentation for that syntax structure.
         </p>
         
         <div className="learn-tips">
           <div className="tip-card">
-            <h4>函数定义</h4>
-            <p>使用 <code>def</code> 关键字定义函数。函数可以接收参数并返回值。</p>
+            <h4>Function Definition</h4>
+            <p>Use the <code>def</code> keyword to define functions. Functions can receive parameters and return values.</p>
           </div>
           <div className="tip-card">
-            <h4>类定义</h4>
-            <p>使用 <code>class</code> 关键字定义类。类是面向对象编程的基础。</p>
+            <h4>Class Definition</h4>
+            <p>Use the <code>class</code> keyword to define classes. Classes are the foundation of object-oriented programming.</p>
           </div>
           <div className="tip-card">
-            <h4>控制流</h4>
-            <p>Python支持 <code>if</code>、<code>for</code>、<code>while</code> 等控制流语句。</p>
+            <h4>Control Flow</h4>
+            <p>Python supports <code>if</code>, <code>for</code>, <code>while</code> and other control flow statements.</p>
           </div>
         </div>
       </div>
@@ -266,17 +266,17 @@ function LearnPanel({ result }) {
 
 function ChallengesPanel() {
   const [challenges] = React.useState([
-    { id: '1', title: '优化嵌套循环', difficulty: 'easy', completed: false },
-    { id: '2', title: '修复安全问题', difficulty: 'medium', completed: false },
-    { id: '3', title: '降低复杂度', difficulty: 'hard', completed: false },
+    { id: '1', title: 'Optimize Nested Loops', difficulty: 'easy', completed: false },
+    { id: '2', title: 'Fix Security Issues', difficulty: 'medium', completed: false },
+    { id: '3', title: 'Reduce Complexity', difficulty: 'hard', completed: false },
   ]);
 
   return (
     <div className="panel-content">
       <div className="section">
-        <h3 className="section-title">挑战模式</h3>
+        <h3 className="section-title">Challenge Mode</h3>
         <p className="section-description">
-          通过解决实际代码问题来提升你的编程技能。
+          Improve your programming skills by solving real code problems.
         </p>
         
         <div className="challenges-list">
@@ -289,7 +289,7 @@ function ChallengesPanel() {
                 </span>
               </div>
               <button className="btn btn-secondary">
-                开始挑战
+                Start Challenge
               </button>
             </div>
           ))}
@@ -334,7 +334,7 @@ const IssueList = React.memo(function IssueList({ issues, showSeverity = true })
           <div className="issue-content">
             <p className="issue-message">{issue.message}</p>
             {issue.lineno && (
-              <span className="issue-location">行 {issue.lineno}</span>
+              <span className="issue-location">Line {issue.lineno}</span>
             )}
           </div>
         </div>
@@ -354,7 +354,7 @@ const SuggestionCard = React.memo(function SuggestionCard({ suggestion }) {
           <span>{suggestion.title}</span>
         </div>
         {suggestion.auto_fixable && (
-          <span className="auto-fix-badge">可自动修复</span>
+          <span className="auto-fix-badge">Auto-fixable</span>
         )}
       </div>
       
@@ -365,12 +365,12 @@ const SuggestionCard = React.memo(function SuggestionCard({ suggestion }) {
           {suggestion.before_code && (
             <div className="code-comparison">
               <div className="code-block">
-                <span className="code-label">修改前</span>
+                <span className="code-label">Before</span>
                 <pre>{suggestion.before_code}</pre>
               </div>
               {suggestion.after_code && (
                 <div className="code-block">
-                  <span className="code-label">修改后</span>
+                  <span className="code-label">After</span>
                   <pre>{suggestion.after_code}</pre>
                 </div>
               )}
@@ -379,7 +379,7 @@ const SuggestionCard = React.memo(function SuggestionCard({ suggestion }) {
           
           {suggestion.estimated_improvement && (
             <p className="improvement">
-              预估改进: {suggestion.estimated_improvement}
+              Estimated Improvement: {suggestion.estimated_improvement}
             </p>
           )}
         </div>
@@ -423,19 +423,19 @@ function getSeverityIcon(severity) {
 
 function getCategoryLabel(category) {
   const labels = {
-    performance: '性能优化',
-    readability: '可读性',
-    security: '安全性',
-    best_practice: '最佳实践',
+    performance: 'Performance Optimization',
+    readability: 'Readability',
+    security: 'Security',
+    best_practice: 'Best Practices',
   };
   return labels[category] || category;
 }
 
 function getDifficultyLabel(difficulty) {
   const labels = {
-    easy: '简单',
-    medium: '中等',
-    hard: '困难',
+    easy: 'Easy',
+    medium: 'Medium',
+    hard: 'Hard',
   };
   return labels[difficulty] || difficulty;
 }

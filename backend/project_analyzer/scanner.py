@@ -1,5 +1,5 @@
 """
-Project Scanner - 扫描项目目录，发现 Python 文件
+Project Scanner - Scan project directories and discover Python files
 """
 import os
 import zipfile
@@ -17,7 +17,7 @@ from ..utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-# 默认忽略的目录
+# Directories ignored by default
 DEFAULT_IGNORE_DIRS = {
     '__pycache__',
     '.git',
@@ -40,7 +40,7 @@ DEFAULT_IGNORE_DIRS = {
     '.vscode',
 }
 
-# 默认忽略的文件模式
+# File patterns ignored by default
 DEFAULT_IGNORE_PATTERNS = {
     'setup.py',
     'conftest.py',
@@ -48,20 +48,20 @@ DEFAULT_IGNORE_PATTERNS = {
 
 
 class ProjectScanner:
-    """项目扫描器"""
+    """Project Scanner"""
     
     def __init__(self, ignore_dirs: Optional[Set[str]] = None,
                  ignore_patterns: Optional[Set[str]] = None,
                  max_file_size: int = 5 * 1024 * 1024,  # 5MB
                  max_files: int = 1000):
         """
-        初始化扫描器
+        Initialize the scanner
         
         Args:
-            ignore_dirs: 忽略的目录名
-            ignore_patterns: 忽略的文件模式
-            max_file_size: 单文件最大大小（字节）
-            max_files: 最大文件数量
+            ignore_dirs: Directory names to ignore
+            ignore_patterns: File patterns to ignore
+            max_file_size: Maximum file size in bytes
+            max_files: Maximum number of files
         """
         self.ignore_dirs = ignore_dirs or DEFAULT_IGNORE_DIRS
         self.ignore_patterns = ignore_patterns or DEFAULT_IGNORE_PATTERNS
@@ -70,52 +70,52 @@ class ProjectScanner:
     
     def scan_zip(self, zip_path: str, project_name: Optional[str] = None) -> Tuple[ProjectScanResult, str]:
         """
-        扫描 ZIP 压缩包
+        Scan a ZIP archive
         
         Args:
-            zip_path: ZIP 文件路径
-            project_name: 项目名称（可选）
+            zip_path: ZIP file path
+            project_name: Project name (optional)
         
         Returns:
-            (扫描结果, 临时目录路径)
+            (scan result, temporary directory path)
         """
         start_time = time.time()
         
-        # 创建临时目录
+        # Create temporary directory
         temp_dir = tempfile.mkdtemp(prefix='pyvizast_')
         
         try:
-            # 解压 ZIP 文件
+            # Extract ZIP file
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(temp_dir)
             
-            # 查找项目根目录
+            # Find project root directory
             project_root = self._find_project_root(temp_dir)
             
             if project_name is None:
                 project_name = Path(zip_path).stem
             
-            # 扫描目录
+            # Scan directory
             result = self.scan_directory(project_root, project_name)
             result.scan_time_ms = (time.time() - start_time) * 1000
             
             return result, project_root
             
         except Exception as e:
-            # 清理临时目录
+            # Clean up temporary directory
             shutil.rmtree(temp_dir, ignore_errors=True)
-            raise RuntimeError(f"解压 ZIP 文件失败: {str(e)}")
+            raise RuntimeError(f"Failed to extract ZIP file: {str(e)}")
     
     def scan_directory(self, directory: str, project_name: str) -> ProjectScanResult:
         """
-        扫描目录
+        Scan a directory
         
         Args:
-            directory: 目录路径
-            project_name: 项目名称
+            directory: Directory path
+            project_name: Project name
         
         Returns:
-            扫描结果
+            Scan result
         """
         start_time = time.time()
         
@@ -124,7 +124,7 @@ class ProjectScanner:
         skipped_files: List[str] = []
         
         for root, dirs, files in os.walk(directory):
-            # 过滤忽略的目录
+            # Filter ignored directories
             dirs[:] = [d for d in dirs if d not in self.ignore_dirs and not d.startswith('.')]
             
             for filename in files:
@@ -134,12 +134,12 @@ class ProjectScanner:
                 file_path = Path(root) / filename
                 relative_path = file_path.relative_to(directory)
                 
-                # 检查是否应该忽略
+                # Check if file should be ignored
                 if self._should_ignore_file(relative_path):
                     skipped_files.append(str(relative_path))
                     continue
                 
-                # 检查文件大小
+                # Check file size
                 try:
                     file_size = file_path.stat().st_size
                 except OSError:
@@ -147,19 +147,19 @@ class ProjectScanner:
                 
                 if file_size > self.max_file_size:
                     skipped_files.append(str(relative_path))
-                    logger.warning(f"文件过大，跳过: {relative_path} ({file_size} bytes)")
+                    logger.warning(f"File too large, skipping: {relative_path} ({file_size} bytes)")
                     continue
                 
-                # 检查文件数量限制
+                # Check file count limit
                 if len(file_infos) >= self.max_files:
-                    logger.warning(f"达到最大文件数量限制 ({self.max_files})")
+                    logger.warning(f"Reached maximum file limit ({self.max_files})")
                     break
                 
-                # 获取文件信息
+                # Get file info
                 file_info = self._get_file_info(file_path, relative_path)
                 file_infos.append(file_info)
         
-        # 构建结果
+        # Build result
         result = ProjectScanResult(
             project_name=project_name,
             total_files=len(file_infos),
@@ -171,18 +171,18 @@ class ProjectScanner:
             scan_time_ms=(time.time() - start_time) * 1000,
         )
         
-        logger.info(f"扫描完成: {result.total_files} 个 Python 文件, "
-                   f"{result.skipped_count} 个已跳过")
+        logger.info(f"Scan complete: {result.total_files} Python files, "
+                   f"{result.skipped_count} skipped")
         
         return result
     
     def _find_project_root(self, directory: str) -> str:
         """
-        查找项目根目录（包含 pyproject.toml, setup.py, requirements.txt 等）
+        Find project root directory (containing pyproject.toml, setup.py, requirements.txt, etc.)
         """
         directory = Path(directory)
         
-        # 项目根目录标志文件
+        # Project root marker files
         root_markers = {
             'pyproject.toml',
             'setup.py',
@@ -192,33 +192,33 @@ class ProjectScanner:
             'poetry.lock',
         }
         
-        # 首先检查根目录是否包含这些标志
+        # First check if root directory contains these markers
         for marker in root_markers:
             if (directory / marker).exists():
                 return str(directory)
         
-        # 检查子目录
+        # Check subdirectories
         for item in directory.iterdir():
             if item.is_dir():
                 for marker in root_markers:
                     if (item / marker).exists():
                         return str(item)
         
-        # 如果没有找到，检查是否有 src 目录
+        # If not found, check for src directory
         src_dir = directory / 'src'
         if src_dir.exists() and src_dir.is_dir():
             return str(src_dir)
         
-        # 返回原始目录
+        # Return original directory
         return str(directory)
     
     def _should_ignore_file(self, relative_path: Path) -> bool:
-        """检查是否应该忽略文件"""
-        # 检查文件名模式
+        """Check if file should be ignored"""
+        # Check file name patterns
         if relative_path.name in self.ignore_patterns:
             return True
         
-        # 检查路径中是否包含忽略的目录
+        # Check if path contains ignored directories
         for part in relative_path.parts[:-1]:
             if part in self.ignore_dirs:
                 return True
@@ -226,14 +226,14 @@ class ProjectScanner:
         return False
     
     def _get_file_info(self, file_path: Path, relative_path: Path) -> FileInfo:
-        """获取文件信息"""
+        """Get file information"""
         try:
             content = file_path.read_text(encoding='utf-8', errors='ignore')
             line_count = content.count('\n') + 1
         except Exception:
             line_count = 0
         
-        # 检查是否是特殊文件
+        # Check if it's a special file
         name = file_path.name
         is_test = name.startswith('test_') or name.endswith('_test.py')
         is_init = name == '__init__.py'
@@ -251,10 +251,10 @@ class ProjectScanner:
     
     @staticmethod
     def count_lines(content: str) -> int:
-        """统计代码行数（排除空行和注释）"""
+        """Count code lines (excluding empty lines and comments)"""
         try:
             tree = ast.parse(content)
-            # 简单统计：总行数 - 空行 - 纯注释行
+            # Simple count: total lines - empty lines - pure comment lines
             lines = content.split('\n')
             code_lines = 0
             in_multiline_string = False
@@ -262,11 +262,11 @@ class ProjectScanner:
             for line in lines:
                 stripped = line.strip()
                 
-                # 跳过空行
+                # Skip empty lines
                 if not stripped:
                     continue
                 
-                # 跳过单行注释
+                # Skip single-line comments
                 if stripped.startswith('#'):
                     continue
                 
@@ -274,5 +274,5 @@ class ProjectScanner:
             
             return code_lines
         except SyntaxError:
-            # 如果解析失败，返回简单的行数统计
+            # If parsing fails, return simple line count
             return len([l for l in content.split('\n') if l.strip() and not l.strip().startswith('#')])

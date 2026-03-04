@@ -3,13 +3,13 @@ import { analyzeProject } from '../api';
 import './ProjectAnalysisView.css';
 
 /**
- * 项目分析视图组件
- * 显示在左侧面板，负责：
- * 1. 上传区域（未上传时）
- * 2. 文件列表预览（上传后）
+ * Project Analysis View Component
+ * Displays in the left panel, responsible for:
+ * 1. Upload area (when not uploaded)
+ * 2. File list preview (after upload)
  * 
- * 单击文件：选中
- * 再次点击选中的文件：进入编辑模式
+ * Single click on file: select
+ * Click again on selected file: enter edit mode
  */
 const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
   { 
@@ -18,22 +18,22 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
     onAnalysisStateChange, 
     onResultChange, 
     onFileSelect,
-    onFileDoubleClick,  // 进入编辑模式回调
-    editedFilePath = null, // 当前编辑的文件路径
-    hasUnsavedChanges = false, // 是否有未保存的更改
-    onSaveFile,  // 保存文件回调
+    onFileDoubleClick,  // Enter edit mode callback
+    editedFilePath = null, // Currently edited file path
+    hasUnsavedChanges = false, // Whether there are unsaved changes
+    onSaveFile,  // Save file callback
   }, 
   ref
 ) {
-  // 上传状态
+  // Upload state
   const [uploadedFile, setUploadedFile] = useState(null);
   const [scanResult, setScanResult] = useState(null);
   
-  // 分析状态
+  // Analysis state
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   
-  // UI 状态
+  // UI state
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
   const [quickMode, setQuickMode] = useState(false);
@@ -42,21 +42,21 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
   const fileInputRef = useRef(null);
   const abortControllerRef = useRef(null);
   
-  // 组件卸载时清理
+  // Cleanup on component unmount
   useEffect(() => {
     return () => {
-      // 取消正在进行的请求
+      // Cancel ongoing requests
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
   }, []);
 
-  // 暴露给父组件的方法
+  // Expose methods to parent component
   useImperativeHandle(ref, () => ({
     analyze: async () => {
       if (!uploadedFile) {
-        setError('请先上传项目文件');
+        setError('Please upload a project file first');
         return;
       }
       await performAnalysis();
@@ -71,7 +71,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
     })
   }));
 
-  // 执行完整分析（一步完成上传和分析）
+  // Perform full analysis (upload and analyze in one step)
   const performAnalysis = useCallback(async () => {
     if (!uploadedFile) return;
 
@@ -88,7 +88,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
     abortControllerRef.current = new AbortController();
 
     try {
-      // 直接调用 analyzeProject，一步完成上传和分析
+      // Directly call analyzeProject, complete upload and analysis in one step
       const result = await analyzeProject(
         uploadedFile,
         quickMode,
@@ -97,7 +97,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
       
       setAnalysisResult(result);
       
-      // 从分析结果中提取扫描信息
+      // Extract scan info from analysis result
       if (result.scan_result) {
         setScanResult({
           total_files: result.scan_result.total_files,
@@ -106,7 +106,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
         });
       }
       
-      // 通知父组件结果变化
+      // Notify parent component of result change
       if (onResultChange) {
         onResultChange(result);
       }
@@ -114,7 +114,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
       if (err.name === 'AbortError' || err.name === 'CanceledError') {
         return;
       }
-      setError(err.message || '分析失败');
+      setError(err.message || 'Analysis failed');
     } finally {
       setIsAnalyzing(false);
       if (onAnalysisStateChange) {
@@ -123,24 +123,24 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
     }
   }, [uploadedFile, quickMode, onAnalysisStateChange, onResultChange]);
 
-  // 处理文件选择
+  // Handle file selection
   const handleFileSelect = useCallback(async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     if (!file.name.toLowerCase().endsWith('.zip')) {
-      setError('请上传 .zip 格式的项目压缩包');
+      setError('Please upload a .zip format project archive');
       return;
     }
 
-    // 清除之前的状态
+    // Clear previous state
     setError(null);
     setScanResult(null);
     setAnalysisResult(null);
     setSelectedFileIndex(null);
     setUploadedFile(file);
 
-    // 通知父组件清除结果和选中的文件
+    // Notify parent component to clear results and selected file
     if (onResultChange) {
       onResultChange(null);
     }
@@ -149,7 +149,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
     }
   }, [onResultChange, onFileSelect]);
 
-  // 清除文件
+  // Clear file
   const handleClearFile = useCallback(() => {
     setUploadedFile(null);
     setScanResult(null);
@@ -189,13 +189,13 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       setIsAnalyzing(false);
-      setError('分析已取消');
+      setError('Analysis cancelled');
     }
   }, []);
 
-  // 处理文件点击（单击选中，再次点击进入编辑）
+  // Handle file click (single click to select, click again to edit)
   const handleFileClick = useCallback((index, path) => {
-    // 如果点击的是已选中的文件，进入编辑模式
+    // If clicking on already selected file, enter edit mode
     if (selectedFileIndex === index && analysisResult && onFileDoubleClick) {
       const fileAnalysis = analysisResult.files?.find(f => f.file?.relative_path === path);
       if (fileAnalysis) {
@@ -204,10 +204,10 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
       return;
     }
     
-    // 否则选中该文件
+    // Otherwise select the file
     setSelectedFileIndex(index);
     
-    // 通知父组件选中的文件
+    // Notify parent component of selected file
     if (analysisResult && onFileSelect) {
       const fileAnalysis = analysisResult.files?.find(f => f.file?.relative_path === path);
       if (fileAnalysis) {
@@ -216,7 +216,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
     }
   }, [analysisResult, onFileSelect, onFileDoubleClick, selectedFileIndex]);
 
-  // 渲染上传区域
+  // Render upload area
   if (!uploadedFile) {
     return (
       <div className="project-upload-panel">
@@ -232,8 +232,8 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
               <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
           </div>
-          <h3>上传 Python 项目</h3>
-          <p>拖拽或点击选择 ZIP 文件</p>
+          <h3>Upload Python Project</h3>
+          <p>Drag and drop or click to select a ZIP file</p>
           <input
             ref={fileInputRef}
             type="file"
@@ -246,7 +246,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
           >
-            {isUploading ? '上传中...' : '选择文件'}
+            {isUploading ? 'Uploading...' : 'Select File'}
           </button>
         </div>
 
@@ -264,10 +264,10 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
     );
   }
 
-  // 渲染文件列表
+  // Render file list
   return (
     <div className="project-file-panel">
-      {/* 头部 */}
+      {/* Header */}
       <div className="panel-header">
         <div className="project-name">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -280,7 +280,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
             <button 
               className="save-btn-header"
               onClick={onSaveFile}
-              title="保存更改"
+              title="Save changes"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
@@ -289,7 +289,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
               </svg>
             </button>
           )}
-          <button className="clear-button" onClick={handleClearFile} title="重新选择">
+          <button className="clear-button" onClick={handleClearFile} title="Reselect">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
@@ -298,7 +298,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
         </div>
       </div>
 
-      {/* 快速模式选项 */}
+      {/* Quick mode option */}
       <div className="panel-options">
         <label className="quick-mode-toggle">
           <input
@@ -306,30 +306,30 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
             checked={quickMode}
             onChange={(e) => setQuickMode(e.target.checked)}
           />
-          <span>快速模式</span>
+          <span>Quick Mode</span>
         </label>
       </div>
 
-      {/* 文件统计 */}
+      {/* File statistics */}
       {scanResult && (
         <div className="file-stats">
-          <span className="stat">{scanResult.total_files} 个 Python 文件</span>
+          <span className="stat">{scanResult.total_files} Python files</span>
           {scanResult.skipped_count > 0 && (
-            <span className="stat skipped">{scanResult.skipped_count} 个已跳过</span>
+            <span className="stat skipped">{scanResult.skipped_count} skipped</span>
           )}
         </div>
       )}
 
-      {/* 分析中状态 */}
+      {/* Analyzing state */}
       {isAnalyzing && (
         <div className="analyzing-indicator">
           <div className="loader-spinner small"></div>
-          <span>正在分析...</span>
-          <button className="cancel-btn" onClick={handleCancel}>取消</button>
+          <span>Analyzing...</span>
+          <button className="cancel-btn" onClick={handleCancel}>Cancel</button>
         </div>
       )}
 
-      {/* 错误提示 */}
+      {/* Error message */}
       {error && (
         <div className="error-message-compact">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -341,13 +341,13 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
         </div>
       )}
 
-      {/* 文件列表 */}
+      {/* File list */}
       {scanResult && (
         <div className="file-tree">
           <div className="file-tree-header">
-            <span>文件列表</span>
+            <span>File List</span>
             <div className="file-tree-header-actions">
-              {analysisResult && <span className="hint">单击选中 · 再次点击编辑</span>}
+              {analysisResult && <span className="hint">Click to select · Click again to edit</span>}
             </div>
           </div>
           <div className="file-tree-content">
@@ -385,7 +385,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
         </div>
       )}
 
-      {/* 分析提示 */}
+      {/* Analysis hint */}
       {uploadedFile && !analysisResult && !isAnalyzing && (
         <div className="analyze-hint-compact">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -393,7 +393,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
             <line x1="12" y1="16" x2="12" y2="12" />
             <line x1="12" y1="8" x2="12.01" y2="8" />
           </svg>
-          <span>点击 Analyze 开始分析</span>
+          <span>Click Analyze to start analysis</span>
         </div>
       )}
     </div>

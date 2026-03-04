@@ -1,439 +1,580 @@
 """
-Performance Analyzer - 性能热点检测
-识别嵌套循环、递归、低效操作等
+Performance Analyzer - Performance hotspot detection
+Analyzes potential performance issues in code
 """
 import ast
-from typing import List, Dict, Any, Optional, Set
-from ..models.schemas import PerformanceHotspot, CodeIssue, SeverityLevel
+from typing import List, Dict, Any, Optional, Tuple
+from ..models.schemas import CodeIssue, SeverityLevel, PerformanceHotspot
 
 
 class PerformanceAnalyzer:
-    """性能热点分析器"""
+    """Performance Analyzer"""
     
-    # 不推荐的操作及其替代方案
+    # Inefficient operation patterns
     INEFFICIENT_PATTERNS = {
-        # 字符串拼接
-        "string_concat_in_loop": {
-            "message": "在循环中使用字符串拼接，应使用列表join",
-            "suggestion": "使用 list.append() + ''.join() 替代字符串拼接",
+        'list_append_in_loop': {
+            'message': 'Using list append in loop may be inefficient, consider list comprehension',
+            'severity': SeverityLevel.INFO,
         },
-        # 列表操作
-        "list_insert_at_start": {
-            "message": "在列表开头插入元素，时间复杂度O(n)",
-            "suggestion": "考虑使用 collections.deque 或在列表末尾添加后反转",
-        },
-        # 字典操作
-        "dict_key_in_list": {
-            "message": "使用list进行成员检查，应使用set",
-            "suggestion": "将列表转换为集合进行成员检查，时间复杂度从O(n)降至O(1)",
-        },
-        # 重复计算
-        "repeated_calculation": {
-            "message": "检测到可能重复计算的表达式",
-            "suggestion": "将不变的计算提取到循环外",
+        'string_concat_in_loop': {
+            'message': 'String concatenation in loop has performance issues, recommend using join()',
+            'severity': SeverityLevel.WARNING,
         },
     }
     
     def __init__(self):
-        self.hotspots: List[PerformanceHotspot] = []
         self.issues: List[CodeIssue] = []
+        self.hotspots: List[PerformanceHotspot] = []
+        self.issue_counter = 0
         self.hotspot_counter = 0
+    
+    def _generate_issue_id(self, issue_type: str) -> str:
+        self.issue_counter += 1
+        return f"performance_{issue_type}_{self.issue_counter}"
     
     def _generate_hotspot_id(self) -> str:
         self.hotspot_counter += 1
         return f"hotspot_{self.hotspot_counter}"
     
-    def analyze(self, code: str, tree: Optional[ast.AST] = None) -> List[PerformanceHotspot]:
+    def _add_hotspot(self, hotspot_type: str, description: str, lineno: int = None, 
+                     estimated_complexity: str = "O(n)", suggestion: str = None):
+        """Add a performance hotspot"""
+        self.hotspots.append(PerformanceHotspot(
+            id=self._generate_hotspot_id(),
+            node_id="",
+            hotspot_type=hotspot_type,
+            description=description,
+            estimated_complexity=estimated_complexity,
+            lineno=lineno,
+            suggestion=suggestion
+        ))
+    
+    def analyze(self, code: str, tree: Optional[ast.AST] = None) -> List[CodeIssue]:
         """
-        分析代码性能热点
+        Analyze code performance
         
         Args:
-            code: 源代码字符串
-            tree: 可选的AST树
+            code: Source code string
+            tree: Optional AST tree
         
         Returns:
-            性能热点列表
+            List of performance issues
         """
-        # 清空之前的状态，避免累积
-        self.hotspots = []
+        # Clear previous state to avoid accumulation
         self.issues = []
+        self.hotspots = []
+        self.issue_counter = 0
         self.hotspot_counter = 0
         
         if tree is None:
             tree = ast.parse(code)
         
-        # 执行各项检测
-        self._detect_nested_loops(tree)
-        self._detect_recursion(tree)
-        self._detect_inefficient_operations(tree)
-        self._detect_large_data_operations(tree)
-        self._detect_global_lookups(tree)
+        source_lines = code.splitlines()
         
-        return self.hotspots
+        # Execute various performance checks
+        self._detect_inefficient_loops(tree)
+        self._detect_string_concatenation(tree)
+        self._detect_inefficient_data_structures(tree)
+        self._detect_expensive_operations_in_loops(tree)
+        self._detect_global_variable_usage(tree)
+        self._detect_redundant_calculations(tree)
+        self._detect_memory_issues(tree)
+        self._detect_unoptimized_comprehensions(tree)
+        
+        return self.issues
     
-    def _detect_nested_loops(self, tree: ast.AST):
-        """检测嵌套循环"""
+    def _detect_inefficient_loops(self, tree: ast.AST):
+        """Detect inefficient loop patterns including nested loops"""
         
-        class LoopVisitor(ast.NodeVisitor):
-            def __init__(self, analyzer):
-                self.analyzer = analyzer
-                self.loop_stack = []
+        # Detect nested loops (O(n^2) or worse complexity)
+        class NestedLoopVisitor(ast.NodeVisitor):
+            def __init__(self, detector):
+                self.detector = detector
+                self.loop_depth = 0
+                self.loop_stack = []  # Track loop line numbers
             
             def visit_For(self, node):
-                self._visit_loop(node, "for")
+                self._visit_loop(node)
             
             def visit_While(self, node):
-                self._visit_loop(node, "while")
+                self._visit_loop(node)
             
-            def _visit_loop(self, node, loop_type):
-                depth = len(self.loop_stack)
-                self.loop_stack.append(node)
+            def _visit_loop(self, node):
+                old_depth = self.loop_depth
+                self.loop_depth += 1
+                self.loop_stack.append(getattr(node, 'lineno', 0))
                 
-                # 深层嵌套警告
-                if depth >= 2:
-                    complexity = f"O(n^{depth + 1})"
-                    severity = SeverityLevel.ERROR if depth >= 3 else SeverityLevel.WARNING
-                    
-                    hotspot = PerformanceHotspot(
-                        id=self.analyzer._generate_hotspot_id(),
-                        node_id="",  # 将在后续关联
+                # If we're in a nested loop (depth >= 2), report it
+                if self.loop_depth >= 2:
+                    estimated_complexity = f"O(n^{self.loop_depth})" if self.loop_depth <= 4 else "O(n^k)"
+                    self.detector.issues.append(CodeIssue(
+                        id=self.detector._generate_issue_id("nested_loop"),
+                        type="performance",
+                        severity=SeverityLevel.WARNING if self.loop_depth == 2 else SeverityLevel.ERROR,
+                        message=f"Nested loop detected ({self.loop_depth} levels deep), complexity is {estimated_complexity}",
+                        lineno=getattr(node, 'lineno', None),
+                        suggestion="Consider refactoring to reduce nesting or use more efficient data structures"
+                    ))
+                    # Also add a hotspot
+                    self.detector._add_hotspot(
                         hotspot_type="nested_loop",
-                        description=f"检测到{depth + 1}层嵌套{loop_type}循环，可能导致性能问题",
-                        estimated_complexity=complexity,
-                        lineno=node.lineno,
-                        suggestion=f"考虑使用迭代器、生成器或内置函数如map/filter来减少嵌套层级"
+                        description=f"Nested loop with {self.loop_depth} levels of nesting",
+                        lineno=self.loop_stack[0] if self.loop_stack else getattr(node, 'lineno', None),
+                        estimated_complexity=estimated_complexity,
+                        suggestion="Consider using a more efficient algorithm or data structure"
                     )
-                    self.analyzer.hotspots.append(hotspot)
-                    
-                    self.analyzer.issues.append(CodeIssue(
-                        id=f"perf_nested_loop_{len(self.analyzer.issues)}",
-                        type="performance",
-                        severity=severity,
-                        message=f"嵌套循环深度: {depth + 1}层，估计复杂度: {complexity}",
-                        lineno=node.lineno
-                    ))
-                
-                # 检测循环内的低效操作
-                self._check_loop_operations(node)
                 
                 self.generic_visit(node)
+                self.loop_depth = old_depth
                 self.loop_stack.pop()
-            
-            def _check_loop_operations(self, node):
-                """检查循环内的低效操作"""
-                string_concat_vars = {}  # 跟踪可能的字符串拼接变量
-                
-                for child in ast.walk(node):
-                    # 字符串拼接检测
-                    if isinstance(child, ast.AugAssign):
-                        if isinstance(child.op, ast.Add):
-                            if isinstance(child.target, ast.Name):
-                                var_name = child.target.id
-                                # 检查右侧是否是字符串字面量或字符串表达式
-                                if isinstance(child.value, ast.Constant) and isinstance(child.value.value, str):
-                                    # 明确的字符串拼接
-                                    self.analyzer.issues.append(CodeIssue(
-                                        id=f"perf_string_concat_{len(self.analyzer.issues)}",
-                                        type="performance",
-                                        severity=SeverityLevel.WARNING,
-                                        message=f"在循环内使用 += 进行字符串拼接，建议使用列表 append + join",
-                                        lineno=child.lineno,
-                                        suggestion=f"使用 {var_name}_parts = [] 然后 ''.join({var_name}_parts)"
-                                    ))
-                                    string_concat_vars[var_name] = True
-                    
-                    # 列表插入开头
-                    if isinstance(child, ast.Call):
-                        if isinstance(child.func, ast.Attribute):
-                            if child.func.attr == 'insert' and child.args:
-                                if isinstance(child.args[0], ast.Constant) and child.args[0].value == 0:
-                                    self.analyzer.issues.append(CodeIssue(
-                                        id=f"perf_list_insert_{len(self.analyzer.issues)}",
-                                        type="performance",
-                                        severity=SeverityLevel.WARNING,
-                                        message="在循环内使用list.insert(0, ...)效率低下",
-                                        lineno=child.lineno
-                                    ))
-                    
-                    # 列表成员检查（建议使用集合）
-                    if isinstance(child, ast.Compare):
-                        for i, op in enumerate(child.ops):
-                            if isinstance(op, (ast.In, ast.NotIn)):
-                                comparator = child.comparators[i]
-                                if isinstance(comparator, ast.Name):
-                                    self.analyzer.issues.append(CodeIssue(
-                                        id=f"perf_list_membership_{len(self.analyzer.issues)}",
-                                        type="performance",
-                                        severity=SeverityLevel.INFO,
-                                        message=f"对列表 '{comparator.id}' 使用 'in' 操作效率为 O(n)，建议转换为集合",
-                                        lineno=child.lineno
-                                    ))
         
-        visitor = LoopVisitor(self)
+        visitor = NestedLoopVisitor(self)
         visitor.visit(tree)
-    
-    def _detect_recursion(self, tree: ast.AST):
-        """检测递归调用"""
         
-        class RecursionVisitor(ast.NodeVisitor):
-            def __init__(self, analyzer):
-                self.analyzer = analyzer
-                self.current_function = None
-                self.function_calls = {}
-            
-            def visit_FunctionDef(self, node):
-                old_func = self.current_function
-                self.current_function = node.name
-                self.function_calls[node.name] = []
-                self.generic_visit(node)
-                self.current_function = old_func
-            
-            def visit_Call(self, node):
-                if self.current_function:
-                    if isinstance(node.func, ast.Name):
-                        if node.func.id == self.current_function:
-                            # 自递归
-                            self.analyzer.hotspots.append(PerformanceHotspot(
-                                id=self.analyzer._generate_hotspot_id(),
-                                node_id="",
-                                hotspot_type="recursion",
-                                description=f"函数 '{self.current_function}' 包含递归调用",
-                                estimated_complexity="取决于递归深度",
-                                lineno=node.lineno,
-                                suggestion="确保有明确的终止条件，或考虑使用迭代替代递归以避免栈溢出"
-                            ))
-                
-                self.generic_visit(node)
-        
-        visitor = RecursionVisitor(self)
-        visitor.visit(tree)
-    
-    def _detect_inefficient_operations(self, tree: ast.AST):
-        """检测低效操作"""
-        
+        # Also check for inefficient operations inside loops
         for node in ast.walk(tree):
-            # 检测 in 操作用于列表
-            if isinstance(node, ast.Compare):
-                for op in node.ops:
-                    if isinstance(op, (ast.In, ast.NotIn)):
-                        for comparator in node.comparators:
-                            if isinstance(comparator, ast.List):
-                                self.issues.append(CodeIssue(
-                                    id=f"perf_in_list_{len(self.issues)}",
-                                    type="performance",
-                                    severity=SeverityLevel.WARNING,
-                                    message="对列表使用 'in' 操作效率低下（O(n)），建议使用集合（O(1)）",
-                                    lineno=node.lineno,
-                                    col_offset=node.col_offset
-                                ))
-            
-            # 检测重复的 len() 调用在循环条件中
-            if isinstance(node, ast.For):
-                if isinstance(node.iter, ast.Call):
-                    if isinstance(node.iter.func, ast.Name) and node.iter.func.id == 'range':
-                        for arg in node.iter.args:
-                            if isinstance(arg, ast.Call):
-                                if isinstance(arg.func, ast.Name) and arg.func.id == 'len':
-                                    self.issues.append(CodeIssue(
-                                        id=f"perf_len_in_range_{len(self.issues)}",
-                                        type="performance",
-                                        severity=SeverityLevel.INFO,
-                                        message="range(len(...)) 模式，考虑使用 enumerate() 获取更Pythonic的代码",
-                                        lineno=node.lineno
-                                    ))
-            
-            # 检测字典的键查找
-            if isinstance(node, ast.Subscript):
-                if isinstance(node.value, ast.Dict):
-                    self.issues.append(CodeIssue(
-                        id=f"perf_dict_subscript_{len(self.issues)}",
-                        type="performance",
-                        severity=SeverityLevel.INFO,
-                        message="字典键访问可能引发KeyError，考虑使用dict.get()或处理异常",
-                        lineno=node.lineno
-                    ))
+            if isinstance(node, (ast.For, ast.While)):
+                # Check for operations inside loops that should be outside
+                self._check_loop_contents(node)
     
-    def _detect_large_data_operations(self, tree: ast.AST):
-        """检测大数据量操作"""
+    def _check_loop_contents(self, loop_node: ast.AST):
+        """Check if there are inefficient operations inside loops"""
         
-        for node in ast.walk(tree):
-            # 检测列表推导式 vs 生成器表达式
-            if isinstance(node, ast.ListComp):
-                # 如果只是用于迭代，建议使用生成器
-                pass  # 需要上下文判断
-            
-            # 检测大型字符串格式化
-            if isinstance(node, ast.BinOp):
-                if isinstance(node.op, ast.Mod) and isinstance(node.right, ast.Tuple):
-                    if len(node.right.elts) > 5:
+        for child in ast.walk(loop_node):
+            # len() call in for loop condition - detect repeated len() calls
+            if isinstance(child, ast.Call):
+                if isinstance(child.func, ast.Name) and child.func.id == 'len':
+                    # len() is called inside loop - could be cached outside
+                    if isinstance(child.args[0], ast.Name) if child.args else False:
                         self.issues.append(CodeIssue(
-                            id=f"perf_string_format_{len(self.issues)}",
+                            id=self._generate_issue_id("len_in_loop"),
                             type="performance",
                             severity=SeverityLevel.INFO,
-                            message="多参数字符串格式化，建议使用f-string或.format()方法",
-                            lineno=node.lineno
+                            message="len() called inside loop, consider caching the result outside the loop",
+                            lineno=getattr(child, 'lineno', None),
+                            suggestion="Cache: n = len(sequence) before the loop"
                         ))
-    
-    def _detect_global_lookups(self, tree: ast.AST):
-        """检测可能的全局查找"""
-        
-        import builtins
-        # Python 内置函数和常见全局名称
-        BUILTINS = set(dir(builtins))
-        BUILTINS.update(['print', 'len', 'range', 'str', 'int', 'float', 'list', 'dict', 'set', 'tuple',
-                         'True', 'False', 'None', 'open', 'type', 'isinstance', 'hasattr', 'getattr',
-                         'enumerate', 'zip', 'map', 'filter', 'sorted', 'reversed', 'sum', 'min', 'max'])
-        
-        # 检测循环内的全局变量访问
-        class GlobalLookupVisitor(ast.NodeVisitor):
-            def __init__(self, analyzer):
-                self.analyzer = analyzer
-                self.in_loop = False
-                self.local_vars = set()
-                self.global_vars = set()
-                self.loop_depth = 0
-                self.reported_vars = set()  # 避免重复报告
             
-            def visit_For(self, node):
-                old_in_loop = self.in_loop
-                old_depth = self.loop_depth
-                self.in_loop = True
-                self.loop_depth += 1
-                
-                # 添加循环变量到局部变量
-                if isinstance(node.target, ast.Name):
-                    self.local_vars.add(node.target.id)
-                
-                self.generic_visit(node)
-                self.in_loop = old_in_loop
-                self.loop_depth = old_depth
-            
-            def visit_While(self, node):
-                old_in_loop = self.in_loop
-                old_depth = self.loop_depth
-                self.in_loop = True
-                self.loop_depth += 1
-                self.generic_visit(node)
-                self.in_loop = old_in_loop
-                self.loop_depth = old_depth
-            
-            def visit_FunctionDef(self, node):
-                # 收集函数局部变量
-                old_locals = self.local_vars.copy()
-                old_reported = self.reported_vars.copy()
-                
-                for arg in node.args.args:
-                    self.local_vars.add(arg.arg)
-                if node.args.vararg:
-                    self.local_vars.add(node.args.vararg.arg)
-                if node.args.kwarg:
-                    self.local_vars.add(node.args.kwarg.arg)
-                
-                # 检测函数内的赋值（局部变量）
-                for child in ast.walk(node):
-                    if isinstance(child, ast.Assign):
-                        for target in child.targets:
-                            if isinstance(target, ast.Name):
-                                self.local_vars.add(target.id)
-                
-                self.generic_visit(node)
-                self.local_vars = old_locals
-                self.reported_vars = old_reported
-            
-            def visit_Global(self, node):
-                # 显式声明的全局变量
-                for name in node.names:
-                    self.global_vars.add(name)
-                self.generic_visit(node)
-            
-            def visit_Name(self, node):
-                if self.in_loop and isinstance(node.ctx, ast.Load):
-                    # 检查是否是全局/内置查找
-                    if (node.id not in self.local_vars and 
-                        node.id not in BUILTINS and
-                        node.id not in self.reported_vars):
-                        # 排除模块级别的常见名称
-                        if not node.id.startswith('_'):
-                            self.analyzer.issues.append(CodeIssue(
-                                id=f"perf_global_lookup_{len(self.analyzer.issues)}",
+            # Check for repeated function calls - detect same function called multiple times
+            if isinstance(child, ast.Call):
+                # Detect range(len()) pattern which is inefficient
+                if isinstance(child.func, ast.Name) and child.func.id == 'range':
+                    if child.args and isinstance(child.args[0], ast.Call):
+                        if isinstance(child.args[0].func, ast.Name) and child.args[0].func.id == 'len':
+                            self.issues.append(CodeIssue(
+                                id=self._generate_issue_id("range_len"),
                                 type="performance",
                                 severity=SeverityLevel.INFO,
-                                message=f"在循环内访问全局变量 '{node.id}'，建议缓存为局部变量以提升性能",
-                                lineno=node.lineno,
-                                suggestion=f"在循环前添加: local_{node.id} = {node.id}"
+                                message="range(len(...)) pattern detected, consider using enumerate() for better readability",
+                                lineno=getattr(child, 'lineno', None),
+                                suggestion="Use: for i, item in enumerate(sequence):"
                             ))
-                            self.reported_vars.add(node.id)
-                # 注意：不要在这里调用 generic_visit，因为 Name 节点没有子节点
-                # 调用会导致不必要的遍历开销
-        
-        visitor = GlobalLookupVisitor(self)
-        visitor.visit(tree)
     
-    def analyze_complexity(self, node: ast.AST) -> str:
-        """
-        估算代码块的时间复杂度
-        返回Big O表示法字符串
-        """
-        complexity = self._estimate_complexity(node)
-        return self._format_complexity(complexity)
-    
-    def _estimate_complexity(self, node: ast.AST) -> Dict[str, int]:
-        """估算复杂度因子"""
-        factors = {
-            'loops': 0,
-            'nested': 0,
-            'recursion': False,
-            'logarithmic': False,
-        }
+    def _detect_string_concatenation(self, tree: ast.AST):
+        """Detect string concatenation in loops"""
         
-        class ComplexityVisitor(ast.NodeVisitor):
-            def __init__(self, factors):
-                self.factors = factors
-                self.loop_depth = 0
+        class StringConcatVisitor(ast.NodeVisitor):
+            def __init__(self, detector):
+                self.detector = detector
+                self.in_loop = False
+                self.loop_lineno = 0
             
             def visit_For(self, node):
-                self.factors['loops'] += 1
-                self.loop_depth += 1
-                self.factors['nested'] = max(self.factors['nested'], self.loop_depth)
-                
-                # 检测对数复杂度特征
-                if isinstance(node.iter, ast.Call):
-                    if isinstance(node.iter.func, ast.Name):
-                        if node.iter.func.id == 'range':
-                            # 检查步长
-                            if len(node.iter.args) >= 3:
-                                self.factors['logarithmic'] = True
-                
+                old_in_loop = self.in_loop
+                old_lineno = self.loop_lineno
+                self.in_loop = True
+                self.loop_lineno = node.lineno
                 self.generic_visit(node)
-                self.loop_depth -= 1
+                self.in_loop = old_in_loop
+                self.loop_lineno = old_lineno
             
             def visit_While(self, node):
-                self.factors['loops'] += 1
-                self.loop_depth += 1
-                self.factors['nested'] = max(self.factors['nested'], self.loop_depth)
+                old_in_loop = self.in_loop
+                old_lineno = self.loop_lineno
+                self.in_loop = True
+                self.loop_lineno = node.lineno
                 self.generic_visit(node)
-                self.loop_depth -= 1
+                self.in_loop = old_in_loop
+                self.loop_lineno = old_lineno
+            
+            def visit_AugAssign(self, node):
+                if self.in_loop and isinstance(node.op, ast.Add):
+                    # Check if it's string concatenation
+                    if isinstance(node.target, ast.Name):
+                        self.detector.issues.append(CodeIssue(
+                            id=self.detector._generate_issue_id("string_concat"),
+                            type="performance",
+                            severity=SeverityLevel.WARNING,
+                            message="String concatenation in loop has performance issues, recommend using list and join()",
+                            lineno=self.loop_lineno,
+                            suggestion="Use: result = ''.join(items)"
+                        ))
+                        # Also add a hotspot
+                        self.detector._add_hotspot(
+                            hotspot_type="inefficient_operation",
+                            description=f"String concatenation using += in loop on variable '{node.target.id}'",
+                            lineno=self.loop_lineno,
+                            estimated_complexity="O(n^2)",
+                            suggestion="Use list.append() and ''.join() for O(n) complexity"
+                        )
+                
+                self.generic_visit(node)
         
-        ComplexityVisitor(factors).visit(node)
-        return factors
+        visitor = StringConcatVisitor(self)
+        visitor.visit(tree)
     
-    def _format_complexity(self, factors: Dict[str, int]) -> str:
-        """格式化复杂度为Big O表示法"""
-        nested = factors['nested']
+    def _detect_inefficient_data_structures(self, tree: ast.AST):
+        """Detect inefficient data structure usage"""
         
-        if nested == 0:
-            return "O(1)"
-        elif nested == 1:
-            if factors['logarithmic']:
-                return "O(n log n)"
-            return "O(n)"
-        elif nested == 2:
-            return "O(n²)"
-        elif nested == 3:
-            return "O(n³)"
-        else:
-            return f"O(n^{nested})"
+        # Track if we're inside a loop for context-aware detection
+        class InefficientDSVisitor(ast.NodeVisitor):
+            def __init__(self, detector):
+                self.detector = detector
+                self.in_loop = False
+                self.loop_lineno = 0
+            
+            def _enter_loop(self, node):
+                old_in_loop = self.in_loop
+                old_lineno = self.loop_lineno
+                self.in_loop = True
+                self.loop_lineno = getattr(node, 'lineno', 0)
+                self.generic_visit(node)
+                self.in_loop = old_in_loop
+                self.loop_lineno = old_lineno
+            
+            def visit_For(self, node):
+                self._enter_loop(node)
+            
+            def visit_While(self, node):
+                self._enter_loop(node)
+            
+            def visit_Compare(self, node):
+                # Check for 'x in list' operations inside loops - O(n) complexity
+                for i, op in enumerate(node.ops):
+                    if isinstance(op, (ast.In, ast.NotIn)):
+                        comparator = node.comparators[i]
+                        # Detect list literal membership test
+                        if isinstance(comparator, ast.List):
+                            self.detector.issues.append(CodeIssue(
+                                id=self.detector._generate_issue_id("list_membership"),
+                                type="performance",
+                                severity=SeverityLevel.WARNING,
+                                message="Membership check on list is O(n), consider using a set for O(1) lookup",
+                                lineno=getattr(node, 'lineno', None),
+                                suggestion="Convert to set: my_set = set(my_list)"
+                            ))
+                self.generic_visit(node)
+            
+            def visit_Call(self, node):
+                if self.in_loop:
+                    # list.count() in loop - O(n^2) potential
+                    if isinstance(node.func, ast.Attribute):
+                        if node.func.attr == 'count':
+                            self.detector.issues.append(CodeIssue(
+                                id=self.detector._generate_issue_id("count_in_loop"),
+                                type="performance",
+                                severity=SeverityLevel.WARNING,
+                                message="list.count() inside loop has O(n) complexity per call, consider using Counter or set",
+                                lineno=getattr(node, 'lineno', None),
+                                suggestion="Use: from collections import Counter"
+                            ))
+                        # list.index() in loop - also O(n)
+                        elif node.func.attr == 'index':
+                            self.detector.issues.append(CodeIssue(
+                                id=self.detector._generate_issue_id("index_in_loop"),
+                                type="performance",
+                                severity=SeverityLevel.INFO,
+                                message="list.index() inside loop has O(n) complexity, consider using a dictionary for O(1) lookup",
+                                lineno=getattr(node, 'lineno', None),
+                                suggestion="Build a dict: index_map = {val: i for i, val in enumerate(lst)}"
+                            ))
+                self.generic_visit(node)
+        
+        visitor = InefficientDSVisitor(self)
+        visitor.visit(tree)
+    
+    def _detect_expensive_operations_in_loops(self, tree: ast.AST):
+        """Detect expensive operations inside loops"""
+        
+        expensive_calls = {
+            'open', 'read', 'write', 'connect', 'request',
+            'query', 'execute', 'fetch', 'commit'
+        }
+        
+        class ExpensiveOpVisitor(ast.NodeVisitor):
+            def __init__(self, detector):
+                self.detector = detector
+                self.loop_depth = 0
+                self.loop_lineno = 0
+            
+            def _visit_loop(self, node):
+                old_depth = self.loop_depth
+                old_lineno = self.loop_lineno
+                self.loop_depth += 1
+                self.loop_lineno = node.lineno
+                self.generic_visit(node)
+                self.loop_depth = old_depth
+                self.loop_lineno = old_lineno
+            
+            def visit_For(self, node):
+                self._visit_loop(node)
+            
+            def visit_While(self, node):
+                self._visit_loop(node)
+            
+            def visit_Call(self, node):
+                if self.loop_depth > 0:
+                    func_name = None
+                    if isinstance(node.func, ast.Name):
+                        func_name = node.func.id
+                    elif isinstance(node.func, ast.Attribute):
+                        func_name = node.func.attr
+                    
+                    if func_name in expensive_calls:
+                        self.detector.issues.append(CodeIssue(
+                            id=self.detector._generate_issue_id("expensive_in_loop"),
+                            type="performance",
+                            severity=SeverityLevel.WARNING,
+                            message=f"Expensive operation '{func_name}()' inside loop may affect performance, consider moving outside",
+                            lineno=node.lineno
+                        ))
+                
+                self.generic_visit(node)
+        
+        visitor = ExpensiveOpVisitor(self)
+        visitor.visit(tree)
+    
+    def _detect_global_variable_usage(self, tree: ast.AST):
+        """Detect global variable usage in performance-critical code"""
+        
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Global):
+                self.issues.append(CodeIssue(
+                    id=self._generate_issue_id("global_usage"),
+                    type="performance",
+                    severity=SeverityLevel.INFO,
+                    message="Using global variables may affect performance, consider passing as parameters",
+                    lineno=node.lineno
+                ))
+    
+    def _detect_redundant_calculations(self, tree: ast.AST):
+        """Detect redundant calculations"""
+        
+        # Detect duplicate expression calculations in loops
+        class RedundantCalcVisitor(ast.NodeVisitor):
+            def __init__(self, detector):
+                self.detector = detector
+                self.in_loop = False
+                self.loop_lineno = 0
+                # Track expressions by their source representation
+                self.expressions: Dict[str, Tuple[ast.AST, int]] = {}
+            
+            def _enter_loop(self, node):
+                old_in_loop = self.in_loop
+                old_lineno = self.loop_lineno
+                old_expressions = self.expressions.copy()
+                self.in_loop = True
+                self.loop_lineno = getattr(node, 'lineno', 0)
+                self.expressions = {}
+                self.generic_visit(node)
+                self.in_loop = old_in_loop
+                self.loop_lineno = old_lineno
+                self.expressions = old_expressions
+            
+            def visit_For(self, node):
+                self._enter_loop(node)
+            
+            def visit_While(self, node):
+                self._enter_loop(node)
+            
+            def visit_Call(self, node):
+                if self.in_loop:
+                    # Get a string representation of the call for comparison
+                    try:
+                        import ast as ast_module
+                        call_repr = ast_module.unparse(node) if hasattr(ast_module, 'unparse') else str(node)
+                    except:
+                        call_repr = str(getattr(node, 'lineno', ''))
+                    
+                    # Check if we've seen this expression before
+                    if call_repr in self.expressions:
+                        first_node, first_lineno = self.expressions[call_repr]
+                        # Only report once per unique expression
+                        if first_lineno != getattr(node, 'lineno', 0):
+                            # Skip built-in functions that are typically cheap
+                            func_name = None
+                            if isinstance(node.func, ast.Name):
+                                func_name = node.func.id
+                            elif isinstance(node.func, ast.Attribute):
+                                func_name = node.func.attr
+                            
+                            cheap_functions = {'len', 'str', 'int', 'float', 'bool', 'list', 'dict', 'set'}
+                            if func_name not in cheap_functions:
+                                self.detector.issues.append(CodeIssue(
+                                    id=self.detector._generate_issue_id("redundant_calc"),
+                                    type="performance",
+                                    severity=SeverityLevel.INFO,
+                                    message=f"Potentially redundant calculation detected, same expression called multiple times in loop",
+                                    lineno=getattr(node, 'lineno', None),
+                                    suggestion="Consider caching the result in a variable outside or at the start of the loop"
+                                ))
+                    else:
+                        self.expressions[call_repr] = (node, getattr(node, 'lineno', 0))
+                
+                self.generic_visit(node)
+            
+            def visit_BinOp(self, node):
+                if self.in_loop:
+                    # Detect repeated binary operations (e.g., calculations with constants)
+                    try:
+                        import ast as ast_module
+                        expr_repr = ast_module.unparse(node) if hasattr(ast_module, 'unparse') else None
+                        if expr_repr and expr_repr in self.expressions:
+                            self.detector.issues.append(CodeIssue(
+                                id=self.detector._generate_issue_id("redundant_binop"),
+                                type="performance",
+                                severity=SeverityLevel.INFO,
+                                message="Repeated calculation detected in loop, consider caching the result",
+                                lineno=getattr(node, 'lineno', None),
+                                suggestion="Cache: result = calculation  # outside loop"
+                            ))
+                        elif expr_repr:
+                            self.expressions[expr_repr] = (node, getattr(node, 'lineno', 0))
+                    except:
+                        pass
+                self.generic_visit(node)
+        
+        visitor = RedundantCalcVisitor(self)
+        visitor.visit(tree)
+    
+    def _detect_memory_issues(self, tree: ast.AST):
+        """Detect potential memory issues"""
+        
+        for node in ast.walk(tree):
+            # Large list comprehension - detect potentially memory-heavy patterns
+            if isinstance(node, ast.ListComp):
+                # Check if there's filter condition (without filter, generates all items)
+                if not node.generators[0].ifs:
+                    # Check for nested loops in comprehension (multiplicative size)
+                    if len(node.generators) > 1:
+                        self.issues.append(CodeIssue(
+                            id=self._generate_issue_id("large_listcomp_nested"),
+                            type="performance",
+                            severity=SeverityLevel.INFO,
+                            message="Nested list comprehension without filter may generate large result, consider generator expression",
+                            lineno=getattr(node, 'lineno', None),
+                            suggestion="Use generator: (... for ... for ...) instead of [... for ... for ...]"
+                        ))
+            
+            # Range in Python 2 style (if using xrange)
+            if isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name):
+                    # Large range
+                    if node.func.id == 'range':
+                        for arg in node.args:
+                            if isinstance(arg, ast.Constant) and isinstance(arg.value, int):
+                                if arg.value > 10000:
+                                    self.issues.append(CodeIssue(
+                                        id=self._generate_issue_id("large_range"),
+                                        type="performance",
+                                        severity=SeverityLevel.INFO,
+                                        message=f"Large range({arg.value}) may consume a lot of memory, consider using generator",
+                                        lineno=node.lineno
+                                    ))
+    
+    def _detect_unoptimized_comprehensions(self, tree: ast.AST):
+        """Detect unoptimized comprehension patterns"""
+        
+        # Functions that only iterate once over their argument (suitable for generators)
+        single_pass_functions = {
+            'sum', 'any', 'all', 'max', 'min', 'sorted', 'reversed',
+            'list', 'tuple', 'set', 'dict', 'frozenset',
+            'join', 'map', 'filter', 'enumerate', 'zip'
+        }
+        
+        class CompOptVisitor(ast.NodeVisitor):
+            def __init__(self, detector):
+                self.detector = detector
+            
+            def visit_Call(self, node):
+                # Check if list comprehension is passed to a single-pass function
+                func_name = None
+                if isinstance(node.func, ast.Name):
+                    func_name = node.func.id
+                elif isinstance(node.func, ast.Attribute):
+                    func_name = node.func.attr
+                
+                if func_name in single_pass_functions:
+                    for arg in node.args:
+                        if isinstance(arg, ast.ListComp):
+                            self.detector.issues.append(CodeIssue(
+                                id=self.detector._generate_issue_id("listcomp_to_gen"),
+                                type="performance",
+                                severity=SeverityLevel.INFO,
+                                message=f"List comprehension passed to {func_name}() can be replaced with generator expression for memory efficiency",
+                                lineno=getattr(node, 'lineno', None),
+                                suggestion=f"Replace [...] with (...) inside {func_name}()"
+                            ))
+                
+                self.generic_visit(node)
+        
+        for node in ast.walk(tree):
+            # Nested comprehensions
+            if isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp)):
+                if len(node.generators) > 2:
+                    self.issues.append(CodeIssue(
+                        id=self._generate_issue_id("nested_comp"),
+                        type="performance",
+                        severity=SeverityLevel.INFO,
+                        message="Deeply nested comprehensions may affect readability and performance, consider using explicit loops",
+                        lineno=node.lineno
+                    ))
+        
+        visitor = CompOptVisitor(self)
+        visitor.visit(tree)
+    
+    def _analyze_function_complexity(self, func_node: ast.AST) -> Dict[str, Any]:
+        """Analyze function complexity"""
+        result = {
+            'has_nested_loops': False,
+            'max_loop_depth': 0,
+            'call_count': 0,
+        }
+        
+        class LoopDepthVisitor(ast.NodeVisitor):
+            def __init__(self):
+                self.current_depth = 0
+                self.max_depth = 0
+            
+            def visit_For(self, node):
+                self.current_depth += 1
+                self.max_depth = max(self.max_depth, self.current_depth)
+                self.generic_visit(node)
+                self.current_depth -= 1
+            
+            def visit_While(self, node):
+                self.current_depth += 1
+                self.max_depth = max(self.max_depth, self.current_depth)
+                self.generic_visit(node)
+                self.current_depth -= 1
+        
+        visitor = LoopDepthVisitor()
+        visitor.visit(func_node)
+        
+        result['max_loop_depth'] = visitor.max_depth
+        result['has_nested_loops'] = visitor.max_depth > 1
+        
+        # Count function calls
+        for node in ast.walk(func_node):
+            if isinstance(node, ast.Call):
+                result['call_count'] += 1
+        
+        return result
+    
+    def get_performance_hotspots(self) -> List[PerformanceHotspot]:
+        """Get list of performance hotspots"""
+        return self.hotspots
     
     def get_issues(self) -> List[CodeIssue]:
-        """获取问题列表"""
+        """Get issue list"""
         return self.issues

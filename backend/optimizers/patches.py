@@ -1,6 +1,6 @@
 """
-Patch Generator - 代码补丁生成器
-生成可自动应用的代码修复补丁
+Patch Generator - Code patch generator
+Generates automatically applicable code fix patches
 """
 import ast
 import difflib
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class PatchGenerator:
-    """代码补丁生成器 - 改进版"""
+    """Code Patch Generator - Improved Version"""
     
     def __init__(self):
         self.patches: List[Dict[str, Any]] = []
@@ -26,36 +26,36 @@ class PatchGenerator:
         suggestion: OptimizationSuggestion
     ) -> Optional[str]:
         """
-        生成统一差异格式的补丁
+        Generate unified diff format patch
         
         Args:
-            original_code: 原始代码
-            suggestion: 优化建议
+            original_code: Original code
+            suggestion: Optimization suggestion
         
         Returns:
-            统一差异格式的补丁字符串
+            Unified diff format patch string
         """
         if not suggestion.auto_fixable:
             return None
         
-        # 验证原始代码语法
+        # Validate original code syntax
         if not self._validate_syntax(original_code):
-            logger.warning("原始代码存在语法错误，无法生成补丁")
+            logger.warning("Original code has syntax errors, cannot generate patch")
             return None
         
         try:
-            # 尝试应用修复
+            # Attempt to apply fix
             fixed_code = self._apply_fix(original_code, suggestion)
             
             if fixed_code is None or fixed_code == original_code:
                 return None
             
-            # 验证修复后的代码语法
+            # Validate fixed code syntax
             if not self._validate_syntax(fixed_code):
-                logger.warning(f"修复后的代码存在语法错误: {suggestion.title}")
+                logger.warning(f"Fixed code has syntax errors: {suggestion.title}")
                 return None
             
-            # 生成差异
+            # Generate diff
             diff = self._generate_unified_diff(
                 original_code, 
                 fixed_code, 
@@ -66,12 +66,12 @@ class PatchGenerator:
             return diff
             
         except Exception as e:
-            logger.error(f"生成补丁失败: {e}")
-            self._errors.append(f"生成补丁失败 ({suggestion.title}): {str(e)}")
+            logger.error(f"Failed to generate patch: {e}")
+            self._errors.append(f"Failed to generate patch ({suggestion.title}): {str(e)}")
             return None
     
     def _validate_syntax(self, code: str) -> bool:
-        """验证代码语法是否正确"""
+        """Validate code syntax is correct"""
         try:
             ast.parse(code)
             return True
@@ -79,8 +79,8 @@ class PatchGenerator:
             return False
     
     def _apply_fix(self, code: str, suggestion: OptimizationSuggestion) -> Optional[str]:
-        """应用具体的修复"""
-        # 根据建议类型应用不同的修复策略
+        """Apply specific fix"""
+        # Apply different fix strategies based on suggestion type
         if suggestion.category == 'performance':
             return self._apply_performance_fix(code, suggestion)
         elif suggestion.category == 'readability':
@@ -91,37 +91,37 @@ class PatchGenerator:
         return None
     
     def _apply_performance_fix(self, code: str, suggestion: OptimizationSuggestion) -> Optional[str]:
-        """应用性能优化修复"""
+        """Apply performance optimization fix"""
         
-        # 列表推导式转生成器表达式
-        if '生成器' in suggestion.title:
+        # List comprehension to generator expression
+        if 'generator' in suggestion.title.lower():
             return self._fix_listcomp_to_gen(code)
         
-        # 字符串拼接优化
-        if '字符串拼接' in suggestion.title or 'join' in suggestion.title.lower():
+        # String concatenation optimization
+        if 'string concatenation' in suggestion.title.lower() or 'join' in suggestion.title.lower():
             return self._fix_string_concat(code)
         
-        # 集合优化
-        if '集合' in suggestion.title and '成员检查' in suggestion.title:
+        # Set optimization
+        if 'set' in suggestion.title.lower() and 'membership' in suggestion.title.lower():
             return self._fix_list_membership(code)
         
         return None
     
     def _apply_readability_fix(self, code: str, suggestion: OptimizationSuggestion) -> Optional[str]:
-        """应用可读性修复"""
+        """Apply readability fix"""
         
         # range(len()) -> enumerate()
         if 'enumerate' in suggestion.title.lower():
             return self._fix_range_len(code)
         
-        # 格式化字符串 -> f-string
+        # Format string -> f-string
         if 'f-string' in suggestion.title.lower():
             return self._fix_format_string(code)
         
         return None
     
     def _apply_security_fix(self, code: str, suggestion: OptimizationSuggestion) -> Optional[str]:
-        """应用安全修复"""
+        """Apply security fix"""
         
         # eval -> ast.literal_eval
         if 'eval' in suggestion.title.lower() or 'literal_eval' in suggestion.title.lower():
@@ -130,13 +130,13 @@ class PatchGenerator:
         return None
     
     def _fix_listcomp_to_gen(self, code: str) -> Optional[str]:
-        """将函数参数中的列表推导式转换为生成器表达式"""
+        """Convert list comprehension in function arguments to generator expression"""
         try:
             tree = ast.parse(code)
         except SyntaxError:
             return None
         
-        # 找到需要转换的位置
+        # Find positions that need conversion
         replacements = []
         
         class ListCompFinder(ast.NodeVisitor):
@@ -152,7 +152,7 @@ class PatchGenerator:
                 
                 for i, arg in enumerate(node.args):
                     if isinstance(arg, ast.ListComp):
-                        # 记录需要替换的位置
+                        # Record position for replacement
                         replacements.append({
                             'node': arg,
                             'call_node': node,
@@ -172,25 +172,25 @@ class PatchGenerator:
         if not replacements:
             return None
         
-        # 使用 ast.unparse 或手动替换
+        # Use ast.unparse or manual replacement
         lines = code.splitlines(keepends=True)
         result = code
         
         for repl in replacements:
             node = repl['node']
-            # 获取原始代码片段
+            # Get original code segment
             if hasattr(node, 'lineno') and hasattr(node, 'end_lineno'):
                 start_line = node.lineno - 1
                 end_line = node.end_lineno - 1
                 
-                # 提取原始列表推导式
+                # Extract original list comprehension
                 original_segment = self._extract_segment(lines, start_line, 
                                                          node.col_offset, 
                                                          end_line, 
                                                          node.end_col_offset)
                 
                 if original_segment and original_segment.startswith('[') and original_segment.endswith(']'):
-                    # 转换为生成器表达式
+                    # Convert to generator expression
                     gen_expr = '(' + original_segment[1:-1] + ')'
                     result = result.replace(original_segment, gen_expr, 1)
         
@@ -198,7 +198,7 @@ class PatchGenerator:
     
     def _extract_segment(self, lines: List[str], start_line: int, start_col: int,
                          end_line: int, end_col: int) -> str:
-        """从源代码中提取指定位置的片段"""
+        """Extract segment from source code at specified position"""
         try:
             if start_line == end_line:
                 return lines[start_line][start_col:end_col]
@@ -212,11 +212,11 @@ class PatchGenerator:
             return ''
     
     def _fix_string_concat(self, code: str) -> Optional[str]:
-        """修复循环中的字符串拼接 - 改进版"""
+        """Fix string concatenation in loops - Improved Version"""
         lines = code.splitlines()
         result_lines = []
         
-        # 追踪字符串变量和它们的拼接位置
+        # Track string variables and their concatenation positions
         string_vars_in_loops: Dict[str, Dict[str, Any]] = {}
         loop_stack: List[Tuple[int, str]] = []  # (line_index, loop_var)
         
@@ -232,28 +232,28 @@ class PatchGenerator:
             stripped = line.strip()
             current_indent = get_indent(line)
             
-            # 跟踪循环
+            # Track loops
             if stripped.startswith('for ') or stripped.startswith('while '):
                 loop_stack.append((i, current_indent))
                 result_lines.append(line)
                 i += 1
                 continue
             
-            # 检测循环结束
+            # Detect loop end
             while loop_stack and current_indent <= loop_stack[-1][1] and not stripped.startswith(('for ', 'while ', 'elif ', 'else:', 'except', 'finally:')):
                 if stripped and not stripped.startswith('#'):
                     loop_stack.pop()
                     break
                 break
             
-            # 检测 += 字符串拼接
+            # Detect += string concatenation
             if '+=' in line and is_inside_loop(current_indent):
                 match = re.match(r'^(\s*)(\w+)\s*\+=\s*(.+)$', line)
                 if match:
                     indent, var_name, value = match.groups()
                     value = value.strip()
                     
-                    # 检查是否可能是字符串拼接
+                    # Check if it might be string concatenation
                     is_string_op = (
                         '"' in value or "'" in value or 
                         var_name in string_vars_in_loops or
@@ -261,7 +261,7 @@ class PatchGenerator:
                     )
                     
                     if is_string_op:
-                        # 记录这个变量
+                        # Record this variable
                         if var_name not in string_vars_in_loops:
                             string_vars_in_loops[var_name] = {
                                 'first_line': i,
@@ -269,7 +269,7 @@ class PatchGenerator:
                                 'parts_name': f'{var_name}_parts'
                             }
                         
-                        # 替换为 append
+                        # Replace with append
                         result_lines.append(f'{indent}{var_name}_parts.append({value})')
                         i += 1
                         continue
@@ -277,30 +277,30 @@ class PatchGenerator:
             result_lines.append(line)
             i += 1
         
-        # 添加初始化和 join 语句
+        # Add initialization and join statements
         if string_vars_in_loops:
             final_lines = []
             added_init: Set[str] = set()
             
             for i, line in enumerate(result_lines):
-                # 检查是否需要在这个位置添加初始化
+                # Check if initialization needs to be added at this position
                 for var_name, info in string_vars_in_loops.items():
                     if var_name not in added_init:
-                        # 找到变量的第一次使用位置
+                        # Find first use position of variable
                         if f'{var_name}_parts.append' in line:
                             indent = ' ' * info['indent']
-                            # 在使用前添加初始化
+                            # Add initialization before use
                             final_lines.append(f'{indent}{info["parts_name"]} = []')
                             added_init.add(var_name)
                 
                 final_lines.append(line)
                 
-                # 检查是否需要在 return 前添加 join
+                # Check if join needs to be added before return
                 for var_name, info in string_vars_in_loops.items():
                     if var_name in added_init and f'return {var_name}' in line:
                         indent = ' ' * info['indent']
-                        # 在 return 前添加 join
-                        join_line = f'{indent}{var_name} = \'\'.join({info["parts_name"]})'
+                        # Add join before return
+                        join_line = f"{indent}{var_name} = ''.join({info['parts_name']})"
                         final_lines.insert(-1, join_line)
             
             result = '\n'.join(final_lines)
@@ -310,13 +310,13 @@ class PatchGenerator:
         return result if result != code else None
     
     def _fix_list_membership(self, code: str) -> Optional[str]:
-        """修复列表成员检查 - 改进版"""
+        """Fix list membership check - Improved Version"""
         try:
             tree = ast.parse(code)
         except SyntaxError:
             return None
         
-        # 收集需要转换的列表
+        # Collect lists that need conversion
         lists_to_convert: Dict[str, str] = {}  # list_name -> set_name
         
         class MembershipFinder(ast.NodeVisitor):
@@ -351,7 +351,7 @@ class PatchGenerator:
         if not finder.lists_in_loops:
             return None
         
-        # 生成转换名称
+        # Generate conversion names
         for lst in finder.lists_in_loops:
             lists_to_convert[lst] = f'{lst}_set'
         
@@ -360,9 +360,9 @@ class PatchGenerator:
         added_conversions: Set[str] = set()
         
         for line in lines:
-            # 检查是否需要转换
+            # Check if conversion is needed
             for list_name, set_name in lists_to_convert.items():
-                # 匹配 "in list_name" 模式（避免误匹配）
+                # Match "in list_name" pattern (avoid false matches)
                 patterns = [
                     (rf'\bin\s+{re.escape(list_name)}\b', f'in {set_name}'),
                     (rf'\bnot\s+in\s+{re.escape(list_name)}\b', f'not in {set_name}'),
@@ -371,11 +371,11 @@ class PatchGenerator:
                 new_line = line
                 for pattern, replacement in patterns:
                     if re.search(pattern, line) and list_name not in added_conversions:
-                        # 找到合适的插入位置（在循环外）
+                        # Find appropriate insertion position (outside loop)
                         if 'for ' in line or 'while ' in line:
-                            # 获取缩进
+                            # Get indent
                             indent = len(line) - len(line.lstrip())
-                            # 在循环前添加转换
+                            # Add conversion before loop
                             if list_name not in added_conversions:
                                 result_lines.append(' ' * indent + f'{set_name} = set({list_name})')
                                 added_conversions.add(list_name)
@@ -387,18 +387,18 @@ class PatchGenerator:
         return result if result != code else None
     
     def _fix_range_len(self, code: str) -> Optional[str]:
-        """修复 range(len()) 模式 - 改进版"""
+        """Fix range(len()) pattern - Improved Version"""
         try:
             tree = ast.parse(code)
         except SyntaxError:
             return None
         
-        # 收集需要修复的信息
+        # Collect fix information
         fixes = []
         
         class RangeLenFinder(ast.NodeVisitor):
             def visit_For(self, node):
-                # 检查是否是 range(len(...)) 模式
+                # Check if it's range(len(...)) pattern
                 if isinstance(node.iter, ast.Call):
                     call = node.iter
                     if isinstance(call.func, ast.Name) and call.func.id == 'range':
@@ -430,31 +430,31 @@ class PatchGenerator:
         lines = code.splitlines()
         result_lines = lines.copy()
         
-        # 从后向前处理，避免行号偏移
+        # Process from back to front to avoid line number offset
         for fix in reversed(fixes):
             line_idx = fix['lineno'] - 1
             original_line = lines[line_idx]
             
-            # 获取缩进
+            # Get indent
             indent = len(original_line) - len(original_line.lstrip())
             indent_str = ' ' * indent
             
-            # 生成新的 for 行
+            # Generate new for line
             index_var = fix['index_var']
             seq_name = fix['seq_name']
             new_for_line = f'{indent_str}for {index_var}, item in enumerate({seq_name}):'
             
             result_lines[line_idx] = new_for_line
             
-            # 尝试替换循环体内的 arr[i] 为 item
-            # 需要找到循环体的范围
+            # Try to replace arr[i] with item in loop body
+            # Need to find loop body range
             loop_node = fix['node']
             if loop_node.body:
                 body_start = loop_node.body[0].lineno - 1
                 body_end = (loop_node.body[-1].end_lineno - 1) if hasattr(loop_node.body[-1], 'end_lineno') else body_start + 1
                 
                 for i in range(body_start, min(body_end + 1, len(result_lines))):
-                    # 替换 seq_name[index_var] 为 item
+                    # Replace seq_name[index_var] with item
                     pattern = rf'\b{re.escape(seq_name)}\s*\[\s*{re.escape(index_var)}\s*\]'
                     result_lines[i] = re.sub(pattern, 'item', result_lines[i])
         
@@ -462,11 +462,11 @@ class PatchGenerator:
         return result if result != code else None
     
     def _fix_format_string(self, code: str) -> Optional[str]:
-        """将格式化字符串转换为f-string - 改进版"""
+        """Convert format strings to f-string - Improved Version"""
         result = code
         changes_made = False
         
-        # 处理 % 格式化
+        # Handle % formatting
         def convert_percent(match):
             nonlocal changes_made
             
@@ -476,18 +476,20 @@ class PatchGenerator:
             args_str = match.group(3)
             
             try:
-                # 解析参数
+                # Parse arguments
                 args = [a.strip() for a in args_str.split(',')]
                 
-                # 检查是否有属性访问或方法调用
+                # Check for attribute access or method calls
+                # Complex expressions need special handling - skip for safety
                 if any('.' in a or '[' in a or '(' in a for a in args):
-                    # 复杂表达式，使用括号
-                    pass
+                    # Complex expressions like obj.attr, arr[i], func() 
+                    # These need parentheses in f-strings, but for safety we skip
+                    return full_match
                 
-                # 替换格式说明符
+                # Replace format specifiers
                 fstring = template
                 for arg in args:
-                    # 处理不同格式符
+                    # Handle different format specifiers
                     patterns = [
                         ('%s', '{' + arg + '}'),
                         ('%d', '{' + arg + '}'),
@@ -508,11 +510,11 @@ class PatchGenerator:
             except Exception:
                 return full_match
         
-        # 匹配 "template" % (args) 或 'template' % (args)
+        # Match "template" % (args) or 'template' % (args)
         pattern = r'(["\'])([^"\']*%[sdfroxef])\1\s*%\s*\(([^)]+)\)'
         result = re.sub(pattern, convert_percent, result)
         
-        # 处理 .format() 方法
+        # Handle .format() method
         def convert_format_method(match):
             nonlocal changes_made
             
@@ -524,10 +526,10 @@ class PatchGenerator:
             try:
                 args = [a.strip() for a in args_str.split(',')]
                 
-                # 替换 {0}, {1} 等位置参数
+                # Replace {0}, {1} etc. positional arguments
                 fstring = template
                 for i, arg in enumerate(args):
-                    # 替换 {index} 和 {index:format}
+                    # Replace {index} and {index:format}
                     patterns = [
                         (rf'\{{{i}\}}', '{' + arg + '}'),
                         (rf'\{{{i}:([^}}]+)\}}', '{' + arg + ':\\1}'),
@@ -541,14 +543,14 @@ class PatchGenerator:
             except Exception:
                 return full_match
         
-        # 匹配 "template".format(args)
+        # Match "template".format(args)
         pattern = r'(["\'])([^"\']*\{[\d]+[^"\']*)\1\.format\s*\(([^)]+)\)'
         result = re.sub(pattern, convert_format_method, result)
         
         return result if changes_made else None
     
     def _fix_eval_to_literal_eval(self, code: str) -> Optional[str]:
-        """将 eval() 替换为 ast.literal_eval() - 改进版"""
+        """Replace eval() with ast.literal_eval() - Improved Version"""
         lines = code.splitlines()
         result_lines = []
         needs_ast_import = False
@@ -557,9 +559,9 @@ class PatchGenerator:
         for line in lines:
             new_line = line
             
-            # 检查是否有 eval() 调用
+            # Check for eval() call
             if re.search(r'\beval\s*\(', line):
-                # 替换 eval 为 ast.literal_eval
+                # Replace eval with ast.literal_eval
                 new_line = re.sub(r'\beval\s*\(', 'ast.literal_eval(', line)
                 needs_ast_import = True
                 changes_made = True
@@ -569,20 +571,20 @@ class PatchGenerator:
         if not changes_made:
             return None
         
-        # 检查是否已经有 ast 导入
+        # Check if ast import already exists
         has_ast_import = any(
             'import ast' in line or 'from ast import' in line 
             for line in lines
         )
         
         if needs_ast_import and not has_ast_import:
-            # 找到合适的插入位置（文件开头或第一个 import 之后）
+            # Find appropriate insertion position (file beginning or after first import)
             insert_pos = 0
             for i, line in enumerate(lines):
                 if line.strip().startswith('import ') or line.strip().startswith('from '):
                     insert_pos = i + 1
                 elif line.strip().startswith('"""') or line.strip().startswith("'''"):
-                    # 跳过文档字符串
+                    # Skip docstring
                     continue
                 elif insert_pos == 0 and line.strip() and not line.strip().startswith('#'):
                     insert_pos = i
@@ -600,11 +602,11 @@ class PatchGenerator:
         fromfile: str = 'original',
         tofile: str = 'modified'
     ) -> str:
-        """生成统一差异格式"""
+        """Generate unified diff format"""
         original_lines = original.splitlines(keepends=True)
         modified_lines = modified.splitlines(keepends=True)
         
-        # 确保每行都有换行符
+        # Ensure each line has newline
         original_lines = [line if line.endswith('\n') else line + '\n' for line in original_lines]
         modified_lines = [line if line.endswith('\n') else line + '\n' for line in modified_lines]
         
@@ -620,145 +622,145 @@ class PatchGenerator:
     
     def apply_patch(self, code: str, patch: str) -> Optional[str]:
         """
-        应用补丁到代码 - 改进版
+        Apply patch to code - Improved Version
         
         Args:
-            code: 原始代码
-            patch: 统一差异格式的补丁
+            code: Original code
+            patch: Unified diff format patch
         
         Returns:
-            修复后的代码，失败返回None
+            Fixed code, or None on failure
         """
         try:
             lines = code.splitlines()
             patch_lines = patch.splitlines()
             
-            # 验证补丁格式
+            # Validate patch format
             if not any(line.startswith('@@') for line in patch_lines):
-                logger.warning("无效的补丁格式：缺少 hunk 标记")
+                logger.warning("Invalid patch format: missing hunk marker")
                 return None
             
-            # 解析补丁
+            # Parse patch
             hunks = self._parse_patch_hunks(patch_lines)
             
             if not hunks:
-                logger.warning("无法解析补丁中的 hunks")
+                logger.warning("Cannot parse hunks in patch")
                 return None
             
-            # 验证补丁是否适用于当前代码
+            # Validate patch is applicable to current code
             if not self._validate_patch_applicable(lines, hunks):
-                logger.warning("补丁不适用于当前代码")
+                logger.warning("Patch not applicable to current code")
                 return None
             
-            # 应用每个hunk（从后向前，避免行号偏移）
+            # Apply each hunk (from back to front to avoid line number offset)
             hunks_sorted = sorted(hunks, key=lambda h: h['start_line'], reverse=True)
             
             for hunk in hunks_sorted:
                 start_line = hunk['start_line'] - 1
                 
                 if start_line < 0 or start_line > len(lines):
-                    logger.warning(f"无效的行号: {start_line + 1}")
+                    logger.warning(f"Invalid line number: {start_line + 1}")
                     return None
                 
                 deleted_count = hunk['deleted']
                 new_lines = hunk['lines']
                 
-                # 检查删除范围是否有效
+                # Check if delete range is valid
                 if start_line + deleted_count > len(lines):
-                    logger.warning(f"删除范围超出代码行数")
+                    logger.warning(f"Delete range exceeds code lines")
                     return None
                 
-                # 执行替换
+                # Execute replacement
                 lines[start_line:start_line + deleted_count] = new_lines
             
             result = '\n'.join(lines)
             
-            # 验证结果语法
+            # Validate result syntax
             if not self._validate_syntax(result):
-                logger.warning("应用补丁后代码存在语法错误")
+                logger.warning("Code has syntax errors after applying patch")
                 return None
             
             return result
             
         except Exception as e:
-            logger.error(f"应用补丁失败: {e}")
+            logger.error(f"Failed to apply patch: {e}")
             return None
     
     def _validate_patch_applicable(self, lines: List[str], hunks: List[Dict[str, Any]]) -> bool:
         """
-        验证补丁是否适用于当前代码
+        Validate patch is applicable to current code
         
-        通过检查上下文行是否匹配来验证补丁的适用性，
-        避免补丁应用到错误的位置。
+        Validates patch applicability by checking if context lines match,
+        avoiding patch application to wrong positions.
         """
         for hunk in hunks:
             start_line = hunk['start_line'] - 1
             context_lines = hunk.get('context', [])
             deleted_lines = hunk.get('deleted_lines', [])
             
-            # 验证起始行是否在有效范围内
+            # Validate start line is in valid range
             if start_line < 0 or start_line >= len(lines):
-                logger.warning(f"补丁起始行 {start_line + 1} 超出代码范围")
+                logger.warning(f"Patch start line {start_line + 1} exceeds code range")
                 return False
             
-            # 验证上下文行是否匹配
+            # Validate context lines match
             for ctx_line_num, ctx_content in context_lines:
                 actual_line_idx = ctx_line_num - 1
                 if actual_line_idx < 0 or actual_line_idx >= len(lines):
-                    logger.warning(f"上下文行 {ctx_line_num} 超出范围")
+                    logger.warning(f"Context line {ctx_line_num} exceeds range")
                     return False
                 
-                # 去除空白字符后比较（允许空白差异）
+                # Compare after stripping whitespace (allow whitespace differences)
                 actual_content = lines[actual_line_idx].rstrip()
                 expected_content = ctx_content.rstrip() if ctx_content else ''
                 
-                # 允许一定的空白差异
+                # Allow some whitespace difference
                 if actual_content != expected_content:
-                    # 尝试更宽松的匹配（忽略尾部空白）
+                    # Try looser matching (ignore trailing whitespace)
                     if actual_content.strip() != expected_content.strip():
                         logger.warning(
-                            f"上下文不匹配 (行 {ctx_line_num}): "
-                            f"期望 '{expected_content[:50]}...', "
-                            f"实际 '{actual_content[:50]}...'"
+                            f"Context mismatch (line {ctx_line_num}): "
+                            f"expected '{expected_content[:50]}...', "
+                            f"actual '{actual_content[:50]}...'"
                         )
                         return False
             
-            # 验证要删除的行是否存在
+            # Validate lines to be deleted exist
             if deleted_lines:
                 for line_num, deleted_content in deleted_lines:
                     line_idx = line_num - 1
                     if line_idx < 0 or line_idx >= len(lines):
-                        logger.warning(f"删除行 {line_num} 超出范围")
+                        logger.warning(f"Delete line {line_num} exceeds range")
                         return False
                     
                     actual = lines[line_idx].rstrip()
                     expected = deleted_content.rstrip() if deleted_content else ''
                     
-                    # 允许空白差异，但内容应该相似
+                    # Allow whitespace differences but content should be similar
                     if actual.strip() != expected.strip():
                         logger.warning(
-                            f"删除行不匹配 (行 {line_num}): "
-                            f"期望 '{expected[:30]}...', "
-                            f"实际 '{actual[:30]}...'"
+                            f"Delete line mismatch (line {line_num}): "
+                            f"expected '{expected[:30]}...', "
+                            f"actual '{actual[:30]}...'"
                         )
                         return False
         
         return True
     
     def _parse_patch_hunks(self, patch_lines: List[str]) -> List[Dict[str, Any]]:
-        """解析补丁中的hunks - 改进版"""
+        """Parse hunks in patch - Improved Version"""
         hunks = []
         current_hunk = None
-        old_line_num = 0  # 原始文件行号
-        new_line_num = 0  # 新文件行号
+        old_line_num = 0  # Original file line number
+        new_line_num = 0  # New file line number
         
         for line in patch_lines:
             if line.startswith('@@'):
-                # 保存之前的 hunk
+                # Save previous hunk
                 if current_hunk is not None:
                     hunks.append(current_hunk)
                 
-                # 解析 @@ -start,count +start,count @@ 或 @@ -start +start @@
+                # Parse @@ -start,count +start,count @@ or @@ -start +start @@
                 match = re.match(r'@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@', line)
                 if match:
                     old_start = int(match.group(1))
@@ -784,35 +786,35 @@ class PatchGenerator:
                 if line.startswith('+++') or line.startswith('---'):
                     continue
                 elif line.startswith('+'):
-                    # 新增行
+                    # Added line
                     content = line[1:] if len(line) > 1 else ''
                     current_hunk['lines'].append(content)
                     current_hunk['added'] += 1
                     new_line_num += 1
                 elif line.startswith('-'):
-                    # 删除行 - 记录内容用于验证
+                    # Deleted line - record content for validation
                     deleted_content = line[1:] if len(line) > 1 else ''
                     current_hunk['deleted'] += 1
                     current_hunk['deleted_lines'].append((old_line_num, deleted_content))
-                    old_line_num += 1  # 原始文件行号增加
+                    old_line_num += 1  # Original file line number increases
                 elif line.startswith('\\'):
-                    # 继续指示符（如 "\ No newline at end of file"），忽略
+                    # Continuation indicator (e.g., "\ No newline at end of file"), ignore
                     continue
                 elif line.startswith(' '):
-                    # 上下文行（以空格开头）
+                    # Context line (starts with space)
                     context_content = line[1:] if len(line) > 1 else ''
                     current_hunk['lines'].append(context_content)
                     current_hunk['context'].append((new_line_num, context_content))
                     old_line_num += 1
                     new_line_num += 1
                 else:
-                    # 空行或其他情况，作为上下文处理
+                    # Empty line or other case, treat as context
                     current_hunk['lines'].append('')
                     current_hunk['context'].append((new_line_num, ''))
                     old_line_num += 1
                     new_line_num += 1
         
-        # 添加最后一个 hunk
+        # Add last hunk
         if current_hunk is not None:
             hunks.append(current_hunk)
         
@@ -824,14 +826,14 @@ class PatchGenerator:
         suggestions: List[OptimizationSuggestion]
     ) -> List[Dict[str, Any]]:
         """
-        为所有可自动修复的建议生成补丁
+        Generate patches for all auto-fixable suggestions
         
         Args:
-            code: 原始代码
-            suggestions: 优化建议列表
+            code: Original code
+            suggestions: List of optimization suggestions
         
         Returns:
-            补丁信息列表
+            List of patch information
         """
         self.patches = []
         self._errors = []
@@ -848,11 +850,11 @@ class PatchGenerator:
                         'description': suggestion.description
                     })
             except Exception as e:
-                logger.error(f"处理建议 {suggestion.id} 时出错: {e}")
+                logger.error(f"Error processing suggestion {suggestion.id}: {e}")
                 self._errors.append(f"{suggestion.title}: {str(e)}")
         
         return self.patches
     
     def get_errors(self) -> List[str]:
-        """获取生成过程中的错误列表"""
+        """Get list of errors during generation"""
         return self._errors.copy()

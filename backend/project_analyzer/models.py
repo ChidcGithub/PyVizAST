@@ -1,13 +1,13 @@
 """
 Data models for project-level analysis
-统一使用 Pydantic BaseModel 以保持类型系统一致性
+Using Pydantic BaseModel consistently for type system consistency
 """
 from typing import Optional, List, Dict, Any, Set
 from pydantic import BaseModel, Field, ConfigDict
 
 
 class FileInfo(BaseModel):
-    """文件信息"""
+    """File information"""
     model_config = ConfigDict(frozen=False)
     
     path: str
@@ -20,19 +20,19 @@ class FileInfo(BaseModel):
 
 
 class ImportInfo(BaseModel):
-    """导入信息"""
+    """Import information"""
     model_config = ConfigDict(frozen=False)
     
     module: str
     names: List[str] = Field(default_factory=list)
     alias: Optional[str] = None
     is_relative: bool = False
-    level: int = 0  # 相对导入层级
+    level: int = 0  # Relative import level
     lineno: int = 0
 
 
 class ExportInfo(BaseModel):
-    """导出信息（函数、类、变量）"""
+    """Export information (function, class, variable)"""
     model_config = ConfigDict(frozen=False)
     
     name: str
@@ -40,11 +40,11 @@ class ExportInfo(BaseModel):
     lineno: int = 0
     is_public: bool = True
     is_used: bool = False
-    used_in: List[str] = Field(default_factory=list)  # 使用 List 替代 Set 以支持 JSON 序列化
+    used_in: List[str] = Field(default_factory=list)  # Use List instead of Set for JSON serialization
 
 
 class DependencyEdge(BaseModel):
-    """依赖边"""
+    """Dependency edge"""
     model_config = ConfigDict(frozen=False)
     
     source: str
@@ -55,23 +55,23 @@ class DependencyEdge(BaseModel):
 
 
 class DependencyGraph(BaseModel):
-    """依赖图模型"""
-    nodes: List[str] = Field(default_factory=list, description="所有模块节点")
-    edges: List[Dict[str, Any]] = Field(default_factory=list, description="依赖边")
-    adjacency_list: Dict[str, List[str]] = Field(default_factory=dict, description="邻接表")
+    """Dependency graph model"""
+    nodes: List[str] = Field(default_factory=list, description="All module nodes")
+    edges: List[Dict[str, Any]] = Field(default_factory=list, description="Dependency edges")
+    adjacency_list: Dict[str, List[str]] = Field(default_factory=dict, description="Adjacency list")
 
 
 class GlobalIssue(BaseModel):
-    """全局问题（跨文件）"""
-    issue_type: str = Field(..., description="问题类型")
-    severity: str = Field(default="warning", description="严重程度")
-    message: str = Field(..., description="问题描述")
-    locations: List[Dict[str, Any]] = Field(default_factory=list, description="相关位置")
-    suggestion: Optional[str] = Field(None, description="修复建议")
+    """Global issue (cross-file)"""
+    issue_type: str = Field(..., description="Issue type")
+    severity: str = Field(default="warning", description="Severity level")
+    message: str = Field(..., description="Issue description")
+    locations: List[Dict[str, Any]] = Field(default_factory=list, description="Related locations")
+    suggestion: Optional[str] = Field(None, description="Fix suggestion")
 
 
 class FileSummary(BaseModel):
-    """文件分析摘要"""
+    """File analysis summary"""
     issue_count: int = 0
     cyclomatic_complexity: int = 0
     lines_of_code: int = 0
@@ -81,9 +81,9 @@ class FileSummary(BaseModel):
 
 
 class FileAnalysisResult(BaseModel):
-    """单个文件的分析结果"""
+    """Single file analysis result"""
     file: FileInfo
-    content: str = ""  # 文件内容
+    content: str = ""  # File content
     summary: FileSummary = Field(default_factory=FileSummary)
     issues: List[Dict[str, Any]] = Field(default_factory=list)
     complexity: Dict[str, Any] = Field(default_factory=dict)
@@ -92,7 +92,7 @@ class FileAnalysisResult(BaseModel):
 
 
 class ProjectMetrics(BaseModel):
-    """项目级指标"""
+    """Project-level metrics"""
     total_files: int = 0
     total_lines: int = 0
     total_functions: int = 0
@@ -108,7 +108,7 @@ class ProjectMetrics(BaseModel):
 
 
 class ProjectScanResult(BaseModel):
-    """项目扫描结果"""
+    """Project scan result"""
     project_name: str
     total_files: int = 0
     total_size: int = 0
@@ -120,7 +120,7 @@ class ProjectScanResult(BaseModel):
 
 
 class ProjectAnalysisResult(BaseModel):
-    """完整项目分析结果"""
+    """Complete project analysis result"""
     scan_result: ProjectScanResult
     files: List[FileAnalysisResult] = Field(default_factory=list)
     dependencies: Dict[str, Any] = Field(default_factory=dict)

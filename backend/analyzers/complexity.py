@@ -1,6 +1,6 @@
 """
-Complexity Analyzer - 代码复杂度分析
-计算圈复杂度、认知复杂度等指标
+Complexity Analyzer - Code complexity analysis
+Calculates cyclomatic complexity, cognitive complexity, and other metrics
 """
 import ast
 from typing import Dict, List, Any, Optional
@@ -9,9 +9,9 @@ from ..models.schemas import ComplexityMetrics, CodeIssue, SeverityLevel
 
 
 class ComplexityAnalyzer:
-    """代码复杂度分析器"""
+    """Code Complexity Analyzer"""
     
-    # 增加圈复杂度的节点类型
+    # Node types that increase cyclomatic complexity
     BRANCHING_NODES = {
         ast.If: 1,
         ast.For: 1,
@@ -22,7 +22,7 @@ class ComplexityAnalyzer:
         ast.comprehension: 1,
     }
     
-    # 布尔运算符，每个增加圈复杂度
+    # Boolean operators, each increases cyclomatic complexity
     BOOLEAN_OPS = {
         ast.And: 1,
         ast.Or: 1,
@@ -33,16 +33,16 @@ class ComplexityAnalyzer:
     
     def analyze(self, code: str, tree: Optional[ast.AST] = None) -> ComplexityMetrics:
         """
-        分析代码复杂度
+        Analyze code complexity
         
         Args:
-            code: 源代码字符串
-            tree: 可选的AST树（避免重复解析）
+            code: Source code string
+            tree: Optional AST tree (avoid re-parsing)
         
         Returns:
-            ComplexityMetrics: 复杂度指标
+            ComplexityMetrics: Complexity metrics
         """
-        # 清空之前的状态，避免累积
+        # Clear previous state to avoid accumulation
         self.issues = []
         
         if tree is None:
@@ -54,11 +54,11 @@ class ComplexityAnalyzer:
             lines_of_code=len([l for l in source_lines if l.strip()]),
         )
         
-        # 计算各类复杂度
+        # Calculate various complexity metrics
         metrics.cyclomatic_complexity = self._calculate_cyclomatic_complexity(tree)
         metrics.cognitive_complexity = self._calculate_cognitive_complexity(tree)
         
-        # 统计函数和类
+        # Count functions and classes
         functions = []
         classes = []
         
@@ -70,50 +70,50 @@ class ComplexityAnalyzer:
                 classes.append(node)
                 metrics.class_count += 1
         
-        # 计算最大嵌套深度
+        # Calculate maximum nesting depth
         metrics.max_nesting_depth = self._calculate_max_nesting_depth(tree)
         
-        # 计算平均函数长度
+        # Calculate average function length
         if functions:
             func_lengths = self._get_function_lengths(functions, source_lines)
             metrics.avg_function_length = sum(func_lengths) / len(func_lengths)
         
-        # 计算Halstead指标
+        # Calculate Halstead metrics
         halstead = self._calculate_halstead_metrics(tree)
         metrics.halstead_volume = halstead.get('volume', 0)
         metrics.halstead_difficulty = halstead.get('difficulty', 0)
         
-        # 计算可维护性指数
+        # Calculate maintainability index
         metrics.maintainability_index = self._calculate_maintainability_index(
             metrics, len(code)
         )
         
-        # 生成问题报告
+        # Generate issue reports
         self._generate_issues(metrics, tree)
         
         return metrics
     
     def _calculate_cyclomatic_complexity(self, tree: ast.AST) -> int:
         """
-        计算圈复杂度
-        CC = E - N + 2P (简化为分支计数 + 1)
+        Calculate cyclomatic complexity
+        CC = E - N + 2P (simplified to branch count + 1)
         
-        注意：elif 在 AST 中表示为 If 节点的 orelse 列表中的 If 节点，
-        每个 elif 本身就是一个独立的 If 节点，会被 ast.walk 遍历到。
+        Note: elif is represented in AST as an If node in the orelse list of another If node,
+        each elif is itself an independent If node and will be traversed by ast.walk.
         """
-        complexity = 1  # 基础复杂度
+        complexity = 1  # Base complexity
         
         for node in ast.walk(tree):
-            # 处理分支节点
+            # Handle branching nodes
             node_type = type(node)
             if node_type in self.BRANCHING_NODES:
                 complexity += self.BRANCHING_NODES[node_type]
             
-            # 处理布尔运算符（每个 and/or 增加复杂度）
+            # Handle boolean operators (each and/or increases complexity)
             elif isinstance(node, ast.BoolOp):
                 complexity += len(node.values) - 1
             
-            # 处理条件表达式 (三元运算符)
+            # Handle conditional expressions (ternary operator)
             elif isinstance(node, ast.IfExp):
                 complexity += 1
         
@@ -121,16 +121,84 @@ class ComplexityAnalyzer:
     
     def _calculate_cognitive_complexity(self, tree: ast.AST) -> int:
         """
-        计算认知复杂度
-        考虑嵌套深度和逻辑运算符
+        Calculate cognitive complexity
+        Considers nesting depth, logical operators, and recursion
         """
-        return self._cognitive_visitor(tree, nesting=0)
+        total_complexity = 0
+        
+        # Use a visitor that tracks function context for recursion detection
+        class CognitiveVisitor(ast.NodeVisitor):
+            def __init__(self):
+                self.complexity = 0
+                self.nesting = 0
+                self.current_function = None  # Track current function name
+            
+            def _visit_with_nesting(self, node, visit_body=True):
+                """Visit a node that increases nesting"""
+                self.complexity += self.nesting + 1
+                self.nesting += 1
+                self.generic_visit(node)
+                self.nesting -= 1
+            
+            def visit_FunctionDef(self, node):
+                old_func = self.current_function
+                self.current_function = node.name
+                self.generic_visit(node)
+                self.current_function = old_func
+            
+            def visit_AsyncFunctionDef(self, node):
+                old_func = self.current_function
+                self.current_function = node.name
+                self.generic_visit(node)
+                self.current_function = old_func
+            
+            def visit_If(self, node):
+                self._visit_with_nesting(node)
+            
+            def visit_For(self, node):
+                self._visit_with_nesting(node)
+            
+            def visit_While(self, node):
+                self._visit_with_nesting(node)
+            
+            def visit_ExceptHandler(self, node):
+                self._visit_with_nesting(node)
+            
+            def visit_With(self, node):
+                self._visit_with_nesting(node)
+            
+            def visit_IfExp(self, node):  # Ternary operator
+                self.complexity += self.nesting + 1
+                self.generic_visit(node)
+            
+            def visit_BoolOp(self, node):
+                # Each additional operand in and/or adds complexity
+                self.complexity += len(node.values) - 1
+                self.generic_visit(node)
+            
+            def visit_Call(self, node):
+                # Check for recursive calls
+                if self.current_function:
+                    func_name = None
+                    if isinstance(node.func, ast.Name):
+                        func_name = node.func.id
+                    elif isinstance(node.func, ast.Attribute):
+                        # Method call like self.func()
+                        if node.func.attr == self.current_function:
+                            self.complexity += 1  # Recursive call
+                    if func_name == self.current_function:
+                        self.complexity += 1  # Direct recursion
+                self.generic_visit(node)
+        
+        visitor = CognitiveVisitor()
+        visitor.visit(tree)
+        return visitor.complexity
     
     def _cognitive_visitor(self, node: ast.AST, nesting: int) -> int:
-        """递归计算认知复杂度"""
+        """Recursively calculate cognitive complexity (legacy method, kept for compatibility)"""
         complexity = 0
         
-        # 增加认知复杂度的结构
+        # Structures that increase cognitive complexity
         cognitive_structures = (
             ast.If, ast.For, ast.While, ast.ExceptHandler,
             ast.With, ast.IfExp, ast.comprehension
@@ -142,24 +210,18 @@ class ComplexityAnalyzer:
         else:
             new_nesting = nesting
         
-        # 布尔运算符增加复杂度
+        # Boolean operators increase complexity
         if isinstance(node, ast.BoolOp):
             complexity += len(node.values) - 1
         
-        # 递归调用增加复杂度
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name):
-                # 检查是否是递归（简化判断）
-                pass
-        
-        # 递归处理子节点
+        # Recursively process child nodes
         for child in ast.iter_child_nodes(node):
             complexity += self._cognitive_visitor(child, new_nesting)
         
         return complexity
     
     def _calculate_max_nesting_depth(self, tree: ast.AST) -> int:
-        """计算最大嵌套深度"""
+        """Calculate maximum nesting depth"""
         max_depth = [0]
         
         def visit(node: ast.AST, depth: int):
@@ -177,7 +239,7 @@ class ComplexityAnalyzer:
     
     def _get_function_lengths(self, functions: List[ast.AST], 
                               source_lines: List[str]) -> List[int]:
-        """获取函数长度列表"""
+        """Get list of function lengths"""
         lengths = []
         for func in functions:
             if hasattr(func, 'end_lineno') and hasattr(func, 'lineno'):
@@ -189,8 +251,8 @@ class ComplexityAnalyzer:
     
     def _calculate_halstead_metrics(self, tree: ast.AST) -> Dict[str, float]:
         """
-        计算Halstead复杂度指标
-        基于操作符和操作数的数量
+        Calculate Halstead complexity metrics
+        Based on the number of operators and operands
         """
         operators = defaultdict(int)
         operands = defaultdict(int)
@@ -208,7 +270,7 @@ class ComplexityAnalyzer:
         }
         
         for node in ast.walk(tree):
-            # 统计操作符
+            # Count operators
             node_type = type(node)
             if node_type in operator_types:
                 operators[operator_types[node_type]] += 1
@@ -221,25 +283,25 @@ class ComplexityAnalyzer:
             elif isinstance(node, (ast.If, ast.While, ast.For)):
                 operators['keyword'] += 1
             
-            # 统计操作数
+            # Count operands
             if isinstance(node, ast.Name):
                 operands[node.id] += 1
             elif isinstance(node, ast.Constant):
                 operands[str(node.value)] += 1
         
-        n1 = len(operators)  # 不同操作符数
-        n2 = len(operands)   # 不同操作数数
-        N1 = sum(operators.values())  # 操作符总数
-        N2 = sum(operands.values())   # 操作数总数
+        n1 = len(operators)  # Number of distinct operators
+        n2 = len(operands)   # Number of distinct operands
+        N1 = sum(operators.values())  # Total operators
+        N2 = sum(operands.values())   # Total operands
         
-        n = n1 + n2  # 词汇量
-        N = N1 + N2  # 程序长度
+        n = n1 + n2  # Vocabulary
+        N = N1 + N2  # Program length
         
         if n == 0:
             return {'volume': 0, 'difficulty': 0}
         
-        volume = N * (n.bit_length()) if n > 0 else 0  # 容量
-        difficulty = (n1 / 2) * (N2 / n2) if n2 > 0 else 0  # 难度
+        volume = N * (n.bit_length()) if n > 0 else 0  # Volume
+        difficulty = (n1 / 2) * (N2 / n2) if n2 > 0 else 0  # Difficulty
         
         return {
             'volume': volume,
@@ -252,25 +314,25 @@ class ComplexityAnalyzer:
     def _calculate_maintainability_index(self, metrics: ComplexityMetrics, 
                                          code_length: int) -> float:
         """
-        计算可维护性指数（改进版）
+        Calculate maintainability index (improved version)
         
-        改进点：
-        1. 使用多维度评分加权平均
-        2. 对特长代码使用渐进式衰减而非直接归零
-        3. 考虑代码密度、注释率等因素
-        4. 使用分段函数避免极端值
+        Improvements:
+        1. Use multi-dimensional weighted average scoring
+        2. Use progressive decay for very long code instead of going to zero
+        3. Consider code density, comment ratio, etc.
+        4. Use piecewise functions to avoid extreme values
         
-        参考：
-        - 原始公式: MI = 171 - 5.2 * ln(V) - 0.23 * G - 16.2 * ln(LOC)
-        - 改进: 使用加权评分模型
+        Reference:
+        - Original formula: MI = 171 - 5.2 * ln(V) - 0.23 * G - 16.2 * ln(LOC)
+        - Improved: Use weighted scoring model
         """
         import math
         
         if code_length == 0:
             return 100.0
         
-        # === 1. 复杂度评分 (权重 35%) ===
-        # 圈复杂度评分：理想值 1-10，每增加10降低一个等级
+        # === 1. Complexity score (weight 35%) ===
+        # Cyclomatic complexity score: ideal value 1-10, decreases one level for every 10 increase
         cc = metrics.cyclomatic_complexity or 1
         if cc <= 5:
             cc_score = 100
@@ -283,7 +345,7 @@ class ComplexityAnalyzer:
         else:
             cc_score = max(0, 10 - (cc - 30) * 0.5)
         
-        # 认知复杂度评分
+        # Cognitive complexity score
         cognitive = metrics.cognitive_complexity or 0
         if cognitive <= 10:
             cog_score = 100
@@ -296,33 +358,33 @@ class ComplexityAnalyzer:
         
         complexity_score = cc_score * 0.6 + cog_score * 0.4
         
-        # === 2. 代码规模评分 (权重 25%) ===
-        # 使用对数衰减，而非线性惩罚
+        # === 2. Code size score (weight 25%) ===
+        # Use logarithmic decay instead of linear penalty
         loc = metrics.lines_of_code or 1
         
-        # 分段评估：小代码(<100)、中等代码(100-500)、大代码(500-2000)、超大代码(>2000)
+        # Piecewise evaluation: small code (<100), medium code (100-500), large code (500-2000), huge code (>2000)
         if loc <= 100:
             size_score = 100
         elif loc <= 500:
-            # 中等代码：轻微衰减
+            # Medium code: slight decay
             size_score = 100 - 10 * math.log10(loc / 100)
         elif loc <= 2000:
-            # 大代码：中等衰减
+            # Large code: moderate decay
             size_score = 90 - 15 * math.log10(loc / 500)
         else:
-            # 超大代码：渐进衰减，不会直接归零
+            # Huge code: progressive decay, won't go to zero
             size_score = max(20, 75 - 20 * math.log10(loc / 2000))
         
-        # 嵌套深度惩罚
+        # Nesting depth penalty
         nesting = metrics.max_nesting_depth or 0
         nesting_penalty = min(30, nesting * 5) if nesting > 3 else 0
         size_score = max(0, size_score - nesting_penalty)
         
-        # === 3. 函数质量评分 (权重 25%) ===
+        # === 3. Function quality score (weight 25%) ===
         func_score = 100
         
         if metrics.function_count > 0:
-            # 平均函数长度评分
+            # Average function length score
             avg_len = metrics.avg_function_length or 0
             if avg_len <= 20:
                 func_len_score = 100
@@ -333,20 +395,20 @@ class ComplexityAnalyzer:
             
             func_score = func_len_score
         else:
-            # 没有函数的代码（可能是脚本），使用行数评估
+            # Code without functions (possibly a script), evaluate by line count
             if loc <= 50:
                 func_score = 100
             else:
                 func_score = max(40, 100 - (loc - 50) * 0.3)
         
-        # === 4. Halstead 复杂度评分 (权重 15%) ===
+        # === 4. Halstead complexity score (weight 15%) ===
         volume = metrics.halstead_volume or 0
         difficulty = metrics.halstead_difficulty or 0
         
         if volume == 0:
             halstead_score = 100
         else:
-            # Volume 评分（对数衰减）
+            # Volume score (logarithmic decay)
             if volume <= 100:
                 vol_score = 100
             elif volume <= 1000:
@@ -354,7 +416,7 @@ class ComplexityAnalyzer:
             else:
                 vol_score = max(30, 85 - 20 * math.log10(volume / 1000))
             
-            # Difficulty 评分
+            # Difficulty score
             if difficulty <= 5:
                 diff_score = 100
             elif difficulty <= 15:
@@ -364,7 +426,7 @@ class ComplexityAnalyzer:
             
             halstead_score = vol_score * 0.6 + diff_score * 0.4
         
-        # === 综合评分 ===
+        # === Final score ===
         final_score = (
             complexity_score * 0.35 +
             size_score * 0.25 +
@@ -372,74 +434,74 @@ class ComplexityAnalyzer:
             halstead_score * 0.15
         )
         
-        # 确保范围在 0-100
+        # Ensure range is 0-100
         final_score = max(0, min(100, final_score))
         
         return round(final_score, 2)
     
     def _generate_issues(self, metrics: ComplexityMetrics, tree: ast.AST):
-        """根据复杂度指标生成问题报告"""
+        """Generate issue reports based on complexity metrics"""
         
-        # 圈复杂度过高
+        # High cyclomatic complexity
         if metrics.cyclomatic_complexity > 15:
             self.issues.append(CodeIssue(
                 id="complexity_cyclomatic_high",
                 type="complexity",
                 severity=SeverityLevel.ERROR if metrics.cyclomatic_complexity > 25 else SeverityLevel.WARNING,
-                message=f"圈复杂度过高 ({metrics.cyclomatic_complexity})，建议拆分函数或简化逻辑",
+                message=f"High cyclomatic complexity ({metrics.cyclomatic_complexity}), consider splitting functions or simplifying logic",
                 documentation_url="https://en.wikipedia.org/wiki/Cyclomatic_complexity"
             ))
         
-        # 认知复杂度过高
+        # High cognitive complexity
         if metrics.cognitive_complexity > 15:
             self.issues.append(CodeIssue(
                 id="complexity_cognitive_high",
                 type="complexity",
                 severity=SeverityLevel.WARNING,
-                message=f"认知复杂度过高 ({metrics.cognitive_complexity})，代码可能难以理解",
+                message=f"High cognitive complexity ({metrics.cognitive_complexity}), code may be hard to understand",
             ))
         
-        # 嵌套过深
+        # Deep nesting
         if metrics.max_nesting_depth > 4:
             self.issues.append(CodeIssue(
                 id="complexity_nesting_deep",
                 type="complexity",
                 severity=SeverityLevel.ERROR if metrics.max_nesting_depth > 6 else SeverityLevel.WARNING,
-                message=f"嵌套层级过深 ({metrics.max_nesting_depth}层)，建议提取方法或使用早返回",
+                message=f"Deep nesting ({metrics.max_nesting_depth} levels), consider extracting methods or using early returns",
             ))
         
-        # 函数过长
+        # Long functions
         if metrics.avg_function_length > 50:
             self.issues.append(CodeIssue(
                 id="complexity_function_long",
                 type="complexity",
                 severity=SeverityLevel.WARNING,
-                message=f"平均函数长度过长 ({metrics.avg_function_length:.0f}行)，建议拆分大函数",
+                message=f"Average function length is too long ({metrics.avg_function_length:.0f} lines), consider splitting large functions",
             ))
         
-        # 可维护性指数过低
+        # Low maintainability index
         if metrics.maintainability_index < 20:
             self.issues.append(CodeIssue(
                 id="complexity_maintainability_low",
                 type="complexity",
                 severity=SeverityLevel.ERROR if metrics.maintainability_index < 10 else SeverityLevel.WARNING,
-                message=f"可维护性指数过低 ({metrics.maintainability_index:.1f})，代码需要重构",
+                message=f"Low maintainability index ({metrics.maintainability_index:.1f}), code needs refactoring",
             ))
     
     def get_issues(self) -> List[CodeIssue]:
-        """获取问题列表"""
+        """Get issue list"""
         return self.issues
     
     def analyze_function(self, func_node: ast.AST, source_lines: List[str]) -> Dict[str, Any]:
         """
-        分析单个函数的复杂度
+        Analyze complexity of a single function
         
         Args:
-            func_node: 函数AST节点
-            source_lines: 源代码行列表
+            func_node: Function AST node
+            source_lines: Source code line list
         
         Returns:
-            函数复杂度分析结果
+            Function complexity analysis result
         """
         result = {
             "name": func_node.name,
@@ -452,7 +514,7 @@ class ComplexityAnalyzer:
             "has_docstring": bool(ast.get_docstring(func_node)),
         }
         
-        # 计算函数级别的圈复杂度
+        # Calculate function-level cyclomatic complexity
         for node in ast.walk(func_node):
             node_type = type(node)
             if node_type in self.BRANCHING_NODES:
@@ -462,13 +524,13 @@ class ComplexityAnalyzer:
             elif isinstance(node, ast.IfExp):
                 result["cyclomatic_complexity"] += 1
         
-        # 计算函数嵌套深度
+        # Calculate function nesting depth
         result["nesting_depth"] = self._calculate_max_nesting_depth(func_node)
         
-        # 计算认知复杂度
+        # Calculate cognitive complexity
         result["cognitive_complexity"] = self._cognitive_visitor(func_node, 0)
         
-        # 函数行数
+        # Function line count
         if hasattr(func_node, 'end_lineno'):
             result["lines"] = func_node.end_lineno - func_node.lineno + 1
         

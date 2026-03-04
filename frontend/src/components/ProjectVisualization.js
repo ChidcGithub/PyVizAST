@@ -5,33 +5,33 @@ import fcose from 'cytoscape-fcose';
 import { useResizeObserver } from '../hooks/useResizeObserver';
 import './components.css';
 
-// 注册 Cytoscape 布局扩展
+// Register Cytoscape layout extensions
 cytoscape.use(dagre);
 cytoscape.use(fcose);
 
-// 颜色映射 - 黑白灰色调
+// Color mapping - black and white gray tones
 const NODE_COLORS = {
-  file: '#ffffff',      // 白色填充 - 普通模块
-  module: '#f3f4f6',    // 浅灰色 - 模块
-  external: '#9ca3af',  // 灰色 - 外部依赖
-  circular: '#fecaca',  // 浅红色 - 循环依赖
+  file: '#ffffff',      // White fill - regular module
+  module: '#f3f4f6',    // Light gray - module
+  external: '#9ca3af',  // Gray - external dependency
+  circular: '#fecaca',  // Light red - circular dependency
 };
 
 const NODE_BORDER_COLORS = {
-  file: '#374151',      // 深灰色边框 - 普通模块
-  module: '#4b5563',    // 灰色边框
-  external: '#6b7280',  // 灰色边框
-  circular: '#dc2626',  // 红色边框 - 循环依赖
+  file: '#374151',      // Dark gray border - regular module
+  module: '#4b5563',    // Gray border
+  external: '#6b7280',  // Gray border
+  circular: '#dc2626',  // Red border - circular dependency
 };
 
 const EDGE_COLORS = {
-  import: '#4b5563',    // 深灰色 - 普通导入
-  circular: '#dc2626',  // 红色 - 循环依赖
+  import: '#4b5563',    // Dark gray - regular import
+  circular: '#dc2626',  // Red - circular dependency
 };
 
 /**
- * 项目依赖可视化组件
- * 使用 Cytoscape.js 显示项目文件的依赖关系图
+ * Project Dependency Visualization Component
+ * Uses Cytoscape.js to display project file dependency graphs
  */
 function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
   const containerRef = useRef(null);
@@ -40,7 +40,7 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
   const [hoverNode, setHoverNode] = useState(null);
   const [isReady, setIsReady] = useState(false);
 
-  // 处理依赖数据转换为图形数据
+  // Process dependency data into graph data
   const graphData = useMemo(() => {
     if (!projectResult) return { nodes: [], edges: [] };
 
@@ -52,7 +52,7 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
       issue => issue.issue_type === 'circular_dependency'
     ) || [];
 
-    // 创建循环依赖集合用于高亮
+    // Create circular dependency set for highlighting
     const circularPairs = new Set();
     circularDeps.forEach(issue => {
       if (issue.locations?.length >= 2) {
@@ -61,8 +61,8 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
       }
     });
 
-    // 添加所有文件节点
-    // 注意：后端返回的是模块名格式（如 backend.main），不是文件路径格式
+    // Add all file nodes
+    // Note: Backend returns module name format (e.g. backend.main), not file path format
     const moduleNames = new Set();
     Object.keys(depGraph).forEach(module => moduleNames.add(module));
     Object.values(depGraph).flat().forEach(module => moduleNames.add(module));
@@ -72,7 +72,7 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
         issue.locations?.some(loc => loc.file_path === module)
       );
       
-      // 模块名用 . 分隔，取最后一部分作为标签
+      // Module name is dot-separated, take last part as label
       const label = moduleName.split('.').pop() || moduleName;
       
       nodes.push({
@@ -85,10 +85,10 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
       });
     });
 
-    // 添加依赖关系
+    // Add dependency relationships
     Object.entries(depGraph).forEach(([source, targets]) => {
       targets.forEach(target => {
-        // 检查是否是循环依赖
+        // Check if it's a circular dependency
         const pair = [source, target].sort().join('<->');
         const isCircular = circularPairs.has(pair);
         
@@ -106,19 +106,19 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
     return { nodes, edges };
   }, [projectResult]);
 
-  // 初始化 Cytoscape
+  // Initialize Cytoscape
   const initCytoscape = useCallback(() => {
     if (!containerRef.current || graphData.nodes.length === 0) return;
     
     const container = containerRef.current;
     const rect = container.getBoundingClientRect();
     
-    // 确保容器有有效尺寸
+    // Ensure container has valid dimensions
     if (rect.width === 0 || rect.height === 0) {
       return false;
     }
 
-    // 销毁旧的实例
+    // Destroy old instance
     if (cyRef.current) {
       cyRef.current.destroy();
       cyRef.current = null;
@@ -132,7 +132,7 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
         elements: [...graphData.nodes, ...graphData.edges],
         
         style: [
-          // 普通模块节点 - 矩形
+          // Regular module nodes - rectangle
           {
             selector: 'node[type="file"]',
             style: {
@@ -153,7 +153,7 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
               'corner-radius': 4,
             },
           },
-          // 循环依赖节点 - 菱形
+          // Circular dependency nodes - diamond
           {
             selector: 'node[type="circular"]',
             style: {
@@ -173,7 +173,7 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
               'border-color': '#dc2626',
             },
           },
-          // 选中状态
+          // Selected state
           {
             selector: 'node:selected',
             style: {
@@ -181,7 +181,7 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
               'border-color': isDark ? '#60a5fa' : '#2563eb',
             },
           },
-          // 普通导入边 - 实线
+          // Regular import edges - solid line
           {
             selector: 'edge[type="import"]',
             style: {
@@ -194,7 +194,7 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
               'line-style': 'solid',
             },
           },
-          // 循环依赖边 - 虚线
+          // Circular dependency edges - dashed line
           {
             selector: 'edge[type="circular"]',
             style: {
@@ -226,7 +226,7 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
         wheelSensitivity: 0.3,
       });
 
-      // 事件处理
+      // Event handling
       cy.on('tap', 'node', (evt) => {
         const node = evt.target;
         setSelectedNode({
@@ -259,11 +259,11 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
     }
   }, [graphData, theme]);
 
-  // 延迟初始化，确保容器尺寸正确
+  // Delayed initialization to ensure container dimensions are correct
   useEffect(() => {
     if (graphData.nodes.length === 0) return;
 
-    // 使用 requestAnimationFrame 延迟初始化
+    // Use requestAnimationFrame for delayed initialization
     let animationFrameId = null;
     let timeoutId = null;
     let attempts = 0;
@@ -284,7 +284,7 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
       }
     };
 
-    // 首次尝试
+    // First attempt
     animationFrameId = requestAnimationFrame(tryInit);
 
     return () => {
@@ -304,14 +304,14 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
     };
   }, [initCytoscape, graphData.nodes.length]);
 
-  // 使用安全的 ResizeObserver hook 监听容器尺寸变化
+  // Use safe ResizeObserver hook to monitor container dimension changes
   useResizeObserver(containerRef, () => {
     if (cyRef.current && cyRef.current.elements().length > 0) {
       cyRef.current.fit(undefined, 30);
     }
   }, { debounce: 150 });
 
-  // 如果没有数据，显示占位符
+  // If no data, show placeholder
   if (!projectResult || graphData.nodes.length === 0) {
     return (
       <div className="project-viz-panel">
@@ -335,7 +335,7 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
               </svg>
             </div>
             <h3>Dependency Visualization</h3>
-            <p>分析项目后查看依赖关系图</p>
+            <p>View dependency graph after analyzing project</p>
           </div>
         </div>
       </div>
@@ -355,28 +355,28 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
         </div>
         <div className="project-viz-stats">
           <div className="viz-stat">
-            <span>节点:</span>
+            <span>Nodes:</span>
             <span className="viz-stat-value">{graphData.nodes.length}</span>
           </div>
           <div className="viz-stat">
-            <span>依赖:</span>
+            <span>Dependencies:</span>
             <span className="viz-stat-value">{graphData.edges.length}</span>
           </div>
         </div>
       </div>
 
       <div className="project-viz-content" ref={containerRef}>
-        {/* Cytoscape 容器 */}
+        {/* Cytoscape container */}
       </div>
 
-      {/* 节点详情面板 */}
+      {/* Node detail panel */}
       {selectedNode && (
         <div className="node-detail-panel">
           <div className="panel-header">
             <div className="panel-header-main">
               <span className="node-icon">📄</span>
               <div>
-                <h4>节点详情</h4>
+                <h4>Node Details</h4>
                 <span className="node-name">{selectedNode.label}</span>
               </div>
             </div>
@@ -392,12 +392,12 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
           </div>
           <div className="panel-body">
             <div className="detail-item">
-              <span className="detail-label">路径</span>
+              <span className="detail-label">Path</span>
               <span className="detail-value code">{selectedNode.fullPath}</span>
             </div>
             <div className="detail-item">
-              <span className="detail-label">类型</span>
-              <span className="detail-value">{selectedNode.type === 'circular' ? '循环依赖' : '文件'}</span>
+              <span className="detail-label">Type</span>
+              <span className="detail-value">{selectedNode.type === 'circular' ? 'Circular Dependency' : 'File'}</span>
             </div>
           </div>
         </div>
@@ -405,20 +405,20 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
 
       <div className="project-viz-legend">
         <div className="viz-legend-item">
-          <div className="viz-legend-shape rectangle" title="普通模块"></div>
-          <span>模块</span>
+          <div className="viz-legend-shape rectangle" title="Regular module"></div>
+          <span>Module</span>
         </div>
         <div className="viz-legend-item">
-          <div className="viz-legend-shape diamond" title="循环依赖"></div>
-          <span>循环依赖</span>
+          <div className="viz-legend-shape diamond" title="Circular dependency"></div>
+          <span>Circular Dep</span>
         </div>
         <div className="viz-legend-item">
-          <div className="viz-legend-line solid" title="普通导入"></div>
-          <span>导入</span>
+          <div className="viz-legend-line solid" title="Regular import"></div>
+          <span>Import</span>
         </div>
         <div className="viz-legend-item">
-          <div className="viz-legend-line dashed" title="循环引用"></div>
-          <span>循环引用</span>
+          <div className="viz-legend-line dashed" title="Circular reference"></div>
+          <span>Circular Ref</span>
         </div>
       </div>
     </div>

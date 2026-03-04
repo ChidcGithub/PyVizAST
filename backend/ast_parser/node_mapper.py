@@ -1,5 +1,5 @@
 """
-Node Mapper - AST节点到可视化元素的映射器
+Node Mapper - Maps AST nodes to visualization elements
 """
 from typing import Dict, List, Any, Optional
 from ..models.schemas import ASTNode, ASTGraph, NodeType
@@ -7,8 +7,8 @@ from ..models.schemas import ASTNode, ASTGraph, NodeType
 
 class NodeMapper:
     """
-    将AST节点映射为可视化图形元素
-    支持不同的可视化布局和样式主题
+    Maps AST nodes to visualization graph elements.
+    Supports different visualization layouts and style themes.
     """
     
     # Minimalist Monochrome Theme
@@ -42,7 +42,7 @@ class NodeMapper:
         }
     }
     
-    # 节点类型到类别的映射
+    # Mapping from node types to categories
     TYPE_TO_CATEGORY = {
         NodeType.MODULE: "other",
         NodeType.FUNCTION: "function",
@@ -73,23 +73,23 @@ class NodeMapper:
         self.theme_name = theme
     
     def set_theme(self, theme_name: str):
-        """设置颜色主题"""
+        """Set the color theme."""
         if theme_name in self.THEMES:
             self.theme = self.THEMES[theme_name]
             self.theme_name = theme_name
     
     def get_category_color(self, category: str) -> str:
-        """获取类别对应的颜色"""
+        """Get the color for a given category."""
         return self.theme.get(category, self.theme["other"])
     
     def apply_theme_to_node(self, node: ASTNode) -> ASTNode:
-        """将主题应用到节点"""
+        """Apply the theme to a node."""
         category = self.TYPE_TO_CATEGORY.get(node.type, "other")
         node.color = self.get_category_color(category)
         return node
     
     def apply_theme_to_graph(self, graph: ASTGraph) -> ASTGraph:
-        """将主题应用到整个图"""
+        """Apply the theme to the entire graph."""
         for node in graph.nodes:
             self.apply_theme_to_node(node)
         return graph
@@ -98,20 +98,20 @@ class NodeMapper:
                              min_size: int = 10, 
                              max_size: int = 40) -> ASTGraph:
         """
-        根据节点重要性计算节点大小
-        重要性与子节点数量和深度相关
+        Calculate node sizes based on node importance.
+        Importance is correlated with the number of child nodes and depth.
         """
         node_children_count = {}
         
-        # 统计每个节点的直接子节点数
+        # Count direct children for each node
         for node in graph.nodes:
             node_children_count[node.id] = len(node.children)
         
-        # 找到最大子节点数用于归一化
+        # Find the maximum children count for normalization
         max_children = max(node_children_count.values()) if node_children_count else 1
         max_children = max(max_children, 1)
         
-        # 计算大小
+        # Calculate sizes
         for node in graph.nodes:
             importance = node_children_count.get(node.id, 0) / max_children
             node.size = int(min_size + importance * (max_size - min_size))
@@ -120,8 +120,8 @@ class NodeMapper:
     
     def to_cytoscape_elements(self, graph: ASTGraph) -> Dict[str, List[Dict]]:
         """
-        转换为Cytoscape.js格式
-        用于前端可视化库
+        Convert to Cytoscape.js format.
+        Used for frontend visualization library.
         """
         elements = {"nodes": [], "edges": []}
         
@@ -156,8 +156,8 @@ class NodeMapper:
     
     def to_d3_format(self, graph: ASTGraph) -> Dict[str, Any]:
         """
-        转换为D3.js格式
-        包含节点和链接数组
+        Convert to D3.js format.
+        Contains nodes and links arrays.
         """
         node_id_to_index = {node.id: i for i, node in enumerate(graph.nodes)}
         
@@ -179,7 +179,7 @@ class NodeMapper:
         links = []
         skipped_edges = 0
         for edge in graph.edges:
-            # 检查边的源节点和目标节点是否存在
+            # Check if source and target nodes exist
             if edge.source not in node_id_to_index or edge.target not in node_id_to_index:
                 skipped_edges += 1
                 continue
@@ -199,8 +199,8 @@ class NodeMapper:
     
     def to_hierarchical_tree(self, graph: ASTGraph) -> Dict[str, Any]:
         """
-        转换为层级树结构
-        适用于树形可视化
+        Convert to hierarchical tree structure.
+        Suitable for tree visualization.
         """
         node_map = {node.id: node for node in graph.nodes}
         
@@ -225,20 +225,20 @@ class NodeMapper:
             
             return tree_node
         
-        # 找到根节点（没有parent的节点）
+        # Find root nodes (nodes without a parent)
         root_nodes = [n for n in graph.nodes if n.parent is None]
         
         if not root_nodes:
             return {"name": "root", "children": []}
         
-        # 通常只有一个根节点（Module）
+        # Typically there is only one root node (Module)
         return build_tree(root_nodes[0].id)
     
     def filter_by_type(self, graph: ASTGraph, 
                        node_types: List[NodeType]) -> ASTGraph:
         """
-        按节点类型过滤图
-        只保留指定类型的节点及其连接
+        Filter graph by node types.
+        Only keeps nodes of specified types and their connections.
         """
         filtered_nodes = [n for n in graph.nodes if n.type in node_types]
         filtered_node_ids = {n.id for n in filtered_nodes}
@@ -257,12 +257,12 @@ class NodeMapper:
     def filter_by_depth(self, graph: ASTGraph, 
                         max_depth: int) -> ASTGraph:
         """
-        按深度过滤节点
-        只保留深度小于等于max_depth的节点
+        Filter nodes by depth.
+        Only keeps nodes with depth less than or equal to max_depth.
         """
         node_map = {node.id: node for node in graph.nodes}
         
-        # 计算每个节点的深度
+        # Calculate depth for each node
         depths = {}
         def get_depth(node_id: str) -> int:
             if node_id in depths:
@@ -277,18 +277,18 @@ class NodeMapper:
             depths[node_id] = depth
             return depth
         
-        # 计算所有节点深度
+        # Calculate depth for all nodes
         for node in graph.nodes:
             get_depth(node.id)
         
-        # 过滤节点
+        # Filter nodes
         filtered_nodes = [
             n for n in graph.nodes 
             if depths.get(n.id, 0) <= max_depth
         ]
         filtered_node_ids = {n.id for n in filtered_nodes}
         
-        # 过滤边
+        # Filter edges
         filtered_edges = [
             e for e in graph.edges 
             if e.source in filtered_node_ids and e.target in filtered_node_ids
@@ -302,12 +302,12 @@ class NodeMapper:
     
     def get_call_graph(self, graph: ASTGraph) -> ASTGraph:
         """
-        提取调用关系子图
-        只包含函数节点和调用关系
+        Extract call relationship subgraph.
+        Only includes function nodes and call relationships.
         """
         call_edges = [e for e in graph.edges if e.edge_type == "call"]
         
-        # 获取涉及的节点
+        # Get involved nodes
         node_ids = set()
         for edge in call_edges:
             node_ids.add(edge.source)
@@ -322,7 +322,7 @@ class NodeMapper:
         )
     
     def get_statistics(self, graph: ASTGraph) -> Dict[str, Any]:
-        """获取图的统计信息"""
+        """Get statistics for the graph."""
         stats = {
             "total_nodes": len(graph.nodes),
             "total_edges": len(graph.edges),
@@ -334,7 +334,7 @@ class NodeMapper:
             "control_flow_count": 0
         }
         
-        # 节点类型统计
+        # Node type statistics
         for node in graph.nodes:
             node_type = node.type.value
             stats["node_types"][node_type] = stats["node_types"].get(node_type, 0) + 1
@@ -346,11 +346,11 @@ class NodeMapper:
             elif node.type in [NodeType.IF, NodeType.FOR, NodeType.WHILE, NodeType.TRY]:
                 stats["control_flow_count"] += 1
         
-        # 计算平均子节点数
+        # Calculate average children count
         total_children = sum(len(n.children) for n in graph.nodes)
         stats["avg_children"] = total_children / len(graph.nodes) if graph.nodes else 0
         
-        # 计算最大深度
+        # Calculate maximum depth
         node_map = {n.id: n for n in graph.nodes}
         
         def get_depth(node_id: str, visited: set) -> int:

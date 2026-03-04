@@ -37,7 +37,7 @@ function Sidebar({ isOpen, activeTab, onTabChange, analysisResult, viewMode, onV
       case 'suggestions':
         return analysisResult.suggestions?.length || 0;
       case 'patches':
-        // 显示可自动修复的建议数量
+        // Display count of auto-fixable suggestions
         return analysisResult.suggestions?.filter(s => s.auto_fixable).length || 0;
       default:
         return null;

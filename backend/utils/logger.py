@@ -1,6 +1,6 @@
 """
-日志配置模块
-提供统一的日志配置，将日志保存到 logs 文件夹
+Logging Configuration Module
+Provides unified logging configuration, saves logs to the logs folder
 """
 import logging
 import sys
@@ -10,7 +10,7 @@ from logging.handlers import RotatingFileHandler
 from typing import Optional
 
 
-# 日志目录
+# Log directory
 LOG_DIR = Path(__file__).parent.parent.parent / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
@@ -24,41 +24,41 @@ def get_logger(
     backup_count: int = 5
 ) -> logging.Logger:
     """
-    获取配置好的日志记录器
+    Get a configured logger
     
     Args:
-        name: 日志记录器名称
-        level: 日志级别
-        log_to_file: 是否记录到文件
-        log_to_console: 是否输出到控制台
-        max_bytes: 单个日志文件最大大小
-        backup_count: 保留的日志文件数量
+        name: Logger name
+        level: Log level
+        log_to_file: Whether to log to file
+        log_to_console: Whether to output to console
+        max_bytes: Maximum size of a single log file
+        backup_count: Number of log files to keep
     
     Returns:
-        配置好的 Logger 实例
+        Configured Logger instance
     """
     logger = logging.getLogger(name)
     
-    # 避免重复添加 handler
+    # Avoid adding duplicate handlers
     if logger.handlers:
         return logger
     
     logger.setLevel(level)
     
-    # 日志格式
+    # Log format
     formatter = logging.Formatter(
         fmt='%(asctime)s | %(name)s | %(levelname)s | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     
-    # 详细的错误日志格式（包含文件名和行号）
+    # Detailed error log format (includes filename and line number)
     error_formatter = logging.Formatter(
         fmt='%(asctime)s | %(name)s | %(levelname)s | %(filename)s:%(lineno)d | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     
     if log_to_file:
-        # 普通日志文件
+        # Regular log file
         log_file = LOG_DIR / "app.log"
         file_handler = RotatingFileHandler(
             log_file,
@@ -70,7 +70,7 @@ def get_logger(
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
         
-        # 错误日志文件（单独记录 ERROR 及以上级别）
+        # Error log file (logs ERROR and above separately)
         error_log_file = LOG_DIR / "error.log"
         error_handler = RotatingFileHandler(
             error_log_file,
@@ -93,41 +93,41 @@ def get_logger(
 
 def log_exception(logger: logging.Logger, exc: Exception, context: Optional[str] = None):
     """
-    记录异常的详细信息
+    Log detailed exception information
     
     Args:
-        logger: 日志记录器
-        exc: 异常对象
-        context: 上下文信息
+        logger: Logger instance
+        exc: Exception object
+        context: Context information
     """
     import traceback
     
     context_str = f" [{context}]" if context else ""
     logger.error(
-        f"异常发生{context_str}: {type(exc).__name__}: {str(exc)}\n"
-        f"堆栈跟踪:\n{traceback.format_exc()}"
+        f"Exception occurred{context_str}: {type(exc).__name__}: {str(exc)}\n"
+        f"Stack trace:\n{traceback.format_exc()}"
     )
 
 
 def get_request_logger() -> logging.Logger:
-    """获取请求日志记录器"""
+    """Get request logger"""
     return get_logger("pyvizast.request")
 
 
 def get_error_logger() -> logging.Logger:
-    """获取错误日志记录器"""
+    """Get error logger"""
     return get_logger("pyvizast.error", level=logging.ERROR)
 
 
 def get_access_logger() -> logging.Logger:
-    """获取访问日志记录器"""
+    """Get access logger"""
     return get_logger("pyvizast.access")
 
 
 class ContextFilter(logging.Filter):
     """
-    日志上下文过滤器
-    可以为日志添加额外的上下文信息
+    Log context filter
+    Can add additional context information to logs
     """
     
     def __init__(self, context: str = ""):
@@ -141,27 +141,27 @@ class ContextFilter(logging.Filter):
 
 def init_logging(level: int = logging.INFO):
     """
-    初始化全局日志配置
+    Initialize global logging configuration
     
     Args:
-        level: 日志级别
+        level: Log level
     """
-    # 创建主日志记录器
+    # Create main logger
     main_logger = get_logger("pyvizast", level=level)
     
-    # 创建日志索引文件
+    # Create log index file
     index_file = LOG_DIR / "index.txt"
     if not index_file.exists():
         with open(index_file, 'w', encoding='utf-8') as f:
-            f.write(f"PyVizAST 日志文件\n")
-            f.write(f"创建时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"PyVizAST Log Files\n")
+            f.write(f"Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"{'='*50}\n\n")
-            f.write(f"app.log - 应用日志\n")
-            f.write(f"error.log - 错误日志\n")
+            f.write(f"app.log - Application log\n")
+            f.write(f"error.log - Error log\n")
     
-    main_logger.info("日志系统初始化完成")
+    main_logger.info("Logging system initialized")
     return main_logger
 
 
-# 模块级别的便捷方法
+# Module-level convenience method
 logger = get_logger("pyvizast")

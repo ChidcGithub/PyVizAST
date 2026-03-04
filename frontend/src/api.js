@@ -1,29 +1,29 @@
 import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-const API_TIMEOUT = 30000; // 30秒超时
-const MAX_RETRIES = 2; // 最大重试次数
-const RETRY_DELAY = 1000; // 重试延迟（毫秒）
+const API_TIMEOUT = 30000; // 30 seconds timeout
+const MAX_RETRIES = 2; // Maximum retry attempts
+const RETRY_DELAY = 1000; // Retry delay (milliseconds)
 
-// 幂等方法列表（可以安全重试）
+// Idempotent method list (safe to retry)
 const IDEMPOTENT_METHODS = ['get', 'head', 'options', 'put', 'delete'];
 
-// 判断是否应该重试的错误
+// Determine if error should be retried
 const shouldRetry = (error, method) => {
-  // 不重试的情况
+  // Cases not to retry
   if (!error) return false;
   
-  // 非幂等方法不重试（避免重复操作）
+  // Non-idempotent methods don't retry (avoid duplicate operations)
   if (method && !IDEMPOTENT_METHODS.includes(method.toLowerCase())) {
     return false;
   }
   
-  // 4xx 错误不重试（客户端错误）
+  // 4xx errors don't retry (client errors)
   if (error.response?.status >= 400 && error.response?.status < 500) {
     return false;
   }
   
-  // 超时、网络错误、5xx 服务器错误可以重试
+  // Timeout, network errors, 5xx server errors can retry
   return (
     error.code === 'ECONNABORTED' ||
     error.code === 'ERR_NETWORK' ||
@@ -34,20 +34,20 @@ const shouldRetry = (error, method) => {
   );
 };
 
-// 延迟函数
+// Delay function
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// 带重试的请求包装器
+// Request wrapper with retry
 const withRetry = async (requestFn, method = 'get', retries = MAX_RETRIES) => {
   try {
     return await requestFn();
   } catch (error) {
-    // 如果不应该重试或已用完重试次数
+    // If shouldn't retry or retries exhausted
     if (!shouldRetry(error, method) || retries <= 0) {
       throw error;
     }
 
-    // 等待后重试
+    // Wait then retry
     await delay(RETRY_DELAY);
     return withRetry(requestFn, method, retries - 1);
   }
@@ -61,10 +61,10 @@ const api = axios.create({
   },
 });
 
-// 请求拦截器
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
-    // 可以在这里添加认证 token 等
+    // Can add auth token here
     console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
     return config;
   },
@@ -73,17 +73,17 @@ api.interceptors.request.use(
   }
 );
 
-// 辅助函数：从 detail 中提取可读的错误消息
+// Helper function: Extract readable error message from detail
 const extractErrorMessage = (detail) => {
   if (!detail) return null;
   
-  // 字符串直接返回
+  // String returned directly
   if (typeof detail === 'string') return detail;
   
-  // Pydantic 验证错误数组格式: [{type, loc, msg, ...}, ...]
+  // Pydantic validation error array format: [{type, loc, msg, ...}, ...]
   if (Array.isArray(detail)) {
     const messages = detail.map(err => {
-      // 提取字段名和错误消息
+      // Extract field name and error message
       const field = err.loc?.join('.') || '';
       const msg = err.msg || err.message || JSON.stringify(err);
       return field ? `${field}: ${msg}` : msg;
@@ -91,66 +91,66 @@ const extractErrorMessage = (detail) => {
     return messages.join('; ');
   }
   
-  // 对象格式
+  // Object format
   if (typeof detail === 'object') {
-    // 尝试提取常见字段
+    // Try to extract common fields
     if (detail.message) return detail.message;
     if (detail.msg) return detail.msg;
     if (detail.error) return detail.error;
-    // 转换为 JSON 字符串
+    // Convert to JSON string
     try {
       return JSON.stringify(detail);
     } catch {
-      return '未知错误';
+      return 'Unknown error';
     }
   }
   
   return String(detail);
 };
 
-// 响应拦截器 - 统一错误处理
+// Response interceptor - unified error handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    let errorMessage = '请求失败';
+    let errorMessage = 'Request failed';
     
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-      errorMessage = '请求超时，请检查网络连接或稍后重试';
+      errorMessage = 'Request timeout, please check network connection or try again later';
     } else if (error.response) {
-      // 服务器返回错误
+      // Server returned error
       const status = error.response.status;
       const detail = error.response.data?.detail;
       const extractedMsg = extractErrorMessage(detail);
       
       switch (status) {
         case 400:
-          errorMessage = extractedMsg || '请求参数错误';
+          errorMessage = extractedMsg || 'Invalid request parameters';
           break;
         case 401:
-          errorMessage = '未授权，请先登录';
+          errorMessage = 'Unauthorized, please login first';
           break;
         case 403:
-          errorMessage = '拒绝访问';
+          errorMessage = 'Access denied';
           break;
         case 404:
-          errorMessage = extractedMsg || '请求的资源不存在';
+          errorMessage = extractedMsg || 'Requested resource not found';
           break;
         case 422:
-          // Pydantic 验证错误
-          errorMessage = extractedMsg || '请求参数验证失败';
+          // Pydantic validation error
+          errorMessage = extractedMsg || 'Request parameter validation failed';
           break;
         case 500:
-          errorMessage = extractedMsg || '服务器内部错误';
+          errorMessage = extractedMsg || 'Internal server error';
           break;
         default:
-          errorMessage = extractedMsg || `请求失败 (${status})`;
+          errorMessage = extractedMsg || `Request failed (${status})`;
       }
     } else if (error.request) {
-      // 请求已发出但没有收到响应
-      errorMessage = '无法连接到服务器，请检查服务器是否运行';
+      // Request was made but no response received
+      errorMessage = 'Cannot connect to server, please check if server is running';
     }
     
-    // 创建带有友好消息的错误对象
+    // Create error object with friendly message
     const friendlyError = new Error(errorMessage);
     friendlyError.originalError = error;
     friendlyError.status = error.response?.status;
@@ -160,13 +160,13 @@ api.interceptors.response.use(
 );
 
 /**
- * 分析Python代码
- * @param {string} code - Python代码
- * @param {Object} options - 分析选项
- * @param {AbortSignal} signal - 可选的取消信号
+ * Analyze Python code
+ * @param {string} code - Python code
+ * @param {Object} options - Analysis options
+ * @param {AbortSignal} signal - Optional cancel signal
  */
 export const analyzeCode = async (code, options = {}, signal = null) => {
-  // POST 请求不重试，避免重复分析
+  // POST requests don't retry, avoid duplicate analysis
   const response = await api.post('/api/analyze', {
     code,
     options,
@@ -177,10 +177,10 @@ export const analyzeCode = async (code, options = {}, signal = null) => {
 };
 
 /**
- * 获取AST图结构
+ * Get AST graph structure
  */
 export const getAST = async (code, format = 'cytoscape', theme = 'default') => {
-  // POST 请求不重试
+  // POST requests don't retry
   const response = await api.post('/api/ast', {
     code,
     options: { format, theme },
@@ -189,64 +189,64 @@ export const getAST = async (code, format = 'cytoscape', theme = 'default') => {
 };
 
 /**
- * 获取复杂度分析
+ * Get complexity analysis
  */
 export const getComplexity = async (code) => {
-  // POST 请求不重试
+  // POST requests don't retry
   const response = await api.post('/api/complexity', { code });
   return response.data;
 };
 
 /**
- * 获取性能问题
+ * Get performance issues
  */
 export const getPerformanceIssues = async (code) => {
-  // POST 请求不重试
+  // POST requests don't retry
   const response = await api.post('/api/performance', { code });
   return response.data;
 };
 
 /**
- * 获取安全问题
+ * Get security issues
  */
 export const getSecurityIssues = async (code) => {
-  // POST 请求不重试
+  // POST requests don't retry
   const response = await api.post('/api/security', { code });
   return response.data;
 };
 
 /**
- * 获取优化建议
+ * Get optimization suggestions
  */
 export const getSuggestions = async (code) => {
-  // POST 请求不重试
+  // POST requests don't retry
   const response = await api.post('/api/suggestions', { code });
   return response.data;
 };
 
 /**
- * 生成补丁
+ * Generate patches
  */
 export const generatePatches = async (code) => {
-  // POST 请求不重试
+  // POST requests don't retry
   const response = await api.post('/api/patches', { code });
   return response.data;
 };
 
 /**
- * 获取节点解释（学习模式）
+ * Get node explanation (learning mode)
  */
 export const explainNode = async (nodeId, code) => {
-  // POST 请求不重试
+  // POST requests don't retry
   const response = await api.post(`/api/learn/node/${nodeId}`, { code });
   return response.data;
 };
 
 /**
- * 获取挑战列表
+ * Get challenge list
  */
 export const getChallenges = async () => {
-  // GET 请求可以安全重试
+  // GET requests can safely retry
   return withRetry(async () => {
     const response = await api.get('/api/challenges');
     return response.data;
@@ -254,10 +254,10 @@ export const getChallenges = async () => {
 };
 
 /**
- * 获取挑战详情
+ * Get challenge details
  */
 export const getChallenge = async (challengeId) => {
-  // GET 请求可以安全重试
+  // GET requests can safely retry
   return withRetry(async () => {
     const response = await api.get(`/api/challenges/${challengeId}`);
     return response.data;
@@ -265,10 +265,10 @@ export const getChallenge = async (challengeId) => {
 };
 
 /**
- * 提交挑战答案
+ * Submit challenge answer
  */
 export const submitChallenge = async (challengeId, foundIssues) => {
-  // POST 请求不重试，避免重复提交
+  // POST requests don't retry, avoid duplicate submissions
   const response = await api.post('/api/challenges/submit', {
     challenge_id: challengeId,
     found_issues: foundIssues,
@@ -277,11 +277,11 @@ export const submitChallenge = async (challengeId, foundIssues) => {
 };
 
 /**
- * 检查服务器连接状态
+ * Check server connection status
  */
 export const checkServerHealth = async () => {
   try {
-    // GET 请求可以安全重试
+    // GET requests can safely retry
     return withRetry(async () => {
       const response = await api.get('/api/health', { timeout: 5000 });
       return { connected: true, data: response.data };
@@ -290,21 +290,21 @@ export const checkServerHealth = async () => {
     return { 
       connected: false, 
       error: error.message,
-      hint: '请确保后端服务器正在运行 (python run.py backend)'
+      hint: 'Please ensure the backend server is running (python run.py backend)'
     };
   }
 };
 
 /**
- * 获取API基础URL
+ * Get API base URL
  */
 export const getApiBaseUrl = () => API_BASE_URL;
 
 /**
- * 上传项目 ZIP 文件（扫描项目结构）
- * @param {File} file - ZIP 文件对象
- * @param {AbortSignal} signal - 可选的取消信号
- * @returns {Promise<Object>} 扫描结果
+ * Upload project ZIP file (scan project structure)
+ * @param {File} file - ZIP file object
+ * @param {AbortSignal} signal - Optional cancel signal
+ * @returns {Promise<Object>} Scan result
  */
 export const uploadProject = async (file, signal = null) => {
   const formData = new FormData();
@@ -315,18 +315,18 @@ export const uploadProject = async (file, signal = null) => {
       'Content-Type': 'multipart/form-data',
     },
     signal,
-    timeout: 60000, // 上传可能需要更长时间
+    timeout: 60000, // Upload may take longer
   });
   
   return response.data;
 };
 
 /**
- * 分析项目（一步完成上传和分析）
- * @param {File} file - ZIP 文件对象
- * @param {boolean} quickMode - 是否使用快速模式
- * @param {AbortSignal} signal - 可选的取消信号
- * @returns {Promise<Object>} 项目分析结果
+ * Analyze project (upload and analyze in one step)
+ * @param {File} file - ZIP file object
+ * @param {boolean} quickMode - Whether to use quick mode
+ * @param {AbortSignal} signal - Optional cancel signal
+ * @returns {Promise<Object>} Project analysis result
  */
 export const analyzeProject = async (file, quickMode = false, signal = null) => {
   const formData = new FormData();
@@ -338,7 +338,7 @@ export const analyzeProject = async (file, quickMode = false, signal = null) => 
       'Content-Type': 'multipart/form-data',
     },
     signal,
-    timeout: 300000, // 项目分析可能需要很长时间（5分钟）
+    timeout: 300000, // Project analysis may take a long time (5 minutes)
   });
   
   return response.data;

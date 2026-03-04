@@ -26,30 +26,30 @@ const ComponentLoader = () => (
 );
 
 // Sample code for demo
-const SAMPLE_CODE = `# PyVizAST 示例代码
-# 这个文件展示了各种Python语法结构
+const SAMPLE_CODE = `# PyVizAST Sample Code
+# This file demonstrates various Python syntax structures
 
 import os
 from typing import List, Optional
 
-# 全局配置
+# Global configuration
 CONFIG = {
     "debug": True,
     "max_items": 100
 }
 
 class DataProcessor:
-    """数据处理类"""
+    """Data processor class"""
     
     def __init__(self, name: str):
         self.name = name
         self.data = []
     
     def process(self, items: List[int]) -> List[int]:
-        """处理数据列表"""
+        """Process data list"""
         result = []
         
-        # 嵌套循环示例
+        # Nested loop example
         for item in items:
             if item > 0:
                 for i in range(item):
@@ -59,7 +59,7 @@ class DataProcessor:
         return result
     
     def calculate_average(self, numbers: List[float]) -> Optional[float]:
-        """计算平均值"""
+        """Calculate average value"""
         if not numbers:
             return None
         
@@ -68,14 +68,14 @@ class DataProcessor:
 
 
 def fibonacci(n: int) -> int:
-    """递归计算斐波那契数"""
+    """Recursively calculate Fibonacci number"""
     if n <= 1:
         return n
     return fibonacci(n - 1) + fibonacci(n - 2)
 
 
 def find_duplicates(arr: List[int]) -> List[int]:
-    """找出重复元素"""
+    """Find duplicate elements"""
     seen = set()
     duplicates = []
     
@@ -89,20 +89,20 @@ def find_duplicates(arr: List[int]) -> List[int]:
     return duplicates
 
 
-# 主函数
+# Main function
 def main():
     processor = DataProcessor("test")
     
-    # 生成测试数据
+    # Generate test data
     data = [i for i in range(20)]
     
-    # 处理数据
+    # Process data
     result = processor.process(data)
-    print(f"处理结果: {result[:10]}...")
+    print(f"Processing result: {result[:10]}...")
     
-    # 计算斐波那契
+    # Calculate Fibonacci
     fib = fibonacci(10)
-    print(f"斐波那契(10) = {fib}")
+    print(f"Fibonacci(10) = {fib}")
 
 
 if __name__ == "__main__":
@@ -121,36 +121,36 @@ function App() {
   const [viewMode, setViewMode] = useState('2d'); // '2d' or '3d'
   const [serverStatus, setServerStatus] = useState({ checking: true, connected: false });
   
-  // 分析模式: 'file' 或 'project'
+  // Analysis mode: 'file' or 'project'
   const [analysisMode, setAnalysisMode] = useState('file');
   
-  // 项目分析状态
+  // Project analysis state
   const [projectResult, setProjectResult] = useState(null);
   const [isProjectAnalyzing, setIsProjectAnalyzing] = useState(false);
   const projectAnalysisRef = useRef(null);
   
-  // 项目模式下选中的文件
+  // Selected file in project mode
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedFileIndex, setSelectedFileIndex] = useState(null);
   const [isFileEditMode, setIsFileEditMode] = useState(false);
   
-  // 分割线拖动状态
-  const [splitPosition, setSplitPosition] = useState(50); // 百分比
+  // Splitter drag state
+  const [splitPosition, setSplitPosition] = useState(50); // Percentage
   const [isDragging, setIsDragging] = useState(false);
   const mainContentRef = useRef(null);
   
-  // 用于取消请求的 AbortController
+  // AbortController for canceling requests
   const abortControllerRef = useRef(null);
   
-  // 编辑器 ref，用于调用编辑器方法（如跳转到指定行）
+  // Editor ref for calling editor methods (e.g., jump to line)
   const editorRef = useRef(null);
   
-  // 初始化全局错误处理器
+  // Initialize global error handlers
   useEffect(() => {
     setupGlobalErrorHandlers();
   }, []);
   
-  // 分割线拖动处理
+  // Splitter drag handling
   const handleMouseDown = useCallback((e) => {
     e.preventDefault();
     setIsDragging(true);
@@ -162,7 +162,7 @@ function App() {
     const rect = mainContentRef.current.getBoundingClientRect();
     const newPosition = ((e.clientX - rect.left) / rect.width) * 100;
     
-    // 限制最小和最大位置
+    // Limit minimum and maximum position
     const clampedPosition = Math.min(Math.max(newPosition, 20), 80);
     setSplitPosition(clampedPosition);
   }, [isDragging]);
@@ -171,7 +171,7 @@ function App() {
     setIsDragging(false);
   }, []);
   
-  // 添加全局鼠标事件监听
+  // Add global mouse event listeners
   useEffect(() => {
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
@@ -188,7 +188,7 @@ function App() {
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  // 检查服务器连接状态
+  // Check server connection status
   useEffect(() => {
     const checkConnection = async () => {
       const result = await checkServerHealth();
@@ -201,12 +201,12 @@ function App() {
     };
     
     checkConnection();
-    // 每30秒检查一次连接
+    // Check connection every 30 seconds
     const interval = setInterval(checkConnection, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // 组件卸载时取消正在进行的请求
+  // Cancel ongoing requests when component unmounts
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
@@ -215,9 +215,9 @@ function App() {
     };
   }, []);
 
-  // 单文件分析
+  // Single file analysis
   const handleAnalyze = useCallback(async () => {
-    // 项目模式下调用项目分析
+    // In project mode, call project analysis
     if (analysisMode === 'project') {
       if (projectAnalysisRef.current?.canAnalyze()) {
         projectAnalysisRef.current.analyze();
@@ -226,22 +226,22 @@ function App() {
     }
 
     if (!code.trim()) {
-      setError('请输入Python代码');
+      setError('Please enter Python code');
       return;
     }
 
-    // 检查服务器连接
+    // Check server connection
     if (!serverStatus.connected) {
-      setError(`无法连接到服务器 (${getApiBaseUrl()})。请确保后端正在运行: python run.py backend`);
+      setError(`Unable to connect to server (${getApiBaseUrl()}). Please ensure the backend is running: python run.py backend`);
       return;
     }
 
-    // 取消之前的请求
+    // Cancel previous request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     
-    // 创建新的 AbortController
+    // Create new AbortController
     abortControllerRef.current = new AbortController();
 
     setIsLoading(true);
@@ -251,62 +251,62 @@ function App() {
       const result = await analyzeCode(code, {}, abortControllerRef.current.signal);
       setAnalysisResult(result);
     } catch (err) {
-      // 如果是取消的请求，不显示错误
+      // If request was cancelled, don't show error
       if (err.name === 'AbortError' || err.name === 'CanceledError') {
         return;
       }
-      // 提供更详细的错误信息
-      if (err.message?.includes('Network Error') || err.message?.includes('无法连接')) {
-        setError(`无法连接到服务器 (${getApiBaseUrl()})。请确保后端正在运行: python run.py backend`);
+      // Provide more detailed error information
+      if (err.message?.includes('Network Error') || err.message?.includes('Unable to connect')) {
+        setError(`Unable to connect to server (${getApiBaseUrl()}). Please ensure the backend is running: python run.py backend`);
       } else {
-        setError(err.message || '分析失败，请检查代码语法');
+        setError(err.message || 'Analysis failed, please check code syntax');
       }
     } finally {
       setIsLoading(false);
     }
   }, [code, serverStatus.connected, analysisMode]);
 
-  // 项目分析结果回调
+  // Project analysis result callback
   const handleProjectResultChange = useCallback((result) => {
     setProjectResult(result);
   }, []);
 
-  // 项目分析状态变化回调
+  // Project analysis state change callback
   const handleProjectAnalysisStateChange = useCallback((isAnalyzing) => {
     setIsProjectAnalyzing(isAnalyzing);
     setIsLoading(isAnalyzing);
   }, []);
 
-  // 文件选择回调（单击）
+  // File selection callback (single click)
   const handleFileSelect = useCallback((fileAnalysis, index) => {
     setSelectedFile(fileAnalysis);
     setSelectedFileIndex(index);
     setIsFileEditMode(false);
   }, []);
 
-  // 文件双击回调（进入编辑模式）
+  // File double-click callback (enter edit mode)
   const handleFileDoubleClick = useCallback((fileAnalysis, index) => {
     setSelectedFile(fileAnalysis);
     setSelectedFileIndex(index);
     setIsFileEditMode(true);
-    // 设置文件内容到编辑器 (content 在 fileAnalysis 根级别)
+    // Set file content to editor (content is at fileAnalysis root level)
     if (fileAnalysis?.content) {
       setCode(fileAnalysis.content);
     }
   }, []);
 
-  // 退出编辑模式回调
+  // Exit edit mode callback
   const handleExitEditMode = useCallback(() => {
     setIsFileEditMode(false);
     setSelectedFile(null);
     setSelectedFileIndex(null);
   }, []);
 
-  // 切换分析模式
+  // Switch analysis mode
   const handleAnalysisModeChange = useCallback((mode) => {
     setAnalysisMode(mode);
     setError(null);
-    // 切换模式时清除之前的结果
+    // Clear previous results when switching modes
     if (mode === 'file') {
       setProjectResult(null);
     } else {
@@ -321,9 +321,9 @@ function App() {
   }, []);
   
   /**
-   * 跳转到编辑器指定行
-   * @param {number} lineNumber - 行号（从1开始）
-   * @param {number} [endLine] - 可选的结束行号
+   * Jump to specified line in editor
+   * @param {number} lineNumber - Line number (1-based)
+   * @param {number} [endLine] - Optional end line number
    */
   const handleGoToLine = useCallback((lineNumber, endLine) => {
     if (editorRef.current) {
@@ -355,7 +355,7 @@ function App() {
           onViewModeChange={setViewMode}
         />
         
-        {/* 项目分析模式 */}
+        {/* Project analysis mode */}
         {analysisMode === 'project' ? (
           <main className="main-content project-mode" ref={mainContentRef}
             style={{ 
@@ -389,18 +389,18 @@ function App() {
             </div>
             
             <div className="visualization-panel">
-              {/* 编辑模式 - 显示编辑器 */}
+              {/* Edit mode - show editor */}
               {isFileEditMode && selectedFile ? (
                 <div className="project-edit-mode">
                   <div className="project-edit-header">
-                    <button className="exit-edit-btn" onClick={handleExitEditMode} title="退出编辑">
+                    <button className="exit-edit-btn" onClick={handleExitEditMode} title="Exit edit">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <line x1="18" y1="6" x2="6" y2="18" />
                         <line x1="6" y1="6" x2="18" y2="18" />
                       </svg>
                     </button>
                     <div className="edit-file-info">
-                      <span className="edit-file-name">{selectedFile?.file?.relative_path?.split('/').pop() || '文件'}</span>
+                      <span className="edit-file-name">{selectedFile?.file?.relative_path?.split('/').pop() || 'File'}</span>
                       <span className="edit-file-path">{selectedFile?.file?.relative_path}</span>
                     </div>
                   </div>
@@ -424,9 +424,9 @@ function App() {
                         <line x1="6" y1="18" x2="6.01" y2="18" />
                       </svg>
                       <div className="status-content">
-                        <strong>无法连接到后端服务器</strong>
-                        <p>API地址: {getApiBaseUrl()}</p>
-                        <p className="status-hint">请在终端运行: <code>python run.py backend</code></p>
+                        <strong>Unable to connect to backend server</strong>
+                        <p>API URL: {getApiBaseUrl()}</p>
+                        <p className="status-hint">Please run in terminal: <code>python run.py backend</code></p>
                       </div>
                     </div>
                   )}
@@ -506,7 +506,7 @@ function App() {
             </div>
           </main>
         ) : (
-        /* 单文件分析模式 */
+        /* Single file analysis mode */
         <main 
           className="main-content" 
           ref={mainContentRef}
@@ -524,7 +524,7 @@ function App() {
             />
           </div>
           
-          {/* 可拖动的分割线 */}
+          {/* Draggable splitter */}
           <div 
             className={`resize-divider ${isDragging ? 'dragging' : ''}`}
             onMouseDown={handleMouseDown}
@@ -539,7 +539,7 @@ function App() {
           </div>
           
           <div className="visualization-panel">
-            {/* 服务器连接状态 */}
+            {/* Server connection status */}
             {!serverStatus.checking && !serverStatus.connected && (
               <div className="server-status-error">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -549,9 +549,9 @@ function App() {
                   <line x1="6" y1="18" x2="6.01" y2="18" />
                 </svg>
                 <div className="status-content">
-                  <strong>无法连接到后端服务器</strong>
-                  <p>API地址: {getApiBaseUrl()}</p>
-                  <p className="status-hint">请在终端运行: <code>python run.py backend</code></p>
+                  <strong>Unable to connect to backend server</strong>
+                  <p>API URL: {getApiBaseUrl()}</p>
+                  <p className="status-hint">Please run in terminal: <code>python run.py backend</code></p>
                 </div>
               </div>
             )}

@@ -4,11 +4,11 @@ import './index.css';
 import App from './App';
 
 /**
- * 全局抑制 ResizeObserver 良性错误
- * 这是浏览器的正常行为，不是真正的错误
+ * Globally suppress benign ResizeObserver errors
+ * This is normal browser behavior, not a real error
  * 
- * 重要：这个 IIFE 必须在 React 渲染之前执行
- * 它会阻止错误触发 webpack-dev-server 的错误覆盖层
+ * Important: This IIFE must execute before React renders
+ * It prevents errors from triggering webpack-dev-server's error overlay
  */
 (function suppressResizeObserverErrors() {
   const ERROR_PATTERNS = ['ResizeObserver loop', 'ResizeObserver'];
@@ -19,11 +19,11 @@ import App from './App';
     return ERROR_PATTERNS.some(pattern => msg.includes(pattern));
   };
 
-  // 1. 重写 window.onerror - 最早的错误捕获点
+  // 1. Override window.onerror - the earliest error capture point
   const originalOnError = window.onerror;
   window.onerror = function(message, source, lineno, colno, error) {
     if (shouldSuppress(message)) {
-      return true; // 返回 true 阻止默认行为和传播
+      return true; // Return true to prevent default behavior and propagation
     }
     if (originalOnError) {
       return originalOnError.call(this, message, source, lineno, colno, error);
@@ -31,16 +31,16 @@ import App from './App';
     return false;
   };
 
-  // 2. 捕获阶段的错误事件处理器 - 在 React 错误边界之前
+  // 2. Capturing phase error event handler - before React error boundaries
   window.addEventListener('error', (event) => {
     if (shouldSuppress(event.message)) {
       event.stopImmediatePropagation();
       event.preventDefault();
       return false;
     }
-  }, true); // true = 捕获阶段
+  }, true); // true = capturing phase
 
-  // 3. 捕获未处理的 Promise rejection
+  // 3. Capture unhandled Promise rejections
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason;
     let message = '';
@@ -58,9 +58,9 @@ import App from './App';
       event.stopPropagation();
       return false;
     }
-  }, true); // true = 捕获阶段
+  }, true); // true = capturing phase
 
-  // 4. 重写 console.error 过滤输出
+  // 4. Override console.error to filter output
   const originalConsoleError = console.error;
   console.error = function(...args) {
     const firstArg = args[0];

@@ -20,18 +20,18 @@ const SECONDARY_TYPES = new Set([
 
 // Helper function to format attribute keys (defined outside component to avoid recreation)
 const ATTR_KEY_MAP = {
-  'args': '参数',
-  'decorators': '装饰器',
-  'bases': '基类',
-  'is_async': '异步',
-  'target': '循环变量',
-  'has_else': '有else分支',
-  'args_count': '参数数量',
-  'kwargs': '关键字参数',
-  'operator': '运算符',
-  'operators': '运算符',
-  'names': '导入名称',
-  'module': '模块',
+  'args': 'Arguments',
+  'decorators': 'Decorators',
+  'bases': 'Base Classes',
+  'is_async': 'Async',
+  'target': 'Loop Variable',
+  'has_else': 'Has Else Branch',
+  'args_count': 'Argument Count',
+  'kwargs': 'Keyword Arguments',
+  'operator': 'Operator',
+  'operators': 'Operators',
+  'names': 'Import Names',
+  'module': 'Module',
 };
 
 function ASTVisualizer({ graph, theme, onGoToLine }) {
@@ -49,13 +49,13 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
   // Track timers and animation frames for cleanup
   const timersRef = useRef(new Set());
   const animationFramesRef = useRef(new Set());
-  const particleCleanupRef = useRef([]); // 使用 ref 替代全局变量存储粒子清理函数
+  const particleCleanupRef = useRef([]); // Use ref instead of global variable to store particle cleanup functions
   
-  // 追踪Cytoscape初始化状态
+  // Track Cytoscape initialization state
   const isInitializedRef = useRef(false);
   const pendingElementsRef = useRef(null);
   
-  // 搜索相关状态
+  // Search related state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -66,10 +66,10 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
   // Format attribute key using memoized map
   const formatAttrKey = useCallback((key) => ATTR_KEY_MAP[key] || key, []);
   
-  // 搜索防抖 ref
+  // Search debounce ref
   const searchDebounceRef = useRef(null);
   
-  // 清理防抖计时器
+  // Clear debounce timer
   useEffect(() => {
     return () => {
       if (searchDebounceRef.current) {
@@ -78,28 +78,28 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
     };
   }, []);
   
-  // 搜索节点（带防抖）
+  // Search nodes (with debounce)
   const handleSearch = useCallback((query) => {
     setSearchQuery(query);
     setSelectedSearchIndex(-1);
     
-    // 清除之前的防抖计时器
+    // Clear previous debounce timer
     if (searchDebounceRef.current) {
       clearTimeout(searchDebounceRef.current);
     }
     
-    // 空查询立即清除
+    // Empty query clears immediately
     if (!query.trim() || !graph) {
       setSearchResults([]);
       setHighlightedNodeIds(new Set());
       return;
     }
     
-    // 设置防抖（200ms）
+    // Set debounce (200ms)
     searchDebounceRef.current = setTimeout(() => {
       const lowerQuery = query.toLowerCase().trim();
       const results = graph.nodes.filter(node => {
-        // 确保 node 是有效对象
+        // Ensure node is a valid object
         if (!node || !node.id) return false;
         
         const name = (node.name || '').toLowerCase();
@@ -111,14 +111,14 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
                type.includes(lowerQuery) ||
                label.includes(lowerQuery) ||
                description.includes(lowerQuery);
-      }).slice(0, 20); // 限制结果数量
+      }).slice(0, 20); // Limit result count
       
       setSearchResults(results);
       setHighlightedNodeIds(new Set(results.filter(n => n && n.id).map(n => n.id)));
     }, 200);
   }, [graph]);
   
-  // 清除搜索
+  // Clear search
   const clearSearch = useCallback(() => {
     setSearchQuery('');
     setSearchResults([]);
@@ -126,36 +126,36 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
     setIsSearchOpen(false);
     setHighlightedNodeIds(new Set());
     
-    // 移除所有高亮
+    // Remove all highlights
     if (cyRef.current) {
       cyRef.current.elements().removeClass('search-highlight search-selected');
     }
   }, []);
   
-  // 聚焦到搜索结果
+  // Focus on search result
   const focusSearchResult = useCallback((node, index) => {
-    // 严格的空值检查
+    // Strict null check
     if (!cyRef.current) return;
     if (!node || typeof node !== 'object' || !node.id) return;
     
     setSelectedSearchIndex(index);
     
-    // 移除之前的高亮
+    // Remove previous highlight
     cyRef.current.elements().removeClass('search-selected');
     
-    // 高亮选中的节点
+    // Highlight selected node
     const cyNode = cyRef.current.getElementById(node.id);
     if (cyNode) {
       cyNode.addClass('search-selected');
       
-      // 动画聚焦到节点
+      // Animate focus to node
       cyRef.current.animate({
         zoom: 1.5,
         center: { eles: cyNode },
         duration: 300
       });
       
-      // 更新选中节点信息
+      // Update selected node info
       const nodeData = cyNode.data();
       setSelectedNode({
         id: nodeData.id,
@@ -173,16 +173,16 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
     }
   }, []);
   
-  // 跳转到编辑器对应行
+  // Jump to editor line
   const handleGoToLine = useCallback((node) => {
     if (node && onGoToLine && node.lineno) {
       onGoToLine(node.lineno, node.end_lineno);
     }
-    // 清除搜索
+    // Clear search
     clearSearch();
   }, [onGoToLine, clearSearch]);
   
-  // 键盘导航搜索结果
+  // Keyboard navigation for search results
   const handleSearchKeyDown = useCallback((e) => {
     if (searchResults.length === 0) return;
     
@@ -213,14 +213,14 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
     }
   }, [searchResults, selectedSearchIndex, focusSearchResult, handleGoToLine, clearSearch]);
   
-  // 高亮搜索结果
+  // Highlight search results
   useEffect(() => {
     if (!cyRef.current) return;
     
-    // 移除之前的搜索高亮
+    // Remove previous search highlights
     cyRef.current.elements().removeClass('search-highlight');
     
-    // 高亮新的搜索结果
+    // Highlight new search results
     searchResults.forEach(node => {
       if (!node || !node.id) return;
       const cyNode = cyRef.current.getElementById(node.id);
@@ -269,7 +269,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
         let width = 50, height = 50;
         const type = node.type?.toLowerCase();
         
-        // 根据标签长度动态调整尺寸
+        // Dynamically adjust size based on label length
         const labelText = node.detailed_label || node.name || node.type;
         const labelLen = labelText.length;
         
@@ -283,13 +283,13 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
         else if (type === 'assign') { width = Math.max(35, labelLen * 6); height = 30; }
         else { width = Math.max(30, labelLen * 6); height = 28; }
         
-        // 限制最大宽度
+        // Limit max width
         width = Math.min(width, 200);
         
         return {
           data: {
             id: node.id,
-            // 使用详细标签或组合标签
+            // Use detailed label or combined label
             label: node.detailed_label || `${node.icon || ''} ${node.name || node.type}`,
             type: node.type,
             color: node.color,
@@ -384,10 +384,10 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
 
         cyRef.current = cy;
         
-        // 标记初始化完成
+        // Mark initialization complete
         isInitializedRef.current = true;
         
-        // 如果有待处理的元素，立即应用
+        // If there are pending elements, apply immediately
         if (pendingElementsRef.current) {
           const pending = pendingElementsRef.current;
           pendingElementsRef.current = null;
@@ -579,7 +579,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
       cy.elements().removeClass('dimmed focused focused-neighbor focused-edge');
       
       // Create particles that travel along edges
-      // 使用全局计数器 + 随机数确保 ID 唯一，避免快速操作时的冲突
+      // Use global counter + random number to ensure unique ID, avoiding conflicts during rapid operations
       const particleIdCounter = { current: 0 };
       const generateParticleId = () => {
         particleIdCounter.current += 1;
@@ -589,7 +589,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
       propagationQueue.forEach(({ sourceNode, targetNode, delay }) => {
         // Create particle after delay (tracked for cleanup)
         const timerId = setTimeout(() => {
-          // 检查组件是否仍然挂载
+          // Check if component is still mounted
           if (!cyRef.current) return;
           
           // Get current positions at animation time
@@ -601,7 +601,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
           const dy = targetPos.y - sourcePos.y;
           const edgeLength = Math.sqrt(dx * dx + dy * dy);
           
-          // 创建唯一的粒子 ID
+          // Create unique particle ID
           const uniqueParticleId = particleIdCounter.current++;
           
           const particle = {
@@ -626,7 +626,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
           
           // Animate particle (tracked for cleanup)
           const animateParticle = () => {
-            // 检查动画是否已取消或组件已卸载
+            // Check if animation was cancelled or component unmounted
             if (animationCancelled || !cyRef.current) return;
             
             const elapsed = Date.now() - particle.startTime;
@@ -659,7 +659,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
           const frameId = requestAnimationFrame(animateParticle);
           particle.currentFrameId = frameId;
           
-          // 注册清理函数
+          // Register cleanup function
           const cancelAnimation = () => {
             animationCancelled = true;
             if (particle.currentFrameId) {
@@ -677,12 +677,12 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
     return () => {
       mounted = false;
       
-      // 清除搜索防抖计时器
+      // Clear search debounce timer
       if (searchDebounceRef.current) {
         clearTimeout(searchDebounceRef.current);
       }
       
-      // 取消所有粒子动画
+      // Cancel all particle animations
       if (particleCleanupRef.current) {
         particleCleanupRef.current.forEach(cancel => cancel());
         particleCleanupRef.current = [];
@@ -709,7 +709,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
         cyRef.current = null;
       }
       
-      // 重置初始化状态，以便组件重新挂载时可以正确初始化
+      // Reset initialization state so component can reinitialize on remount
       isInitializedRef.current = false;
       pendingElementsRef.current = null;
     };
@@ -719,7 +719,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
   useEffect(() => {
     if (cytoscapeElements.nodes.length === 0) return;
     
-    // 如果Cytoscape还没初始化完成，保存元素等待初始化
+    // If Cytoscape hasn't initialized yet, save elements and wait
     if (!isInitializedRef.current || !cyRef.current) {
       pendingElementsRef.current = cytoscapeElements;
       return;
@@ -759,7 +759,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
     let animationId = null;
     
     const handleKeyDown = (e) => {
-      // 如果搜索框或任何输入框聚焦，不处理键盘导航
+      // Don't handle keyboard navigation if search box or any input is focused
       const activeElement = document.activeElement;
       const isInputFocused = activeElement && (
         activeElement.tagName === 'INPUT' ||
@@ -860,7 +860,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
           </span>
         </div>
         <div className="toolbar-right">
-          {/* 搜索按钮 */}
+          {/* Search button */}
           <button 
             className={`btn btn-ghost ${isSearchOpen ? 'active' : ''}`}
             onClick={() => {
@@ -871,7 +871,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
                 clearSearch();
               }
             }}
-            title="搜索节点 (Ctrl+F)"
+            title="Search nodes (Ctrl+F)"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8" />
@@ -928,7 +928,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
       </div>
       
       <div className="visualizer-content">
-        {/* 搜索面板 */}
+        {/* Search panel */}
         {isSearchOpen && (
           <div className="search-panel">
             <div className="search-input-wrapper">
@@ -940,7 +940,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
                 ref={searchInputRef}
                 type="text"
                 className="search-input"
-                placeholder="搜索函数、类、变量名..."
+                placeholder="Search functions, classes, variables..."
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
@@ -955,12 +955,12 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
               )}
             </div>
             
-            {/* 搜索结果列表 */}
+            {/* Search results list */}
             {searchResults.length > 0 && (
               <div className="search-results">
                 <div className="search-results-header">
-                  <span>找到 {searchResults.length} 个结果</span>
-                  <span className="search-hint">↑↓ 导航 · Enter 跳转 · Esc 关闭</span>
+                  <span>Found {searchResults.length} results</span>
+                  <span className="search-hint">Up/Down to navigate - Enter to jump - Esc to close</span>
                 </div>
                 <div className="search-results-list">
                   {searchResults.filter(node => node && node.id).map((node, index) => (
@@ -993,7 +993,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
                         <span className="result-type">{node.description || node.type}</span>
                       </div>
                       {node.lineno && (
-                        <span className="result-line">行 {node.lineno}</span>
+                        <span className="result-line">Line {node.lineno}</span>
                       )}
                     </div>
                   ))}
@@ -1001,10 +1001,10 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
               </div>
             )}
             
-            {/* 无结果提示 */}
+            {/* No results hint */}
             {searchQuery && searchResults.length === 0 && (
               <div className="search-no-results">
-                <span>未找到匹配的节点</span>
+                <span>No matching nodes found</span>
               </div>
             )}
           </div>
@@ -1037,7 +1037,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
           {signalParticles.map(particle => {
             const x = particle.startX + (particle.endX - particle.startX) * particle.progress;
             const y = particle.startY + (particle.endY - particle.startY) * particle.progress;
-            // 使用更唯一的 key：sourceId-targetId-timestamp 组合
+            // Use more unique key: sourceId-targetId-timestamp combination
             const uniqueKey = `${particle.sourceId || 'src'}-${particle.targetId || 'tgt'}-${particle.id}-${particle.startTime || 0}`;
             return (
               <g key={uniqueKey}>
@@ -1078,35 +1078,35 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
             <div className="panel-body">
               {selectedNode.label && (
                 <div className="detail-item code-label">
-                  <span className="detail-label">代码结构</span>
+                  <span className="detail-label">Code Structure</span>
                   <code className="detail-code">{selectedNode.label}</code>
                 </div>
               )}
               
               {selectedNode.lineno && (
                 <div className="detail-item">
-                  <span className="detail-label">位置</span>
-                  <span className="detail-value">第 {selectedNode.lineno} 行</span>
+                  <span className="detail-label">Location</span>
+                  <span className="detail-value">Line {selectedNode.lineno}</span>
                 </div>
               )}
               
               {selectedNode.explanation && (
                 <div className="detail-item explanation">
-                  <span className="detail-label">说明</span>
+                  <span className="detail-label">Description</span>
                   <p className="explanation-text">{selectedNode.explanation}</p>
                 </div>
               )}
               
               {selectedNode.docstring && (
                 <div className="detail-item">
-                  <span className="detail-label">文档字符串</span>
+                  <span className="detail-label">Docstring</span>
                   <p className="docstring">{selectedNode.docstring}</p>
                 </div>
               )}
               
               {selectedNode.attributes && Object.keys(selectedNode.attributes).length > 0 && (
                 <div className="detail-item">
-                  <span className="detail-label">属性</span>
+                  <span className="detail-label">Attributes</span>
                   <div className="attributes-list">
                     {Object.entries(selectedNode.attributes).map(([key, value]) => {
                       if (value === null || value === undefined || (Array.isArray(value) && value.length === 0)) {
@@ -1128,7 +1128,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
               
               {selectedNode.sourceCode && (
                 <div className="detail-item">
-                  <span className="detail-label">源代码</span>
+                  <span className="detail-label">Source Code</span>
                   <pre className="source-code">{selectedNode.sourceCode}</pre>
                 </div>
               )}
@@ -1158,7 +1158,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
           <span className="legend-color" style={{ background: '#505050' }}></span>
           <span>Assignment</span>
         </div>
-        <div className="legend-hint">双击聚焦 | 长按查看详情 | WASD/方向键移动</div>
+        <div className="legend-hint">Double-click to focus | Long-press for details | WASD/Arrow keys to move</div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 """
-Suggestion Engine - 优化建议生成引擎
-基于分析结果生成具体的重构建议
+Suggestion Engine - Optimization suggestion generation engine
+Generates concrete refactoring suggestions based on analysis results
 """
 import ast
 import re
@@ -9,105 +9,105 @@ from ..models.schemas import OptimizationSuggestion, CodeIssue, SeverityLevel
 
 
 class SuggestionEngine:
-    """优化建议生成引擎"""
+    """Optimization Suggestion Generation Engine"""
     
-    # 优化规则库
+    # Optimization rules library
     RULES = {
-        # 性能优化规则
+        # Performance optimization rules
         'list_comp_to_gen': {
             'category': 'performance',
-            'title': '使用生成器表达式替代列表推导式',
-            'description': '当只需要遍历结果而不需要索引访问时，生成器表达式更节省内存',
+            'title': 'Use generator expression instead of list comprehension',
+            'description': 'Generator expressions are more memory efficient when only iterating over results without index access',
             'auto_fixable': True,
             'priority': 2,
         },
         'string_concat': {
             'category': 'performance',
-            'title': '使用join()替代循环中的字符串拼接',
-            'description': '字符串是不可变的，循环中的+=操作会创建大量临时对象',
+            'title': 'Use join() instead of string concatenation in loops',
+            'description': 'Strings are immutable, += operations in loops create many temporary objects',
             'auto_fixable': True,
             'priority': 2,
         },
         'use_local_variable': {
             'category': 'performance',
-            'title': '将全局查找缓存为局部变量',
-            'description': '在循环中访问全局变量或方法会增加查找开销',
+            'title': 'Cache global lookups as local variables',
+            'description': 'Accessing global variables or methods in loops adds lookup overhead',
             'auto_fixable': False,
             'priority': 3,
         },
         'use_set_for_lookup': {
             'category': 'performance',
-            'title': '使用集合替代列表进行成员检查',
-            'description': '集合的成员检查是O(1)，而列表是O(n)',
+            'title': 'Use set instead of list for membership checks',
+            'description': 'Set membership check is O(1), while list is O(n)',
             'auto_fixable': True,
             'priority': 2,
         },
         
-        # 可读性规则
+        # Readability rules
         'use_enumerate': {
             'category': 'readability',
-            'title': '使用enumerate()替代range(len())',
-            'description': 'enumerate()更Pythonic且更易读',
+            'title': 'Use enumerate() instead of range(len())',
+            'description': 'enumerate() is more Pythonic and readable',
             'auto_fixable': True,
             'priority': 3,
         },
         'use_fstring': {
             'category': 'readability',
-            'title': '使用f-string替代%或.format()',
-            'description': 'f-string更简洁、更快、更易读',
+            'title': 'Use f-string instead of % or .format()',
+            'description': 'f-string is more concise, faster, and more readable',
             'auto_fixable': True,
             'priority': 3,
         },
         'use_context_manager': {
             'category': 'readability',
-            'title': '使用with语句管理资源',
-            'description': '确保资源正确释放，避免资源泄漏',
+            'title': 'Use with statement to manage resources',
+            'description': 'Ensures resources are properly released, avoiding resource leaks',
             'auto_fixable': False,
             'priority': 2,
         },
         'extract_method': {
             'category': 'readability',
-            'title': '提取方法以降低复杂度',
-            'description': '将复杂逻辑拆分为更小的、有命名的方法',
+            'title': 'Extract method to reduce complexity',
+            'description': 'Split complex logic into smaller, well-named methods',
             'auto_fixable': False,
             'priority': 1,
         },
         
-        # 安全规则
+        # Security rules
         'parametrize_sql': {
             'category': 'security',
-            'title': '使用参数化查询',
-            'description': '防止SQL注入攻击',
+            'title': 'Use parameterized queries',
+            'description': 'Prevent SQL injection attacks',
             'auto_fixable': False,
             'priority': 1,
         },
         'use_literal_eval': {
             'category': 'security',
-            'title': '使用ast.literal_eval()替代eval()',
-            'description': 'ast.literal_eval()只解析字面量，更安全',
+            'title': 'Use ast.literal_eval() instead of eval()',
+            'description': 'ast.literal_eval() only parses literals, safer',
             'auto_fixable': True,
             'priority': 1,
         },
         
-        # 最佳实践规则
+        # Best practice rules
         'use_dataclass': {
             'category': 'best_practice',
-            'title': '考虑使用@dataclass装饰器',
-            'description': '自动生成__init__、__repr__等方法，减少样板代码',
+            'title': 'Consider using @dataclass decorator',
+            'description': 'Automatically generates __init__, __repr__, and other methods, reducing boilerplate',
             'auto_fixable': False,
             'priority': 4,
         },
         'add_type_hints': {
             'category': 'best_practice',
-            'title': '添加类型注解',
-            'description': '提高代码可读性和IDE支持',
+            'title': 'Add type annotations',
+            'description': 'Improve code readability and IDE support',
             'auto_fixable': False,
             'priority': 4,
         },
         'use_walrus_operator': {
             'category': 'best_practice',
-            'title': '考虑使用海象运算符(:=)',
-            'description': '在表达式内部赋值，简化代码',
+            'title': 'Consider using walrus operator (:=)',
+            'description': 'Assign within expressions to simplify code',
             'auto_fixable': False,
             'priority': 5,
         },
@@ -116,18 +116,18 @@ class SuggestionEngine:
     def __init__(self):
         self.suggestions: List[OptimizationSuggestion] = []
         self.suggestion_counter = 0
-        self._added_suggestion_keys: set = set()  # 用于去重的键集合
+        self._added_suggestion_keys: set = set()  # Deduplication key set
     
     def _generate_suggestion_id(self) -> str:
         self.suggestion_counter += 1
         return f"suggestion_{self.suggestion_counter}"
     
     def _get_suggestion_key(self, title: str, lineno: Optional[int] = None) -> str:
-        """生成建议的唯一键，用于去重"""
+        """Generate unique key for suggestion, for deduplication"""
         return f"{title}:{lineno or 0}"
     
     def _is_duplicate(self, title: str, lineno: Optional[int] = None) -> bool:
-        """检查是否已存在相同的建议"""
+        """Check if the same suggestion already exists"""
         key = self._get_suggestion_key(title, lineno)
         if key in self._added_suggestion_keys:
             return True
@@ -141,27 +141,27 @@ class SuggestionEngine:
         issues: Optional[List[CodeIssue]] = None
     ) -> List[OptimizationSuggestion]:
         """
-        根据代码和问题列表生成优化建议
+        Generate optimization suggestions based on code and issue list
         
         Args:
-            code: 源代码字符串
-            tree: 可选的AST树
-            issues: 可选的问题列表
+            code: Source code string
+            tree: Optional AST tree
+            issues: Optional issue list
         
         Returns:
-            优化建议列表
+            List of optimization suggestions
         """
         if tree is None:
             tree = ast.parse(code)
         
-        # 重置状态
+        # Reset state
         self.suggestions = []
         self.suggestion_counter = 0
         self._added_suggestion_keys = set()
         
         source_lines = code.splitlines()
         
-        # 根据AST结构生成建议
+        # Generate suggestions based on AST structure
         self._detect_list_comp_opportunities(tree, source_lines)
         self._detect_string_concat_opportunities(tree, source_lines)
         self._detect_enumerate_opportunities(tree, source_lines)
@@ -170,7 +170,7 @@ class SuggestionEngine:
         self._detect_dataclass_opportunities(tree, source_lines)
         self._detect_context_manager_opportunities(tree, source_lines)
         
-        # 根据问题列表生成针对性建议
+        # Generate targeted suggestions based on issue list
         if issues:
             self._generate_issue_based_suggestions(issues)
         
@@ -178,41 +178,41 @@ class SuggestionEngine:
     
     def _detect_list_comp_opportunities(self, tree: ast.AST, source_lines: List[str]):
         """
-        检测可以用生成器替代的列表推导式
+        Detect list comprehensions that can be replaced with generators
         
-        只有在以下场景才建议转换为生成器表达式：
-        1. 作为函数参数传递，且该函数只遍历一次（如 sum, any, all, max, min, join, sorted）
-        2. 直接用于迭代且不会被多次使用
+        Only suggest conversion to generator expression in these scenarios:
+        1. Passed as function argument, and function only iterates once (e.g., sum, any, all, max, min, join, sorted)
+        2. Used directly for iteration and won't be reused
         
-        不建议转换的场景：
-        1. 赋值给变量（可能多次遍历或索引访问）
-        2. 作为返回值
-        3. 在需要 len() 的上下文中
+        Scenarios NOT recommended for conversion:
+        1. Assigned to variable (may be iterated multiple times or indexed)
+        2. Used as return value
+        3. In contexts requiring len()
         """
         
-        # 只遍历一次的函数（适合生成器）
+        # Single-pass functions (suitable for generators)
         SINGLE_PASS_FUNCTIONS = {
             'sum', 'any', 'all', 'max', 'min', 'sorted', 'reversed',
             'list', 'tuple', 'set', 'dict', 'frozenset',
-            'join',  # 字符串 join
+            'join',  # string join
             'map', 'filter', 'enumerate', 'zip',
             'heapq.nlargest', 'heapq.nsmallest',
             'itertools.chain', 'itertools.islice',
         }
         
-        # 需要多次访问或多功能的函数（不适合生成器）
+        # Multi-pass or multi-function functions (not suitable for generators)
         MULTI_PASS_FUNCTIONS = {'len', 'copy', 'deepcopy'}
         
         class ListCompContextVisitor(ast.NodeVisitor):
             def __init__(self, engine, lines):
                 self.engine = engine
                 self.lines = lines
-                self.suggestions_added = set()  # 避免重复建议
+                self.suggestions_added = set()  # Avoid duplicate suggestions
             
             def visit_Call(self, node):
-                """检查列表推导式作为函数参数的情况"""
+                """Check list comprehension as function argument"""
                 
-                # 检查函数名
+                # Check function name
                 func_name = None
                 if isinstance(node.func, ast.Name):
                     func_name = node.func.id
@@ -220,29 +220,29 @@ class SuggestionEngine:
                     func_name = node.func.attr
                 
                 if func_name in SINGLE_PASS_FUNCTIONS:
-                    # 检查参数中是否有列表推导式
+                    # Check if arguments contain list comprehension
                     for arg in node.args:
                         if isinstance(arg, ast.ListComp):
                             self._add_suggestion(arg, node, 'function_arg', func_name)
                 
-                # 继续遍历子节点
+                # Continue traversing child nodes
                 self.generic_visit(node)
             
             def visit_For(self, node):
-                """检查 for 循环中直接使用列表推导式迭代的情况"""
+                """Check for loops directly using list comprehension for iteration"""
                 
-                # 检查迭代器是否是列表推导式
+                # Check if iterator is a list comprehension
                 if isinstance(node.iter, ast.ListComp):
-                    # 检查这个 for 循环是否在函数内且结果不会被保存
-                    # 这通常可以转换为生成器
+                    # Check if this for loop is inside a function and result won't be saved
+                    # This can usually be converted to a generator
                     self._add_suggestion(node.iter, node, 'for_iter')
                 
                 self.generic_visit(node)
             
             def _add_suggestion(self, listcomp_node, parent_node, context, func_name=None):
-                """添加优化建议"""
+                """Add optimization suggestion"""
                 
-                # 避免重复建议同一个节点
+                # Avoid duplicate suggestions for the same node
                 node_key = (listcomp_node.lineno, listcomp_node.col_offset)
                 if node_key in self.suggestions_added:
                     return
@@ -251,28 +251,28 @@ class SuggestionEngine:
                 before_code = self.engine._get_source_segment(listcomp_node, self.lines)
                 after_code = self.engine._convert_listcomp_to_genexpr(listcomp_node, self.lines)
                 
-                # 根据上下文生成不同的描述
+                # Generate different descriptions based on context
                 if context == 'function_arg':
                     description = (
-                        f"作为 `{func_name}()` 的参数时，生成器表达式更节省内存，"
-                        f"因为函数只会遍历一次"
+                        f"When used as argument to `{func_name}()`, generator expression is more memory efficient "
+                        f"because the function only iterates once"
                     )
-                    estimated = '内存使用减少50%+'
+                    estimated = '50%+ memory reduction'
                 elif context == 'for_iter':
                     description = (
-                        "作为 for 循环的迭代器时，生成器表达式可以延迟计算，"
-                        "节省内存。但如果循环内有 break 或多次迭代，需谨慎"
+                        "When used as for loop iterator, generator expression enables lazy evaluation, "
+                        "saving memory. But be cautious if loop contains break or multiple iterations"
                     )
-                    estimated = '内存使用减少，惰性计算'
+                    estimated = 'Memory reduction, lazy evaluation'
                 else:
-                    description = '如果只需要遍历结果而不需要随机访问，生成器表达式更节省内存'
-                    estimated = '内存使用减少50%+'
+                    description = 'If only iterating over results without random access, generator expression saves memory'
+                    estimated = '50%+ memory reduction'
                 
                 self.engine.suggestions.append(OptimizationSuggestion(
                     id=self.engine._generate_suggestion_id(),
                     node_id="",
                     category='performance',
-                    title='考虑使用生成器表达式',
+                    title='Consider using generator expression',
                     description=description,
                     before_code=before_code,
                     after_code=after_code,
@@ -285,7 +285,7 @@ class SuggestionEngine:
         visitor.visit(tree)
     
     def _detect_string_concat_opportunities(self, tree: ast.AST, source_lines: List[str]):
-        """检测循环中的字符串拼接"""
+        """Detect string concatenation in loops"""
         
         class StringConcatVisitor(ast.NodeVisitor):
             def __init__(self, engine, source_lines):
@@ -309,15 +309,15 @@ class SuggestionEngine:
             def visit_AugAssign(self, node):
                 if self.in_loop and isinstance(node.op, ast.Add):
                     if isinstance(node.target, ast.Name):
-                        # 可能是字符串拼接
+                        # Might be string concatenation
                         self.engine.suggestions.append(OptimizationSuggestion(
                             id=self.engine._generate_suggestion_id(),
                             category='performance',
-                            title='优化循环中的字符串拼接',
-                            description='使用列表append + join更高效',
+                            title='Optimize string concatenation in loop',
+                            description='Using list append + join is more efficient',
                             before_code=self.engine._get_source_segment(node, self.source_lines),
                             after_code=f"# {node.target.id}_parts = []\n# {node.target.id}_parts.append(...)\n# {node.target.id} = ''.join({node.target.id}_parts)",
-                            estimated_improvement='性能提升5-10倍',
+                            estimated_improvement='5-10x performance improvement',
                             auto_fixable=True,
                             priority=2
                         ))
@@ -327,7 +327,7 @@ class SuggestionEngine:
         visitor.visit(tree)
     
     def _detect_enumerate_opportunities(self, tree: ast.AST, source_lines: List[str]):
-        """检测range(len())模式"""
+        """Detect range(len()) pattern"""
         for node in ast.walk(tree):
             if isinstance(node, ast.For):
                 if isinstance(node.iter, ast.Call):
@@ -336,41 +336,41 @@ class SuggestionEngine:
                             arg = node.iter.args[0]
                             if isinstance(arg, ast.Call):
                                 if isinstance(arg.func, ast.Name) and arg.func.id == 'len':
-                                    # 检查是否已存在相同的建议
-                                    if self._is_duplicate('使用enumerate()替代range(len())', node.lineno):
+                                    # Check if same suggestion already exists
+                                    if self._is_duplicate('Use enumerate() instead of range(len())', node.lineno):
                                         continue
-                                    # 找到range(len(...))模式
+                                    # Found range(len(...)) pattern
                                     self.suggestions.append(OptimizationSuggestion(
                                         id=self._generate_suggestion_id(),
                                         node_id="",
                                         category='readability',
-                                        title='使用enumerate()替代range(len())',
-                                        description='enumerate()更Pythonic，同时获取索引和值',
+                                        title='Use enumerate() instead of range(len())',
+                                        description='enumerate() is more Pythonic, getting both index and value',
                                         before_code=self._get_source_segment(node, source_lines),
                                         after_code="# for i, item in enumerate(sequence):\n#     ...",
-                                        estimated_improvement='可读性提升',
+                                        estimated_improvement='Improved readability',
                                         auto_fixable=True,
                                         priority=3
                                     ))
     
     def _detect_fstring_opportunities(self, tree: ast.AST, source_lines: List[str]):
-        """检测可以使用f-string的情况"""
+        """Detect cases where f-string can be used"""
         for node in ast.walk(tree):
             if isinstance(node, ast.BinOp):
                 if isinstance(node.op, ast.Mod):
                     if isinstance(node.left, ast.Constant) and isinstance(node.right, ast.Tuple):
-                        # 检查是否已存在相同的建议
-                        if self._is_duplicate('考虑使用f-string', node.lineno):
+                        # Check if same suggestion already exists
+                        if self._is_duplicate('Consider using f-string', node.lineno):
                             continue
-                        # % 格式化
+                        # % formatting
                         self.suggestions.append(OptimizationSuggestion(
                             id=self._generate_suggestion_id(),
                             category='readability',
-                            title='考虑使用f-string',
-                            description='f-string是Python 3.6+推荐的字串格式化方式',
+                            title='Consider using f-string',
+                            description='f-string is the recommended string formatting method in Python 3.6+',
                             before_code=self._get_source_segment(node, source_lines),
                             after_code="# f\"...{variable}...\"",
-                            estimated_improvement='更简洁、更快',
+                            estimated_improvement='More concise, faster',
                             auto_fixable=True,
                             priority=3
                         ))
@@ -378,50 +378,50 @@ class SuggestionEngine:
             elif isinstance(node, ast.Call):
                 if isinstance(node.func, ast.Attribute) and node.func.attr == 'format':
                     if isinstance(node.func.value, ast.Constant):
-                        # 检查是否已存在相同的建议
-                        if self._is_duplicate('考虑使用f-string', node.lineno):
+                        # Check if same suggestion already exists
+                        if self._is_duplicate('Consider using f-string', node.lineno):
                             continue
-                        # .format() 方法
+                        # .format() method
                         self.suggestions.append(OptimizationSuggestion(
                             id=self._generate_suggestion_id(),
                             category='readability',
-                            title='考虑使用f-string',
-                            description='f-string比.format()更简洁',
+                            title='Consider using f-string',
+                            description='f-string is more concise than .format()',
                             before_code=self._get_source_segment(node, source_lines),
                             after_code="# f\"...{variable}...\"",
-                            estimated_improvement='更简洁、更快',
+                            estimated_improvement='More concise, faster',
                             auto_fixable=True,
                             priority=3
                         ))
     
     def _detect_set_lookup_opportunities(self, tree: ast.AST, source_lines: List[str]):
-        """检测对列表的成员检查"""
+        """Detect membership checks on lists"""
         for node in ast.walk(tree):
             if isinstance(node, ast.Compare):
                 for i, op in enumerate(node.ops):
                     if isinstance(op, (ast.In, ast.NotIn)):
                         comparator = node.comparators[i]
                         if isinstance(comparator, ast.List):
-                            # 检查是否已存在相同的建议
-                            if self._is_duplicate('使用集合进行成员检查', node.lineno):
+                            # Check if same suggestion already exists
+                            if self._is_duplicate('Use set for membership check', node.lineno):
                                 continue
                             self.suggestions.append(OptimizationSuggestion(
                                 id=self._generate_suggestion_id(),
                                 category='performance',
-                                title='使用集合进行成员检查',
-                                description='集合的in操作是O(1)，列表是O(n)',
+                                title='Use set for membership check',
+                                description='Set "in" operation is O(1), list is O(n)',
                                 before_code=self._get_source_segment(node, source_lines),
-                                after_code="# 先将列表转换为集合\n# my_set = set(my_list)\n# if x in my_set: ...",
+                                after_code="# Convert list to set first\n# my_set = set(my_list)\n# if x in my_set: ...",
                                 estimated_improvement='O(n) -> O(1)',
                                 auto_fixable=True,
                                 priority=2
                             ))
     
     def _detect_dataclass_opportunities(self, tree: ast.AST, source_lines: List[str]):
-        """检测可以使用dataclass的类"""
+        """Detect classes that can use dataclass"""
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef):
-                # 检查是否是简单的数据类
+                # Check if it's a simple data class
                 has_init = False
                 has_repr = False
                 has_eq = False
@@ -438,49 +438,49 @@ class SuggestionEngine:
                     elif isinstance(item, ast.AnnAssign):
                         simple_attributes.append(item.target.id if isinstance(item.target, ast.Name) else None)
                 
-                # 如果类主要是数据属性，建议使用dataclass
+                # If class is mainly data attributes, suggest dataclass
                 if len(simple_attributes) > 2 and (has_init or has_repr or has_eq):
-                    # 检查是否已存在相同的建议
-                    if self._is_duplicate('考虑使用@dataclass', node.lineno):
+                    # Check if same suggestion already exists
+                    if self._is_duplicate('Consider using @dataclass', node.lineno):
                         continue
                     self.suggestions.append(OptimizationSuggestion(
                         id=self._generate_suggestion_id(),
                         category='best_practice',
-                        title='考虑使用@dataclass',
-                        description='自动生成__init__、__repr__、__eq__等方法',
+                        title='Consider using @dataclass',
+                        description='Automatically generates __init__, __repr__, __eq__, and other methods',
                         before_code=self._get_source_segment(node, source_lines),
                         after_code="# @dataclass\n# class YourClass:\n#     attr1: type\n#     attr2: type",
-                        estimated_improvement='减少样板代码',
+                        estimated_improvement='Reduced boilerplate',
                         auto_fixable=False,
                         priority=4
                     ))
     
     def _detect_context_manager_opportunities(self, tree: ast.AST, source_lines: List[str]):
-        """检测应该使用上下文管理器的情况"""
+        """Detect cases where context manager should be used"""
         file_methods = {'read', 'write', 'close'}
         
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 if isinstance(node.func, ast.Name) and node.func.id == 'open':
-                    # 检查是否已存在相同的建议
-                    if self._is_duplicate('使用with语句管理文件', node.lineno):
+                    # Check if same suggestion already exists
+                    if self._is_duplicate('Use with statement to manage file', node.lineno):
                         continue
-                    # 检查是否使用了with
-                    # 简化：标记所有open调用
+                    # Check if "with" is used
+                    # Simplified: mark all open calls
                     self.suggestions.append(OptimizationSuggestion(
                         id=self._generate_suggestion_id(),
                         category='readability',
-                        title='使用with语句管理文件',
-                        description='确保文件正确关闭，即使发生异常',
+                        title='Use with statement to manage file',
+                        description='Ensures file is properly closed even if exception occurs',
                         before_code=self._get_source_segment(node, source_lines),
                         after_code="# with open(...) as f:\n#     ...",
-                        estimated_improvement='更安全、更简洁',
+                        estimated_improvement='Safer, more concise',
                         auto_fixable=False,
                         priority=2
                     ))
     
     def _generate_issue_based_suggestions(self, issues: List[CodeIssue]):
-        """根据问题列表生成针对性建议"""
+        """Generate targeted suggestions based on issue list"""
         for issue in issues:
             if issue.type == 'security':
                 if 'eval' in issue.message:
@@ -488,9 +488,9 @@ class SuggestionEngine:
                         id=self._generate_suggestion_id(),
                         issue_id=issue.id,
                         category='security',
-                        title='替换eval()为更安全的替代方案',
-                        description='ast.literal_eval()只解析Python字面量，不会执行代码',
-                        estimated_improvement='消除代码注入风险',
+                        title='Replace eval() with safer alternative',
+                        description='ast.literal_eval() only parses Python literals, does not execute code',
+                        estimated_improvement='Eliminates code injection risk',
                         auto_fixable=True,
                         priority=1
                     ))
@@ -499,27 +499,27 @@ class SuggestionEngine:
                         id=self._generate_suggestion_id(),
                         issue_id=issue.id,
                         category='security',
-                        title='使用参数化查询',
-                        description='使用占位符和参数元组防止SQL注入',
-                        estimated_improvement='消除SQL注入风险',
+                        title='Use parameterized queries',
+                        description='Use placeholders and parameter tuples to prevent SQL injection',
+                        estimated_improvement='Eliminates SQL injection risk',
                         auto_fixable=False,
                         priority=1
                     ))
             
             elif issue.type == 'complexity':
-                if '圈复杂度' in issue.message or '认知复杂度' in issue.message:
+                if 'cyclomatic complexity' in issue.message or 'cognitive complexity' in issue.message:
                     self.suggestions.append(OptimizationSuggestion(
                         id=self._generate_suggestion_id(),
                         issue_id=issue.id,
                         category='readability',
-                        title='降低代码复杂度',
-                        description='提取方法、使用早返回、拆分条件',
+                        title='Reduce code complexity',
+                        description='Extract methods, use early returns, split conditions',
                         auto_fixable=False,
                         priority=1
                     ))
     
     def _get_source_segment(self, node: ast.AST, source_lines: List[str]) -> str:
-        """获取节点的源代码片段"""
+        """Get source code segment for node"""
         if hasattr(node, 'lineno') and hasattr(node, 'end_lineno'):
             start = node.lineno - 1
             end = node.end_lineno
@@ -527,14 +527,14 @@ class SuggestionEngine:
         return ""
     
     def _convert_listcomp_to_genexpr(self, node: ast.ListComp, source_lines: List[str]) -> str:
-        """将列表推导式转换为生成器表达式"""
+        """Convert list comprehension to generator expression"""
         source = self._get_source_segment(node, source_lines)
         if source.startswith('[') and source.endswith(']'):
             return '(' + source[1:-1] + ')'
         return source
     
     def get_suggestions_by_category(self) -> Dict[str, List[OptimizationSuggestion]]:
-        """按类别分组建议"""
+        """Group suggestions by category"""
         grouped = {}
         for suggestion in self.suggestions:
             category = suggestion.category
@@ -544,5 +544,5 @@ class SuggestionEngine:
         return grouped
     
     def get_high_priority_suggestions(self) -> List[OptimizationSuggestion]:
-        """获取高优先级建议"""
+        """Get high priority suggestions"""
         return [s for s in self.suggestions if s.priority <= 2]

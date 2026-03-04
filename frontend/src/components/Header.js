@@ -23,13 +23,13 @@ function Header({
           <span className="logo-text">PyVizAST</span>
         </div>
 
-        {/* 分析模式切换 */}
+        {/* Analysis mode switch */}
         {onAnalysisModeChange && (
           <div className="mode-switch">
             <button 
               className={`mode-btn ${analysisMode === 'file' ? 'active' : ''}`}
               onClick={() => onAnalysisModeChange('file')}
-              title="单文件分析"
+              title="Single file analysis"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -40,7 +40,7 @@ function Header({
             <button 
               className={`mode-btn ${analysisMode === 'project' ? 'active' : ''}`}
               onClick={() => onAnalysisModeChange('project')}
-              title="项目级分析"
+              title="Project-level analysis"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />

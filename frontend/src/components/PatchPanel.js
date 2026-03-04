@@ -14,11 +14,11 @@ import {
 } from 'lucide-react';
 import { generatePatches } from '../api';
 
-// 后端 API 基础 URL
+// Backend API base URL
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 /**
- * 调用后端 API 应用补丁
+ * Call backend API to apply patch
  */
 async function applyPatchViaAPI(code, patch) {
   try {
@@ -32,47 +32,47 @@ async function applyPatchViaAPI(code, patch) {
     
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.detail || '补丁应用失败');
+      throw new Error(error.detail || 'Patch application failed');
     }
     
     const data = await response.json();
     return data.fixed_code;
   } catch (error) {
-    console.error('调用后端补丁 API 失败:', error);
-    // 如果后端不可用，尝试前端备用方案
+    console.error('Failed to call backend patch API:', error);
+    // If backend is unavailable, try frontend fallback
     return applyPatchFallback(code, patch);
   }
 }
 
 /**
- * 前端备用补丁应用逻辑（当后端不可用时使用）
- * 与后端 patches.py 的实现保持一致
+ * Frontend fallback patch application logic (used when backend is unavailable)
+ * Keeps implementation consistent with backend patches.py
  */
 function applyPatchFallback(originalCode, patchContent) {
   if (!patchContent || typeof patchContent !== 'string') {
-    console.error('补丁内容无效');
+    console.error('Invalid patch content');
     return null;
   }
   
   if (!originalCode || typeof originalCode !== 'string') {
-    console.error('原始代码无效');
+    console.error('Invalid original code');
     return null;
   }
   
   try {
-    // 统一换行符处理（跨平台兼容）
+    // Unified newline handling (cross-platform compatible)
     const lines = originalCode.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
     const patchLines = patchContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
     
-    // 验证 diff 格式
+    // Validate diff format
     const hasValidHeader = patchLines.some(line => line.startsWith('---')) && 
                            patchLines.some(line => line.startsWith('+++'));
     if (!hasValidHeader) {
-      console.error('无效的 unified diff 格式：缺少文件头');
+      console.error('Invalid unified diff format: missing file headers');
       return null;
     }
     
-    // 解析 hunks - 与后端 patches.py 保持一致
+    // Parse hunks - consistent with backend patches.py
     const hunks = [];
     let currentHunk = null;
     let oldLineNum = 0;
@@ -82,12 +82,12 @@ function applyPatchFallback(originalCode, patchContent) {
       const line = patchLines[i];
       
       if (line.startsWith('@@')) {
-        // 保存前一个 hunk
+        // Save previous hunk
         if (currentHunk) {
           hunks.push(currentHunk);
         }
         
-        // 解析 @@ -start,count +start,count @@
+        // Parse @@ -start,count +start,count @@
         const match = line.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
         if (match) {
           currentHunk = {
@@ -105,38 +105,38 @@ function applyPatchFallback(originalCode, patchContent) {
           oldLineNum = currentHunk.oldStart;
           newLineNum = currentHunk.newStart;
         } else {
-          console.error(`无效的 hunk 头格式: ${line}`);
+          console.error(`Invalid hunk header format: ${line}`);
           return null;
         }
       } else if (currentHunk) {
-        // 解析 hunk 内容 - 与后端 patches.py 保持一致
+        // Parse hunk content - consistent with backend patches.py
         if (line.startsWith('+++') || line.startsWith('---')) {
           continue;
         } else if (line.startsWith('+')) {
-          // 新增行
+          // Added line
           const content = line.substring(1);
           currentHunk.additions.push(content);
           currentHunk.lines.push(content);
           currentHunk.added++;
           newLineNum++;
         } else if (line.startsWith('-')) {
-          // 删除行
+          // Deleted line
           const content = line.substring(1);
           currentHunk.removals.push(content);
           currentHunk.deleted++;
           oldLineNum++;
         } else if (line.startsWith('\\')) {
-          // 继续指示符，忽略
+          // Continuation indicator, ignore
           continue;
         } else if (line.startsWith(' ') || line !== '') {
-          // 上下文行
+          // Context line
           const content = line.startsWith(' ') ? line.substring(1) : line;
           currentHunk.context.push(content);
           currentHunk.lines.push(content);
           oldLineNum++;
           newLineNum++;
         } else if (line === '') {
-          // 空行作为上下文
+          // Empty line as context
           currentHunk.lines.push('');
           oldLineNum++;
           newLineNum++;
@@ -144,53 +144,53 @@ function applyPatchFallback(originalCode, patchContent) {
       }
     }
     
-    // 保存最后一个 hunk
+    // Save last hunk
     if (currentHunk) {
       hunks.push(currentHunk);
     }
     
-    // 验证是否有有效的 hunks
+    // Validate there are valid hunks
     if (hunks.length === 0) {
-      console.error('未找到有效的 hunk');
+      console.error('No valid hunks found');
       return null;
     }
     
-    // 从后向前应用 hunks，避免行号偏移（与后端一致）
+    // Apply hunks from back to front to avoid line number offset (consistent with backend)
     hunks.sort((a, b) => b.newStart - a.newStart);
     
     for (const hunk of hunks) {
       const startIdx = hunk.oldStart - 1;
       
-      // 边界检查
+      // Boundary check
       if (startIdx < 0 || startIdx > lines.length) {
-        console.error(`无效的起始行号: ${hunk.oldStart}`);
+        console.error(`Invalid start line number: ${hunk.oldStart}`);
         return null;
       }
       
-      // 计算要删除的行数
+      // Calculate number of lines to delete
       const deletedCount = hunk.deleted;
       const newLines = hunk.lines;
       
-      // 验证删除范围是否有效
+      // Validate deletion range
       if (startIdx + deletedCount > lines.length) {
-        console.warn(`删除范围超出代码行数`);
+        console.warn(`Deletion range exceeds code line count`);
       }
       
-      // 执行替换
+      // Execute replacement
       lines.splice(startIdx, deletedCount, ...newLines);
     }
     
     return lines.join('\n');
     
   } catch (err) {
-    console.error('解析补丁失败:', err);
+    console.error('Failed to parse patch:', err);
     return null;
   }
 }
 
 /**
- * 补丁应用面板组件
- * 显示可自动修复的优化建议,并允许用户预览和应用补丁
+ * Patch Application Panel Component
+ * Displays auto-fixable optimization suggestions and allows users to preview and apply patches
  */
 function PatchPanel({ code, onApplyPatch }) {
   const [patches, setPatches] = useState([]);
@@ -201,7 +201,7 @@ function PatchPanel({ code, onApplyPatch }) {
   const [copiedPatch, setCopiedPatch] = useState(null);
   const [applying, setApplying] = useState(false);
 
-  // 获取补丁列表
+  // Fetch patch list
   useEffect(() => {
     if (!code || code.trim().length === 0) {
       setPatches([]);
@@ -216,57 +216,57 @@ function PatchPanel({ code, onApplyPatch }) {
         const result = await generatePatches(code);
         setPatches(result.patches || []);
       } catch (err) {
-        setError(err.message || '获取补丁失败');
+        setError(err.message || 'Failed to fetch patches');
         setPatches([]);
       } finally {
         setLoading(false);
       }
     };
 
-    // 延迟获取,避免频繁请求
+    // Delay fetch to avoid frequent requests
     const timer = setTimeout(fetchPatches, 300);
     return () => clearTimeout(timer);
   }, [code]);
 
-  // 切换补丁展开状态
+  // Toggle patch expansion state
   const togglePatch = useCallback((patchId) => {
     setExpandedPatch(prev => prev === patchId ? null : patchId);
   }, []);
 
-  // 应用补丁 - 优先使用后端 API
+  // Apply patch - prefer backend API
   const handleApply = useCallback(async (patch) => {
     if (onApplyPatch && !applying) {
       setApplying(true);
       try {
-        // 优先调用后端 API
+        // Prefer calling backend API
         const fixedCode = await applyPatchViaAPI(code, patch.patch);
         if (fixedCode) {
           onApplyPatch(fixedCode);
           setAppliedPatches(prev => new Set([...prev, patch.suggestion_id]));
         } else {
-          setError('补丁应用失败，请检查补丁格式是否正确');
+          setError('Patch application failed. Please check if the patch format is correct');
         }
       } catch (err) {
-        console.error('应用补丁失败:', err);
-        setError(err.message || '补丁应用失败');
+        console.error('Failed to apply patch:', err);
+        setError(err.message || 'Patch application failed');
       } finally {
         setApplying(false);
       }
     }
   }, [code, onApplyPatch, applying]);
 
-  // 复制补丁
+  // Copy patch
   const handleCopy = useCallback(async (patchId, patchContent) => {
     try {
       await navigator.clipboard.writeText(patchContent);
       setCopiedPatch(patchId);
       setTimeout(() => setCopiedPatch(null), 2000);
     } catch (err) {
-      console.error('复制失败:', err);
+      console.error('Copy failed:', err);
     }
   }, []);
 
-  // 渲染补丁差异
+  // Render patch diff
   const renderDiff = (patchContent) => {
     if (!patchContent) return null;
     
@@ -303,7 +303,7 @@ function PatchPanel({ code, onApplyPatch }) {
     return (
       <div className="patch-panel loading">
         <Loader className="spinner" size={24} />
-        <span>正在分析可修复的问题...</span>
+        <span>Analyzing fixable issues...</span>
       </div>
     );
   }
@@ -321,8 +321,8 @@ function PatchPanel({ code, onApplyPatch }) {
     return (
       <div className="patch-panel empty">
         <CheckCircle size={48} className="success-icon" />
-        <h4>无需自动修复</h4>
-        <p>代码中没有可自动修复的问题</p>
+        <h4>No Auto-Fix Required</h4>
+        <p>No auto-fixable issues found in the code</p>
       </div>
     );
   }
@@ -331,8 +331,8 @@ function PatchPanel({ code, onApplyPatch }) {
     <div className="patch-panel">
       <div className="patch-header">
         <Wand2 size={18} />
-        <h3>自动修复建议</h3>
-        <span className="patch-count">{patches.length} 项可修复</span>
+        <h3>Auto-Fix Suggestions</h3>
+        <span className="patch-count">{patches.length} fixable</span>
       </div>
 
       <div className="patch-list">
@@ -358,12 +358,12 @@ function PatchPanel({ code, onApplyPatch }) {
                   {isApplied ? (
                     <span className="applied-badge">
                       <Check size={14} />
-                      已应用
+                      Applied
                     </span>
                   ) : (
                     <span className="auto-fix-badge">
                       <Wand2 size={12} />
-                      可修复
+                      Fixable
                     </span>
                   )}
                 </div>
@@ -378,7 +378,7 @@ function PatchPanel({ code, onApplyPatch }) {
                       <div className="patch-diff-header">
                         <span>
                           <Code size={14} />
-                          补丁预览 (Unified Diff)
+                          Patch Preview (Unified Diff)
                         </span>
                         <button 
                           className="btn-copy"
@@ -390,12 +390,12 @@ function PatchPanel({ code, onApplyPatch }) {
                           {copiedPatch === patch.suggestion_id ? (
                             <>
                               <CheckCheck size={14} />
-                              已复制
+                              Copied
                             </>
                           ) : (
                             <>
                               <Copy size={14} />
-                              复制
+                              Copy
                             </>
                           )}
                         </button>
@@ -415,12 +415,12 @@ function PatchPanel({ code, onApplyPatch }) {
                         disabled={applying}
                       >
                         <Wand2 size={14} />
-                        {applying ? '应用中...' : '应用此修复'}
+                        {applying ? 'Applying...' : 'Apply This Fix'}
                         {!applying && <ArrowRight size={14} />}
                       </button>
                     )}
                     <span className="patch-hint">
-                      应用后将更新代码编辑器中的内容
+                      Applying will update the content in the code editor
                     </span>
                   </div>
                 </div>
@@ -433,15 +433,15 @@ function PatchPanel({ code, onApplyPatch }) {
   );
 }
 
-// 获取分类图标
+// Get category icon
 function getCategoryIcon(category) {
   const icons = {
-    performance: '性能优化',
-    readability: '可读性',
-    security: '安全性',
-    best_practice: '最佳实践',
+    performance: 'Performance',
+    readability: 'Readability',
+    security: 'Security',
+    best_practice: 'Best Practice',
   };
-  return icons[category] || '建议';
+  return icons[category] || 'Suggestion';
 }
 
 export default PatchPanel;

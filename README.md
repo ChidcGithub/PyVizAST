@@ -1,6 +1,6 @@
 # PyVizAST
 
-[![Version](https://img.shields.io/badge/Version-0.4.0--beta-blue.svg)](https://github.com/ChidcGithub/PyVizAST/releases/tag/v0.4.0-beta)
+[![Version](https://img.shields.io/badge/Version-0.4.0--beta2-blue.svg)](https://github.com/ChidcGithub/PyVizAST/releases/tag/v0.4.0-beta2)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
@@ -181,6 +181,30 @@ GNU General Public License v3.0
 Contributions are welcome. Please submit pull requests to the main repository.
 
 <details> <summary>Version History</summary>
+
+### v0.4.0-beta2 (2026-03-04)
+**Bug Fixes:**
+- Fixed `PerformanceAnalyzer` missing `hotspots` attribute causing validation errors
+- Fixed `main.py` incorrectly assigning `issues` to `performance_hotspots` in single-file analysis
+- Fixed duplicate imports in `main.py` (removed redundant `pydantic`, `datetime`, `typing` imports)
+- Fixed project analysis performance hotspots not displaying in frontend
+- Restored `ASTVisualizer3D.js` from git to fix encoding issues
+
+**Code Quality Improvements:**
+- Completed empty `pass` implementations in `performance.py`:
+  - `_check_loop_contents()`: Now detects repeated `len()` calls and `range(len())` patterns
+  - `_detect_inefficient_data_structures()`: Detects list membership checks and `count()` in loops
+  - `_detect_redundant_calculations()`: Detects duplicate function calls and operations in loops
+  - `_detect_memory_issues()`: Detects potentially large list comprehensions
+  - `_detect_unoptimized_comprehensions()`: Context-aware generator expression suggestions
+- Completed recursive call detection in `complexity.py` cognitive complexity calculation
+- Fixed `patches.py` f-string conversion for complex expressions with attribute access
+- Added `PerformanceHotspot` model support with proper `hotspots` list in analyzer
+
+**Performance Detection Enhancements:**
+- Nested loop detection now generates both issues and hotspots
+- String concatenation in loops now generates performance hotspots
+- Big O complexity estimation for detected issues
 
 ### v0.4.0-beta (2026-03-03)
 **Project-Level Analysis:**
