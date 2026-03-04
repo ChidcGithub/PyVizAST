@@ -182,6 +182,11 @@ Contributions are welcome. Please submit pull requests to the main repository.
 
 <details> <summary>Version History</summary>
 
+### v0.4.1 (2026-03-04)
+**Fixed issues**
+- Fixed the issue where the front-end web page could not start correctly
+- Updated translations.
+
 ### v0.4.0 (2026-03-04)
 **Major Release - Project Analysis & Interactive Learning**
 
