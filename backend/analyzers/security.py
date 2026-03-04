@@ -179,6 +179,22 @@ class SecurityScanner:
         # Match multiline string start
         multiline_string_start = re.compile(r'^\s*(\'\'\'|""")')
         
+        # Patterns that indicate dynamic value assignment (not hardcoded)
+        dynamic_patterns = [
+            r'os\.getenv\s*\(',  # os.getenv('VAR')
+            r'os\.environ',       # os.environ['VAR']
+            r'environ\.get\s*\(', # environ.get('VAR')
+            r'getenv\s*\(',       # getenv('VAR')
+            r'config\.',          # config.password
+            r'settings\.',        # settings.secret_key
+            r'self\.\w+\s*=\s*[^"\']',  # self.attr = value (not string literal)
+            r'\.\w+\s*\(\s*\)',   # method call
+            r'input\s*\(',        # input()
+            r'args\.',            # args.password
+            r'ArgumentParser',    # argparse
+        ]
+        dynamic_regex = re.compile('|'.join(dynamic_patterns))
+        
         for i, line in enumerate(source_lines, 1):
             # Skip comment lines
             if comment_pattern.match(line):
@@ -188,6 +204,10 @@ class SecurityScanner:
             if multiline_string_start.search(line):
                 continue
             
+            # Skip lines with dynamic value sources
+            if dynamic_regex.search(line):
+                continue
+            
             for pattern, secret_type in self.SENSITIVE_PATTERNS:
                 if re.search(pattern, line):
                     # Exclude obvious placeholders and example values
@@ -195,7 +215,8 @@ class SecurityScanner:
                     placeholder_indicators = [
                         'xxx', 'your_', 'example', 'placeholder', 'sample',
                         'changeme', 'todo', 'fixme', '<', '>', 'dummy',
-                        'test_key', 'fake', 'mock'
+                        'test_key', 'fake', 'mock', 'redacted', 'hidden',
+                        '****', '####', 'none', 'null', 'empty'
                     ]
                     
                     # Skip if line contains placeholder indicators
@@ -212,6 +233,14 @@ class SecurityScanner:
                         # Skip values that are too short (likely placeholders)
                         if len(value) < 4:
                             continue
+                        # Skip values that look like variable names (no special chars, starts with letter)
+                        if re.match(r'^[a-z_][a-z0-9_]*$', value_match.group(1)):
+                            # Could be a variable name being passed, skip
+                            continue
+                    
+                    # Check for f-string or variable interpolation
+                    if 'f"' in line or "f'" in line or '{' in line:
+                        continue
                     
                     self.issues.append(CodeIssue(
                         id=self._generate_issue_id("hardcoded_secret"),

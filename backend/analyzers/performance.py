@@ -145,7 +145,7 @@ class PerformanceAnalyzer:
             if isinstance(child, ast.Call):
                 if isinstance(child.func, ast.Name) and child.func.id == 'len':
                     # len() is called inside loop - could be cached outside
-                    if isinstance(child.args[0], ast.Name) if child.args else False:
+                    if child.args and isinstance(child.args[0], ast.Name):
                         self.issues.append(CodeIssue(
                             id=self._generate_issue_id("len_in_loop"),
                             type="performance",

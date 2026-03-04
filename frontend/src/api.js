@@ -13,6 +13,12 @@ const shouldRetry = (error, method) => {
   // Cases not to retry
   if (!error) return false;
   
+  // Don't retry if user cancelled the request (AbortError, CanceledError)
+  if (error.name === 'AbortError' || error.name === 'CanceledError' || 
+      error.code === 'ERR_CANCELED' || error.code === 'ECONNABORTED' && error.message?.includes('cancel')) {
+    return false;
+  }
+  
   // Non-idempotent methods don't retry (avoid duplicate operations)
   if (method && !IDEMPOTENT_METHODS.includes(method.toLowerCase())) {
     return false;

@@ -265,11 +265,31 @@ function LearnPanel({ result }) {
 }
 
 function ChallengesPanel() {
-  const [challenges] = React.useState([
-    { id: '1', title: 'Optimize Nested Loops', difficulty: 'easy', completed: false },
-    { id: '2', title: 'Fix Security Issues', difficulty: 'medium', completed: false },
-    { id: '3', title: 'Reduce Complexity', difficulty: 'hard', completed: false },
-  ]);
+  const [challenges, setChallenges] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    const fetchChallenges = async () => {
+      try {
+        setLoading(true);
+        // Import API function dynamically to avoid circular dependencies
+        const { getChallenges } = await import('../api');
+        const data = await getChallenges();
+        setChallenges(data || []);
+        setError(null);
+      } catch (err) {
+        console.error('Failed to fetch challenges:', err);
+        setError('Failed to load challenges. Please check your connection.');
+        // Fallback to empty array
+        setChallenges([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchChallenges();
+  }, []);
 
   return (
     <div className="panel-content">
@@ -279,21 +299,41 @@ function ChallengesPanel() {
           Improve your programming skills by solving real code problems.
         </p>
         
-        <div className="challenges-list">
-          {challenges.map((challenge) => (
-            <div key={challenge.id} className="challenge-card">
-              <div className="challenge-info">
-                <h4>{challenge.title}</h4>
-                <span className={`difficulty ${challenge.difficulty}`}>
-                  {getDifficultyLabel(challenge.difficulty)}
-                </span>
+        {loading ? (
+          <div className="loading-state">
+            <div className="loader-spinner"></div>
+            <p>Loading challenges...</p>
+          </div>
+        ) : error ? (
+          <div className="error-state">
+            <AlertCircle size={24} className="error-icon" />
+            <p>{error}</p>
+          </div>
+        ) : challenges.length === 0 ? (
+          <div className="empty-state">
+            <Info size={48} className="info-icon" />
+            <p>No challenges available at the moment.</p>
+          </div>
+        ) : (
+          <div className="challenges-list">
+            {challenges.map((challenge) => (
+              <div key={challenge.id} className="challenge-card">
+                <div className="challenge-info">
+                  <h4>{challenge.title}</h4>
+                  <span className={`difficulty ${challenge.difficulty}`}>
+                    {getDifficultyLabel(challenge.difficulty)}
+                  </span>
+                  {challenge.points && (
+                    <span className="challenge-points">{challenge.points} pts</span>
+                  )}
+                </div>
+                <button className="btn btn-secondary">
+                  Start Challenge
+                </button>
               </div>
-              <button className="btn btn-secondary">
-                Start Challenge
-              </button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

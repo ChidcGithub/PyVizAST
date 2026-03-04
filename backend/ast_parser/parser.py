@@ -42,6 +42,7 @@ class ASTParser:
         NodeType.WHILE: {"color": "#a0a0a0", "shape": "diamond", "size": 20, "icon": "↻", "description": "While Loop"},
         NodeType.TRY: {"color": "#909090", "shape": "diamond", "size": 22, "icon": "⚠", "description": "Exception Handler"},
         NodeType.WITH: {"color": "#909090", "shape": "diamond", "size": 20, "icon": "▶", "description": "Context Manager"},
+        NodeType.MATCH: {"color": "#a0a0a0", "shape": "diamond", "size": 22, "icon": "⬡", "description": "Match Statement"},
         
         # Expressions
         NodeType.CALL: {"color": "#707070", "shape": "circle", "size": 15, "icon": "()", "description": "Function Call"},
@@ -118,6 +119,11 @@ class ASTParser:
             ast.Yield: NodeType.YIELD,
             ast.YieldFrom: NodeType.YIELD,
         }
+        
+        # Python 3.10+ match-case support
+        if hasattr(ast, 'Match'):
+            type_mapping[ast.Match] = NodeType.MATCH
+        
         return type_mapping.get(type(ast_node), NodeType.OTHER)
     
     def _get_node_name(self, ast_node: ast.AST) -> Optional[str]:

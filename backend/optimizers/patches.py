@@ -212,101 +212,149 @@ class PatchGenerator:
             return ''
     
     def _fix_string_concat(self, code: str) -> Optional[str]:
-        """Fix string concatenation in loops - Improved Version"""
-        lines = code.splitlines()
-        result_lines = []
+        """Fix string concatenation in loops - Improved Version
         
-        # Track string variables and their concatenation positions
-        string_vars_in_loops: Dict[str, Dict[str, Any]] = {}
-        loop_stack: List[Tuple[int, str]] = []  # (line_index, loop_var)
+        Handles:
+        - Proper loop tracking with indent-based scope detection
+        - Correct initialization placement before first use in correct scope
+        - Join statement addition at end of loop or before return/print
+        """
+        lines = code.splitlines()
+        
+        # Track string concatenation variables per loop scope
+        # Key: var_name, Value: dict with scope info
+        string_vars_info: Dict[str, Dict[str, Any]] = {}
         
         def get_indent(line: str) -> int:
             return len(line) - len(line.lstrip())
         
-        def is_inside_loop(current_indent: int) -> bool:
-            return any(loop_stack)
+        def is_string_value(value: str) -> bool:
+            """Check if value is likely a string"""
+            value = value.strip()
+            return (
+                value.startswith('"') or value.startswith("'") or
+                value.startswith('f"') or value.startswith("f'") or
+                'str(' in value or
+                value.endswith('"') or value.endswith("'")
+            )
         
-        i = 0
-        while i < len(lines):
-            line = lines[i]
+        # First pass: detect all string concatenations in loops
+        loop_indent_stack: List[int] = []  # Stack of loop indentation levels
+        
+        for i, line in enumerate(lines):
             stripped = line.strip()
             current_indent = get_indent(line)
             
-            # Track loops
-            if stripped.startswith('for ') or stripped.startswith('while '):
-                loop_stack.append((i, current_indent))
-                result_lines.append(line)
-                i += 1
-                continue
-            
-            # Detect loop end
-            while loop_stack and current_indent <= loop_stack[-1][1] and not stripped.startswith(('for ', 'while ', 'elif ', 'else:', 'except', 'finally:')):
-                if stripped and not stripped.startswith('#'):
-                    loop_stack.pop()
+            # Track loop entry/exit based on indentation
+            while loop_indent_stack and current_indent <= loop_indent_stack[-1]:
+                if stripped and not stripped.startswith(('for ', 'while ', 'elif ', 'else:', 'except', 'finally:', '#')):
+                    loop_indent_stack.pop()
+                else:
                     break
-                break
             
-            # Detect += string concatenation
-            if '+=' in line and is_inside_loop(current_indent):
+            # Track new loops
+            if stripped.startswith('for ') or stripped.startswith('while '):
+                loop_indent_stack.append(current_indent)
+            
+            # Detect += string concatenation inside loops
+            if '+=' in line and loop_indent_stack:
                 match = re.match(r'^(\s*)(\w+)\s*\+=\s*(.+)$', line)
                 if match:
                     indent, var_name, value = match.groups()
                     value = value.strip()
                     
-                    # Check if it might be string concatenation
-                    is_string_op = (
-                        '"' in value or "'" in value or 
-                        var_name in string_vars_in_loops or
-                        'str(' in value
-                    )
-                    
-                    if is_string_op:
-                        # Record this variable
-                        if var_name not in string_vars_in_loops:
-                            string_vars_in_loops[var_name] = {
+                    # Check if it's string concatenation
+                    if is_string_value(value) or var_name in string_vars_info:
+                        if var_name not in string_vars_info:
+                            string_vars_info[var_name] = {
                                 'first_line': i,
-                                'indent': len(indent),
-                                'parts_name': f'{var_name}_parts'
+                                'indent': current_indent,
+                                'loop_indent': loop_indent_stack[-1],
+                                'parts_name': f'{var_name}_parts',
+                                'lines': [i],
                             }
-                        
-                        # Replace with append
-                        result_lines.append(f'{indent}{var_name}_parts.append({value})')
-                        i += 1
-                        continue
-            
-            result_lines.append(line)
-            i += 1
+                        else:
+                            string_vars_info[var_name]['lines'].append(i)
         
-        # Add initialization and join statements
-        if string_vars_in_loops:
-            final_lines = []
-            added_init: Set[str] = set()
-            
-            for i, line in enumerate(result_lines):
-                # Check if initialization needs to be added at this position
-                for var_name, info in string_vars_in_loops.items():
-                    if var_name not in added_init:
-                        # Find first use position of variable
-                        if f'{var_name}_parts.append' in line:
-                            indent = ' ' * info['indent']
-                            # Add initialization before use
-                            final_lines.append(f'{indent}{info["parts_name"]} = []')
-                            added_init.add(var_name)
-                
-                final_lines.append(line)
-                
-                # Check if join needs to be added before return
-                for var_name, info in string_vars_in_loops.items():
-                    if var_name in added_init and f'return {var_name}' in line:
-                        indent = ' ' * info['indent']
-                        # Add join before return
-                        join_line = f"{indent}{var_name} = ''.join({info['parts_name']})"
-                        final_lines.insert(-1, join_line)
-            
-            result = '\n'.join(final_lines)
-        else:
-            result = '\n'.join(result_lines)
+        if not string_vars_info:
+            return None
         
+        # Second pass: apply transformations
+        result_lines = lines.copy()
+        added_inits: Set[str] = set()
+        added_joins: Set[str] = set()
+        
+        # Process from back to front to preserve line numbers during insertion
+        for var_name, info in sorted(string_vars_info.items(), 
+                                     key=lambda x: x[1]['first_line'], 
+                                     reverse=True):
+            parts_name = info['parts_name']
+            loop_indent = info['loop_indent']
+            first_line = info['first_line']
+            
+            # Find the loop start line for initialization placement
+            loop_start_line = first_line
+            for j in range(first_line, -1, -1):
+                stripped = lines[j].strip()
+                if stripped.startswith('for ') or stripped.startswith('while '):
+                    if get_indent(lines[j]) == loop_indent:
+                        loop_start_line = j
+                        break
+            
+            # Transform += lines to append
+            for line_idx in sorted(info['lines'], reverse=True):
+                line = result_lines[line_idx]
+                match = re.match(r'^(\s*)(\w+)\s*\+=\s*(.+)$', line)
+                if match:
+                    indent, _, value = match.groups()
+                    result_lines[line_idx] = f'{indent}{parts_name}.append({value.strip()})'
+            
+            # Add initialization after loop start
+            if var_name not in added_inits:
+                init_line = loop_start_line + 1
+                init_indent = loop_indent + 4  # One level inside loop
+                result_lines.insert(init_line, ' ' * init_indent + f'{parts_name} = []')
+                added_inits.add(var_name)
+                # Adjust line indices after insertion
+                for other_name, other_info in string_vars_info.items():
+                    if other_name != var_name:
+                        other_info['first_line'] += 1
+                        other_info['lines'] = [l + 1 for l in other_info['lines']]
+            
+            # Find where to add join statement
+            # Look for return, print, or end of function
+            join_added = False
+            for j in range(info['lines'][-1] + 1, len(result_lines)):
+                stripped = result_lines[j].strip()
+                join_indent = loop_indent + 4
+                
+                # Add join before return/print that uses the variable
+                if f'return {var_name}' in result_lines[j] or f'print({var_name}' in result_lines[j]:
+                    result_lines.insert(j, ' ' * join_indent + f"{var_name} = ''.join({parts_name})")
+                    join_added = True
+                    added_joins.add(var_name)
+                    break
+                
+                # Check for end of scope (dedent to loop level or less)
+                if stripped and not stripped.startswith('#'):
+                    if get_indent(result_lines[j]) <= loop_indent:
+                        # End of loop scope, add join before this line
+                        result_lines.insert(j, ' ' * join_indent + f"{var_name} = ''.join({parts_name})")
+                        join_added = True
+                        added_joins.add(var_name)
+                        break
+            
+            # If no suitable location found, add at end of loop body
+            if not join_added and var_name not in added_joins:
+                # Find last line of the loop
+                last_concat_line = max(info['lines'])
+                for j in range(last_concat_line + 1, len(result_lines)):
+                    if get_indent(result_lines[j]) <= loop_indent and result_lines[j].strip():
+                        join_indent = loop_indent + 4
+                        result_lines.insert(j, ' ' * join_indent + f"{var_name} = ''.join({parts_name})")
+                        break
+        
+        result = '\n'.join(result_lines)
         return result if result != code else None
     
     def _fix_list_membership(self, code: str) -> Optional[str]:

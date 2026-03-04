@@ -623,6 +623,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
           // Add signal class to target node when particle is approaching
           let signalAdded = false;
           let animationCancelled = false;
+          let currentFrameId = null;
           
           // Animate particle (tracked for cleanup)
           const animateParticle = () => {
@@ -642,8 +643,8 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
               setSignalParticles(prev => 
                 prev.map(p => p.id === uniqueParticleId ? { ...p, progress } : p)
               );
-              const frameId = requestAnimationFrame(animateParticle);
-              particle.currentFrameId = frameId;
+              currentFrameId = requestAnimationFrame(animateParticle);
+              animationFramesRef.current.add(currentFrameId);
             } else {
               // Remove particle when done
               setSignalParticles(prev => prev.filter(p => p.id !== uniqueParticleId));
@@ -651,19 +652,23 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
               // Transition to pulse effect
               targetNode.removeClass('signal-approaching');
               targetNode.addClass('signal-pulse');
-              const pulseTimerId = setTimeout(() => targetNode.removeClass('signal-pulse'), 400);
+              const pulseTimerId = setTimeout(() => {
+                targetNode.removeClass('signal-pulse');
+                timersRef.current.delete(pulseTimerId);
+              }, 400);
               timersRef.current.add(pulseTimerId);
             }
           };
           
-          const frameId = requestAnimationFrame(animateParticle);
-          particle.currentFrameId = frameId;
+          currentFrameId = requestAnimationFrame(animateParticle);
+          animationFramesRef.current.add(currentFrameId);
           
           // Register cleanup function
           const cancelAnimation = () => {
             animationCancelled = true;
-            if (particle.currentFrameId) {
-              cancelAnimationFrame(particle.currentFrameId);
+            if (currentFrameId) {
+              cancelAnimationFrame(currentFrameId);
+              animationFramesRef.current.delete(currentFrameId);
             }
           };
           particleCleanupRef.current.push(cancelAnimation);

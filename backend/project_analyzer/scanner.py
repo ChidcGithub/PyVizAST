@@ -41,9 +41,9 @@ DEFAULT_IGNORE_DIRS = {
 }
 
 # File patterns ignored by default
+# Note: setup.py is NOT ignored by default as it may contain important project configuration
 DEFAULT_IGNORE_PATTERNS = {
-    'setup.py',
-    'conftest.py',
+    'conftest.py',  # pytest configuration files
 }
 
 

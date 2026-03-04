@@ -1,10 +1,10 @@
 # PyVizAST
 
-[![Version](https://img.shields.io/badge/Version-0.4.0--beta3-blue.svg)](https://github.com/ChidcGithub/PyVizAST/releases/tag/v0.4.0-beta3)
+[![Version](https://img.shields.io/badge/Version-0.4.0--pre-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
-[![Status](https://img.shields.io/badge/Status-beta3-orange.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Status](https://img.shields.io/badge/Status-pre--release-orange.svg)](https://github.com/ChidcGithub/PyVizAST)
 
 A Python AST Visualizer & Static Analyzer that transforms code into interactive graphs. Detect complexity, performance bottlenecks, and code smells with actionable refactoring suggestions.
 
@@ -181,6 +181,25 @@ GNU General Public License v3.0
 Contributions are welcome. Please submit pull requests to the main repository.
 
 <details> <summary>Version History</summary>
+
+### v0.4.0-pre (2026-03-04)
+**Bug Fixes:**
+- Fixed temporary directory cleanup timing in project analysis (data loss issue)
+- Fixed boolean detection logic in performance analyzer (nested ternary expression)
+- Fixed string concatenation patch generator (loop tracking, init/join placement)
+- Fixed memory leak in AST visualizer (animation frame cleanup)
+- Fixed retry logic overriding user cancellation (AbortError/CanceledError)
+- Fixed hardcoded secret false positives (now excludes env vars, config objects)
+
+**New Features:**
+- Added Python 3.10+ `match-case` statement support (NodeType.MATCH)
+- ChallengesPanel now fetches real data from API instead of hardcoded values
+
+**Improvements:**
+- Relaxed CodeIssue.type validation (allows more issue types with logging)
+- Removed `setup.py` from default ignore patterns (may contain important config)
+- Improved hardcoded secret detection with better exclusion patterns
+- Unified API version strings to 0.4.0
 
 ### v0.4.0-beta3 (2026-03-04)
 **New Features:**

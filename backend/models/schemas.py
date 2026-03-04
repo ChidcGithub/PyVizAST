@@ -31,6 +31,7 @@ class NodeType(str, Enum):
     WHILE = "while"
     TRY = "try"
     WITH = "with"
+    MATCH = "match"  # Python 3.10+ match-case statement
     
     # Expressions
     CALL = "call"
@@ -129,10 +130,13 @@ class CodeIssue(BaseModel):
     @field_validator('type')
     @classmethod
     def validate_type(cls, v: str) -> str:
-        """Validate issue type"""
-        allowed_types = {'complexity', 'performance', 'code_smell', 'security'}
-        if v not in allowed_types:
-            raise ValueError(f'Issue type must be one of: {allowed_types}')
+        """Validate issue type - allows known types and logs warnings for unknown types"""
+        known_types = {'complexity', 'performance', 'code_smell', 'security', 'style', 'formatting', 'type_check', 'lint'}
+        if v not in known_types:
+            # Allow unknown types but could log a warning in production
+            # For now, just normalize the type
+            import logging
+            logging.getLogger(__name__).debug(f"Unknown issue type: {v}, consider adding to known_types")
         return v
 
 
