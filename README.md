@@ -8,6 +8,20 @@
 
 A Python AST Visualizer & Static Analyzer that transforms code into interactive graphs. Detect complexity, performance bottlenecks, and code smells with actionable refactoring suggestions.
 
+## Screenshots
+
+### Single File Analyze
+![img.png](img.png)
+![img_4.png](img_4.png)
+![img_2.png](img_2.png)
+![img_3.png](img_3.png)
+
+---
+
+### Project & Multiple Files Analyze
+
+![img_1.png](img_1.png)
+
 ## Features
 
 ### Code Parsing & Visualization Engine
