@@ -193,6 +193,38 @@ class ASTParser:
         # Generate node explanation (for learning mode)
         explanation = self._generate_node_explanation(ast_node, node_type, name, attributes)
         
+        # Calculate code metrics
+        line_count = 0
+        char_count = 0
+        indent_level = col_offset // 4 if col_offset else 0
+        
+        if lineno and end_lineno:
+            line_count = end_lineno - lineno + 1
+        
+        # Extract extended information
+        return_type = attributes.get('return_type')
+        parameter_types = attributes.get('parameter_types', {})
+        default_values = attributes.get('default_values', {})
+        is_generator = attributes.get('is_generator', False)
+        is_async = attributes.get('is_async', False)
+        
+        # Class specific
+        method_count = attributes.get('method_count', 0)
+        attribute_count = attributes.get('attribute_count', 0)
+        
+        # Function specific - count local variables
+        local_var_count = 0
+        if isinstance(ast_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            local_var_count = self._count_local_variables(ast_node)
+        
+        # Detect patterns
+        patterns = self._detect_patterns(ast_node)
+        
+        # Extract dependencies
+        deps = self._extract_dependencies(ast_node)
+        imports_used = deps['imports_used']
+        functions_called = deps['functions_called']
+        
         return ASTNode(
             id=node_id,
             type=node_type,
@@ -212,7 +244,24 @@ class ASTParser:
             icon=style.get("icon", "•"),
             description=style.get("description", ""),
             detailed_label=detailed_label,
-            explanation=explanation
+            explanation=explanation,
+            # Extended information
+            line_count=line_count,
+            char_count=char_count,
+            indent_level=indent_level,
+            return_type=return_type,
+            parameter_types=parameter_types,
+            default_values=default_values,
+            method_count=method_count,
+            attribute_count=attribute_count,
+            local_var_count=local_var_count,
+            has_try_except=patterns['has_try_except'],
+            has_loop=patterns['has_loop'],
+            has_recursion=patterns['has_recursion'],
+            is_generator=is_generator,
+            is_async=is_async,
+            imports_used=imports_used,
+            functions_called=functions_called
         )
     
     def _generate_detailed_label(self, ast_node: ast.AST, node_type: NodeType, 
@@ -423,10 +472,49 @@ class ASTParser:
             attrs['args'] = [arg.arg for arg in ast_node.args.args]
             attrs['decorators'] = [self._get_decorator_name(d) for d in ast_node.decorator_list]
             attrs['is_async'] = isinstance(ast_node, ast.AsyncFunctionDef)
+            
+            # Extract return type annotation
+            if ast_node.returns:
+                attrs['return_type'] = self._get_annotation_string(ast_node.returns)
+            
+            # Extract parameter type annotations
+            param_types = {}
+            for arg in ast_node.args.args:
+                if arg.annotation:
+                    param_types[arg.arg] = self._get_annotation_string(arg.annotation)
+            if param_types:
+                attrs['parameter_types'] = param_types
+            
+            # Extract default values
+            defaults = {}
+            num_defaults = len(ast_node.args.defaults)
+            num_args = len(ast_node.args.args)
+            for i, default in enumerate(ast_node.args.defaults):
+                arg_idx = num_args - num_defaults + i
+                arg_name = ast_node.args.args[arg_idx].arg
+                defaults[arg_name] = self._get_default_value_string(default)
+            if defaults:
+                attrs['default_values'] = defaults
+            
+            # Check if generator (contains yield)
+            attrs['is_generator'] = self._contains_yield(ast_node)
         
         elif isinstance(ast_node, ast.ClassDef):
             attrs['bases'] = [self._get_base_name(b) for b in ast_node.bases]
             attrs['decorators'] = [self._get_decorator_name(d) for d in ast_node.decorator_list]
+            
+            # Count methods and attributes
+            method_count = 0
+            attribute_count = 0
+            for item in ast_node.body:
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    method_count += 1
+                elif isinstance(item, ast.Assign):
+                    for target in item.targets:
+                        if isinstance(target, ast.Name):
+                            attribute_count += 1
+            attrs['method_count'] = method_count
+            attrs['attribute_count'] = attribute_count
         
         elif isinstance(ast_node, ast.For):
             attrs['target'] = self._get_target_name(ast_node.target)
@@ -479,6 +567,95 @@ class ASTParser:
             return target.id
         return "unknown"
     
+    def _get_annotation_string(self, annotation: ast.AST) -> str:
+        """Get type annotation as string"""
+        if isinstance(annotation, ast.Name):
+            return annotation.id
+        elif isinstance(annotation, ast.Constant):
+            return repr(annotation.value)
+        elif isinstance(annotation, ast.Attribute):
+            return self._get_attribute_name(annotation)
+        elif isinstance(annotation, ast.Subscript):
+            value = self._get_annotation_string(annotation.value)
+            slice_str = self._get_annotation_string(annotation.slice)
+            return f"{value}[{slice_str}]"
+        elif isinstance(annotation, ast.Tuple):
+            elements = [self._get_annotation_string(el) for el in annotation.elts]
+            return ', '.join(elements)
+        return "Any"
+    
+    def _get_default_value_string(self, default: ast.AST) -> str:
+        """Get default value as string representation"""
+        try:
+            return ast.unparse(default) if hasattr(ast, 'unparse') else repr(default)
+        except Exception:
+            return "..."
+    
+    def _contains_yield(self, node: ast.AST) -> bool:
+        """Check if function contains yield statement (is a generator)"""
+        for child in ast.walk(node):
+            if isinstance(child, (ast.Yield, ast.YieldFrom)):
+                return True
+        return False
+    
+    def _count_local_variables(self, func_node: ast.FunctionDef) -> int:
+        """Count local variables in a function"""
+        local_vars = set()
+        # Parameters are not local variables
+        params = {arg.arg for arg in func_node.args.args}
+        
+        for child in ast.walk(func_node):
+            if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store):
+                if child.id not in params and not child.id.startswith('_'):
+                    local_vars.add(child.id)
+        
+        return len(local_vars)
+    
+    def _detect_patterns(self, node: ast.AST) -> Dict[str, bool]:
+        """Detect code patterns in a node"""
+        patterns = {
+            'has_try_except': False,
+            'has_loop': False,
+            'has_recursion': False
+        }
+        
+        func_name = None
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            func_name = node.name
+        
+        for child in ast.walk(node):
+            if isinstance(child, ast.Try):
+                patterns['has_try_except'] = True
+            elif isinstance(child, (ast.For, ast.While)):
+                patterns['has_loop'] = True
+            elif isinstance(child, ast.Call) and func_name:
+                # Check for direct recursion
+                if isinstance(child.func, ast.Name) and child.func.id == func_name:
+                    patterns['has_recursion'] = True
+        
+        return patterns
+    
+    def _extract_dependencies(self, node: ast.AST) -> Dict[str, List[str]]:
+        """Extract imports used and functions called in a scope"""
+        imports_used = set()
+        functions_called = set()
+        
+        for child in ast.walk(node):
+            if isinstance(child, ast.Name):
+                # Check if it's a potential import reference
+                imports_used.add(child.id)
+            elif isinstance(child, ast.Call):
+                # Get function name
+                if isinstance(child.func, ast.Name):
+                    functions_called.add(child.func.id)
+                elif isinstance(child.func, ast.Attribute):
+                    functions_called.add(child.func.attr)
+        
+        return {
+            'imports_used': list(imports_used),
+            'functions_called': list(functions_called)
+        }
+    
     def _create_edge(self, source_id: str, target_id: str, edge_type: str, label: Optional[str] = None) -> ASTEdge:
         """Create an edge"""
         edge_id = f"edge_{len(self.edges) + 1}"
@@ -530,6 +707,9 @@ class ASTParser:
         
         # Build import relationships
         self._build_import_relationships()
+        
+        # Post-process: calculate additional metrics
+        self._post_process_nodes()
         
         return ASTGraph(
             nodes=list(self.nodes.values()),
@@ -654,6 +834,76 @@ class ASTParser:
                     node.id, import_nodes[node.name], "import-usage", node.name
                 )
                 self.edges.append(edge)
+    
+    def _post_process_nodes(self):
+        """Post-process nodes to calculate additional metrics"""
+        # Build node lookup by ID
+        node_map = self.nodes
+        
+        # Count function calls for each function
+        call_counts = {}  # function_name -> count
+        for node in node_map.values():
+            if node.type == NodeType.CALL and node.name:
+                call_counts[node.name] = call_counts.get(node.name, 0) + 1
+        
+        # Calculate depth and total descendants for each node
+        def get_depth(node_id: str, visited: set) -> int:
+            if node_id in visited:
+                return 0
+            visited.add(node_id)
+            node = node_map.get(node_id)
+            if not node or not node.parent:
+                return 0
+            return 1 + get_depth(node.parent, visited)
+        
+        def count_descendants(node_id: str, visited: set) -> int:
+            if node_id in visited:
+                return 0
+            visited.add(node_id)
+            node = node_map.get(node_id)
+            if not node or not node.children:
+                return 0
+            count = len(node.children)
+            for child_id in node.children:
+                count += count_descendants(child_id, visited.copy())
+            return count
+        
+        def get_scope_name(node_id: str) -> Optional[str]:
+            """Get the enclosing function or class name"""
+            node = node_map.get(node_id)
+            if not node or not node.parent:
+                return None
+            
+            parent = node_map.get(node.parent)
+            if not parent:
+                return None
+            
+            if parent.type in (NodeType.FUNCTION, NodeType.CLASS) and parent.name:
+                return parent.name
+            
+            return get_scope_name(node.parent)
+        
+        # Update each node with calculated metrics
+        for node_id, node in node_map.items():
+            # Child count (already have this from children list)
+            node.child_count = len(node.children)
+            
+            # Total descendants
+            node.total_descendants = count_descendants(node_id, set())
+            
+            # Depth
+            node.depth = get_depth(node_id, set())
+            
+            # Scope name
+            node.scope_name = get_scope_name(node_id)
+            
+            # Is called count (for functions)
+            if node.type == NodeType.FUNCTION and node.name:
+                node.is_called_count = call_counts.get(node.name, 0)
+            
+            # Calculate char_count from source_code
+            if node.source_code:
+                node.char_count = len(node.source_code)
     
     def _count_node_types(self) -> Dict[str, int]:
         """Count nodes by type"""

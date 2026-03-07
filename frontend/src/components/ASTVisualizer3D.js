@@ -8,6 +8,13 @@ const MAX_NODES_3D = 200;
 const NODE_SPACING = 3;
 const LAYOUT_ITERATIONS = 100;
 
+// Layout types
+const LAYOUT_TYPES = {
+  HIERARCHICAL: 'hierarchical',
+  SCOPE_GROUPED: 'scope-grouped',
+  FORCE_DIRECTED: 'force-directed'
+};
+
 // Color palette for different node types
 const NODE_COLORS = {
   module: '#ffffff',
@@ -185,6 +192,286 @@ function getNodeLevel(node, allNodes) {
   }
   
   return level;
+}
+
+/**
+ * Hierarchical tree layout - clean vertical tree structure
+ */
+function computeHierarchicalLayout(nodes, edges) {
+  if (nodes.length === 0) return new Map();
+  
+  const positions = new Map();
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  
+  // Build children map
+  const childrenMap = new Map();
+  nodes.forEach(n => childrenMap.set(n.id, []));
+  edges.forEach(edge => {
+    if (edge.type === 'parent-child' && childrenMap.has(edge.source)) {
+      childrenMap.get(edge.source).push(edge.target);
+    }
+  });
+  
+  // Calculate subtree widths
+  const subtreeWidths = new Map();
+  
+  function calculateSubtreeWidth(nodeId) {
+    const children = childrenMap.get(nodeId) || [];
+    if (children.length === 0) {
+      subtreeWidths.set(nodeId, 1);
+      return 1;
+    }
+    let width = 0;
+    children.forEach(childId => {
+      width += calculateSubtreeWidth(childId);
+    });
+    subtreeWidths.set(nodeId, width);
+    return width;
+  }
+  
+  // Find root (module or node without parent)
+  const root = nodes.find(n => !n.parent) || nodes[0];
+  if (root) {
+    calculateSubtreeWidth(root.id);
+  }
+  
+  // Position nodes using Reingold-Tilford style algorithm
+  function positionNode(nodeId, x, y, z, leftBound, rightBound) {
+    const node = nodeMap.get(nodeId);
+    const children = childrenMap.get(nodeId) || [];
+    
+    // Position current node
+    positions.set(nodeId, { x, y, z, vx: 0, vy: 0, vz: 0 });
+    
+    if (children.length === 0) return;
+    
+    const totalWidth = subtreeWidths.get(nodeId) || children.length;
+    const childSpacing = (rightBound - leftBound) / children.length;
+    const levelHeight = NODE_SPACING * 1.5;
+    
+    children.forEach((childId, index) => {
+      const childLeft = leftBound + index * childSpacing;
+      const childRight = childLeft + childSpacing;
+      const childX = (childLeft + childRight) / 2;
+      const childZ = 0;
+      
+      positionNode(childId, childX, y - levelHeight, childZ, childLeft, childRight);
+    });
+  }
+  
+  // Start positioning from root
+  const totalWidth = subtreeWidths.get(root?.id) || nodes.length;
+  positionNode(root?.id, 0, 0, 0, -totalWidth * NODE_SPACING / 2, totalWidth * NODE_SPACING / 2);
+  
+  // Handle orphan nodes
+  let orphanZ = 10;
+  nodes.forEach(node => {
+    if (!positions.has(node.id)) {
+      positions.set(node.id, {
+        x: (Math.random() - 0.5) * 20,
+        y: -getNodeLevel(node, nodes) * NODE_SPACING * 1.5,
+        z: orphanZ,
+        vx: 0, vy: 0, vz: 0
+      });
+      orphanZ += 2;
+    }
+  });
+  
+  return positions;
+}
+
+/**
+ * Scope-grouped layout - groups nodes by their scope (function/class)
+ */
+function computeScopeGroupedLayout(nodes, edges) {
+  if (nodes.length === 0) return new Map();
+  
+  const positions = new Map();
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  
+  // Group nodes by scope
+  const scopeGroups = new Map(); // scope_name -> [nodes]
+  const scopePositions = new Map(); // scope_name -> {x, y, z}
+  
+  nodes.forEach(node => {
+    const scopeName = node.scope_name || '__root__';
+    if (!scopeGroups.has(scopeName)) {
+      scopeGroups.set(scopeName, []);
+    }
+    scopeGroups.get(scopeName).push(node);
+  });
+  
+  // Arrange scope groups in a grid
+  const scopeNames = Array.from(scopeGroups.keys());
+  const gridCols = Math.ceil(Math.sqrt(scopeNames.length));
+  const gridSpacing = 15;
+  
+  scopeNames.forEach((scopeName, index) => {
+    const row = Math.floor(index / gridCols);
+    const col = index % gridCols;
+    scopePositions.set(scopeName, {
+      x: (col - gridCols / 2) * gridSpacing,
+      y: -row * gridSpacing * 0.8,
+      z: 0
+    });
+  });
+  
+  // Position nodes within each scope group in a circle
+  scopeGroups.forEach((groupNodes, scopeName) => {
+    const scopePos = scopePositions.get(scopeName);
+    const radius = Math.max(3, groupNodes.length * 0.5);
+    
+    groupNodes.forEach((node, index) => {
+      const angle = (index / groupNodes.length) * Math.PI * 2;
+      const innerRadius = groupNodes.length > 1 ? radius : 0;
+      
+      positions.set(node.id, {
+        x: scopePos.x + Math.cos(angle) * innerRadius,
+        y: scopePos.y + Math.sin(angle) * innerRadius * 0.5,
+        z: scopePos.z + (index % 2 === 0 ? 1 : -1) * (index * 0.2),
+        vx: 0, vy: 0, vz: 0
+      });
+    });
+  });
+  
+  return positions;
+}
+
+/**
+ * Optimized force-directed layout with better parameters
+ */
+function computeOptimizedForceLayout(nodes, edges, iterations = 150) {
+  if (nodes.length === 0) return new Map();
+  
+  const positions = new Map();
+  const nodeMap = new Map();
+  
+  // Initialize positions based on hierarchy
+  nodes.forEach((node, i) => {
+    const level = getNodeLevel(node, nodes);
+    const angle = (i / nodes.length) * Math.PI * 2;
+    const radius = level * NODE_SPACING * 1.5;
+    
+    positions.set(node.id, {
+      x: Math.cos(angle) * radius,
+      y: -level * NODE_SPACING * 1.2, // Negative for downward tree
+      z: Math.sin(angle) * radius * 0.3, // Flatter in Z
+      vx: 0, vy: 0, vz: 0
+    });
+    nodeMap.set(node.id, node);
+  });
+  
+  // Build adjacency list
+  const adjacency = new Map();
+  nodes.forEach(node => adjacency.set(node.id, new Set()));
+  edges.forEach(edge => {
+    if (adjacency.has(edge.source)) {
+      adjacency.get(edge.source).add(edge.target);
+    }
+    if (adjacency.has(edge.target)) {
+      adjacency.get(edge.target).add(edge.source);
+    }
+  });
+  
+  // Optimized force parameters
+  const repulsion = 25; // Increased repulsion
+  const attraction = 0.03; // Decreased attraction
+  const damping = 0.85;
+  const gravity = 0.02;
+  const levelSpacing = 5; // Strong level separation
+  
+  for (let iter = 0; iter < iterations; iter++) {
+    // Repulsion between all nodes
+    const posArray = Array.from(positions.entries());
+    for (let i = 0; i < posArray.length; i++) {
+      for (let j = i + 1; j < posArray.length; j++) {
+        const [, p1] = posArray[i];
+        const [, p2] = posArray[j];
+        
+        const dx = p1.x - p2.x;
+        const dy = p1.y - p2.y;
+        const dz = p1.z - p2.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.1;
+        
+        const force = repulsion / (dist * dist);
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+        const fz = (dz / dist) * force;
+        
+        p1.vx += fx;
+        p1.vy += fy;
+        p1.vz += fz;
+        p2.vx -= fx;
+        p2.vy -= fy;
+        p2.vz -= fz;
+      }
+    }
+    
+    // Attraction along edges
+    edges.forEach(edge => {
+      const p1 = positions.get(edge.source);
+      const p2 = positions.get(edge.target);
+      if (!p1 || !p2) return;
+      
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const dz = p2.z - p1.z;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.1;
+      
+      const force = (dist - NODE_SPACING * 2.5) * attraction;
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+      const fz = (dz / dist) * force;
+      
+      p1.vx += fx;
+      p1.vy += fy;
+      p1.vz += fz;
+      p2.vx -= fx;
+      p2.vy -= fy;
+      p2.vz -= fz;
+    });
+    
+    // Level-based Y position constraint
+    positions.forEach((p, nodeId) => {
+      const node = nodeMap.get(nodeId);
+      const targetY = -getNodeLevel(node, nodes) * levelSpacing;
+      p.vy += (targetY - p.y) * 0.1; // Pull towards level position
+    });
+    
+    // Gravity toward center
+    positions.forEach(p => {
+      p.vx -= p.x * gravity;
+      p.vy -= p.y * gravity * 0.3; // Less vertical gravity
+      p.vz -= p.z * gravity;
+    });
+    
+    // Apply velocity with damping
+    positions.forEach(p => {
+      p.vx *= damping;
+      p.vy *= damping;
+      p.vz *= damping;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.z += p.vz;
+    });
+  }
+  
+  return positions;
+}
+
+/**
+ * Main layout function dispatcher
+ */
+function computeLayout(nodes, edges, layoutType) {
+  switch (layoutType) {
+    case LAYOUT_TYPES.HIERARCHICAL:
+      return computeHierarchicalLayout(nodes, edges);
+    case LAYOUT_TYPES.SCOPE_GROUPED:
+      return computeScopeGroupedLayout(nodes, edges);
+    case LAYOUT_TYPES.FORCE_DIRECTED:
+    default:
+      return computeOptimizedForceLayout(nodes, edges);
+  }
 }
 
 /**
@@ -741,6 +1028,7 @@ function ASTVisualizer3D({ graph, theme, onGoToLine }) {
   const [focusedNode, setFocusedNode] = useState(null);
   const [signalParticles, setSignalParticles] = useState([]); // Particles traveling along edges
   const [detailLevel, setDetailLevel] = useState('normal');
+  const [layoutType, setLayoutType] = useState(LAYOUT_TYPES.HIERARCHICAL);
   const [isLayoutReady, setIsLayoutReady] = useState(false);
   const particleIdRef = useRef(0);
   const sceneRef = useRef(null); // Ref to access Scene methods
@@ -756,6 +1044,7 @@ function ASTVisualizer3D({ graph, theme, onGoToLine }) {
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
   const [highlightedNodeIds, setHighlightedNodeIds] = useState(new Set());
   const [isSearchResultHovered, setIsSearchResultHovered] = useState(false); // 跟踪搜索结果悬停
+  const [isPanelExpanded, setIsPanelExpanded] = useState(false); // 详细面板放大状态
   const searchInputRef = useRef(null);
   
   // Cleanup on unmount
@@ -816,6 +1105,7 @@ function ASTVisualizer3D({ graph, theme, onGoToLine }) {
     setIsSearchOpen(false);
     setHighlightedNodeIds(new Set());
     setFocusedNode(null);
+    setIsSearchResultHovered(false);
   }, []);
   
   // Focus on search result
@@ -823,6 +1113,29 @@ function ASTVisualizer3D({ graph, theme, onGoToLine }) {
     // Strict null check
     if (!node || typeof node !== 'object' || !node.id) return;
     setSelectedSearchIndex(index);
+    setSelectedNode(node);
+    setFocusedNode(node);
+  }, []);
+  
+  // Find node by ID
+  const findNodeById = useCallback((nodeId) => {
+    if (!graph || !graph.nodes) return null;
+    return graph.nodes.find(n => n && n.id === nodeId) || null;
+  }, [graph]);
+  
+  // Find node by name (for function calls)
+  const findNodeByName = useCallback((name) => {
+    if (!graph || !graph.nodes || !name) return null;
+    // Prefer function/class nodes with matching name
+    return graph.nodes.find(n => 
+      n && n.name === name && 
+      ['function', 'FunctionDef', 'AsyncFunctionDef', 'class', 'ClassDef'].includes(n.type)
+    ) || graph.nodes.find(n => n && n.name === name) || null;
+  }, [graph]);
+  
+  // Navigate to a node (set as selected and focused)
+  const navigateToNode = useCallback((node) => {
+    if (!node || !node.id) return;
     setSelectedNode(node);
     setFocusedNode(node);
   }, []);
@@ -894,7 +1207,15 @@ function ASTVisualizer3D({ graph, theme, onGoToLine }) {
         if (keep) nodeIds.add(node.id);
         return keep;
       });
+    } else if (detailLevel === 'minimal') {
+      // Minimal: only functions and classes
+      filteredNodes = graph.nodes.filter(node => {
+        const keep = ['function', 'FunctionDef', 'AsyncFunctionDef', 'class', 'ClassDef', 'Module'].includes(node.type);
+        if (keep) nodeIds.add(node.id);
+        return keep;
+      });
     } else {
+      // Overview: priority types only
       filteredNodes = graph.nodes.filter(node => {
         const keep = priorityTypes.has(node.type);
         if (keep) nodeIds.add(node.id);
@@ -912,10 +1233,10 @@ function ASTVisualizer3D({ graph, theme, onGoToLine }) {
   // Compute 3D layout
   const positions = useMemo(() => {
     setIsLayoutReady(false);
-    const result = compute3DLayout(filteredElements.nodes, filteredElements.edges);
+    const result = computeLayout(filteredElements.nodes, filteredElements.edges, layoutType);
     setIsLayoutReady(true);
     return result;
-  }, [filteredElements]);
+  }, [filteredElements, layoutType]);
   
   const handleNodeClick = useCallback((node) => {
     setSelectedNode(node);
@@ -1096,9 +1417,21 @@ function ASTVisualizer3D({ graph, theme, onGoToLine }) {
             onChange={(e) => setDetailLevel(e.target.value)}
             title="Detail level"
           >
+            <option value="minimal">Minimal</option>
             <option value="overview">Overview</option>
             <option value="normal">Normal</option>
             <option value="detail">Detail</option>
+          </select>
+          
+          <select 
+            className="simplify-select layout-select"
+            value={layoutType}
+            onChange={(e) => setLayoutType(e.target.value)}
+            title="Layout type"
+          >
+            <option value={LAYOUT_TYPES.HIERARCHICAL}>Tree</option>
+            <option value={LAYOUT_TYPES.SCOPE_GROUPED}>Grouped</option>
+            <option value={LAYOUT_TYPES.FORCE_DIRECTED}>Force</option>
           </select>
           
           <div className="toolbar-divider"></div>
@@ -1220,43 +1553,247 @@ function ASTVisualizer3D({ graph, theme, onGoToLine }) {
         
         {/* Node detail panel */}
         {(selectedNode || focusedNode) && (
-          <div className={`node-detail-panel ${focusedNode ? 'focused-panel' : ''} ${isSearchResultHovered ? 'dimmed' : ''}`}>
+          <div className={`node-detail-panel ${focusedNode ? 'focused-panel' : ''} ${isSearchResultHovered ? 'dimmed' : ''} ${isPanelExpanded ? 'expanded' : ''}`}>
             <div className="panel-header">
-              <div className="panel-header-main">
-                <span className="node-icon">{(focusedNode || selectedNode)?.icon || '•'}</span>
-                <h4>{(focusedNode || selectedNode)?.description || (focusedNode || selectedNode)?.type}</h4>
+              <div className="panel-header-left">
+                <div className="panel-header-main">
+                  <span className="node-icon">{(focusedNode || selectedNode)?.icon || '•'}</span>
+                  <h4>{(focusedNode || selectedNode)?.description || (focusedNode || selectedNode)?.type}</h4>
+                </div>
+                {(focusedNode || selectedNode)?.name && <span className="node-name">{(focusedNode || selectedNode)?.name}</span>}
               </div>
-              {(focusedNode || selectedNode)?.name && <span className="node-name">{(focusedNode || selectedNode)?.name}</span>}
+              <div className="panel-header-actions">
+                <button 
+                  className="panel-action-btn" 
+                  onClick={() => setIsPanelExpanded(!isPanelExpanded)}
+                  title={isPanelExpanded ? 'Collapse panel' : 'Expand panel'}
+                >
+                  {isPanelExpanded ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  )}
+                </button>
+                <button 
+                  className="panel-action-btn panel-close-btn" 
+                  onClick={() => { setSelectedNode(null); setFocusedNode(null); setIsPanelExpanded(false); }}
+                  title="Close panel"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div className="panel-body">
-              {(focusedNode || selectedNode)?.label && (
+              {/* Code Structure */}
+              {(focusedNode || selectedNode)?.detailed_label && (
                 <div className="detail-item code-label">
                   <span className="detail-label">Code Structure</span>
-                  <code className="detail-code">{(focusedNode || selectedNode)?.label}</code>
+                  <code className="detail-code">{(focusedNode || selectedNode)?.detailed_label}</code>
                 </div>
               )}
+              
+              {/* Location with line count */}
               {(focusedNode || selectedNode)?.lineno && (
                 <div className="detail-item">
                   <span className="detail-label">Location</span>
-                  <span className="detail-value">Line {(focusedNode || selectedNode)?.lineno}</span>
+                  <span className="detail-value">
+                    Line {(focusedNode || selectedNode)?.lineno}
+                    {(focusedNode || selectedNode)?.end_lineno && (focusedNode || selectedNode)?.end_lineno !== (focusedNode || selectedNode)?.lineno && 
+                      ` - ${(focusedNode || selectedNode)?.end_lineno}`}
+                    {(focusedNode || selectedNode)?.line_count > 0 && ` (${(focusedNode || selectedNode)?.line_count} lines)`}
+                  </span>
                 </div>
               )}
+              
+              {/* Structure Info */}
+              {((focusedNode || selectedNode)?.child_count > 0 || (focusedNode || selectedNode)?.depth > 0 || (focusedNode || selectedNode)?.scope_name) && (
+                <div className="detail-section">
+                  <span className="detail-section-title">Structure</span>
+                  <div className="detail-tags">
+                    {(focusedNode || selectedNode)?.child_count > 0 && (
+                      <span 
+                        className="detail-tag clickable" 
+                        title="Click to view children"
+                        onClick={() => {
+                          const children = (focusedNode || selectedNode)?.children;
+                          if (children && children.length > 0) {
+                            const firstChild = findNodeById(children[0]);
+                            if (firstChild) navigateToNode(firstChild);
+                          }
+                        }}
+                      >
+                        {(focusedNode || selectedNode)?.child_count} children
+                      </span>
+                    )}
+                    {(focusedNode || selectedNode)?.total_descendants > 0 && (
+                      <span className="detail-tag" title="Total descendants">{(focusedNode || selectedNode)?.total_descendants} descendants</span>
+                    )}
+                    {(focusedNode || selectedNode)?.depth > 0 && (
+                      <span className="detail-tag" title="Depth in tree">depth: {(focusedNode || selectedNode)?.depth}</span>
+                    )}
+                    {(focusedNode || selectedNode)?.scope_name && (
+                      <span 
+                        className="detail-tag scope clickable" 
+                        title="Click to view parent scope"
+                        onClick={() => {
+                          const scopeNode = findNodeByName((focusedNode || selectedNode)?.scope_name);
+                          if (scopeNode) navigateToNode(scopeNode);
+                        }}
+                      >
+                        in {(focusedNode || selectedNode)?.scope_name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Function-specific info */}
+              {['function', 'FunctionDef', 'AsyncFunctionDef'].includes((focusedNode || selectedNode)?.type) && (
+                <div className="detail-section">
+                  <span className="detail-section-title">Function Details</span>
+                  <div className="detail-function-info">
+                    {/* Return type */}
+                    {(focusedNode || selectedNode)?.return_type && (
+                      <div className="detail-row">
+                        <span className="detail-key">Return Type:</span>
+                        <code className="detail-value-code">{(focusedNode || selectedNode)?.return_type}</code>
+                      </div>
+                    )}
+                    
+                    {/* Parameters with types and defaults */}
+                    {((focusedNode || selectedNode)?.attributes?.args?.length > 0) && (
+                      <div className="detail-row">
+                        <span className="detail-key">Parameters:</span>
+                        <div className="param-list">
+                          {(focusedNode || selectedNode)?.attributes?.args?.map((arg, i) => {
+                            const paramType = (focusedNode || selectedNode)?.parameter_types?.[arg];
+                            const defaultVal = (focusedNode || selectedNode)?.default_values?.[arg];
+                            return (
+                              <span key={i} className="param-item">
+                                {arg}
+                                {paramType && <code className="param-type">: {paramType}</code>}
+                                {defaultVal && <span className="param-default"> = {defaultVal}</span>}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Function metrics */}
+                    <div className="detail-tags">
+                      {(focusedNode || selectedNode)?.local_var_count > 0 && (
+                        <span className="detail-tag">{(focusedNode || selectedNode)?.local_var_count} local vars</span>
+                      )}
+                      {(focusedNode || selectedNode)?.is_called_count > 0 && (
+                        <span className="detail-tag" title="Called this many times">called {(focusedNode || selectedNode)?.is_called_count}x</span>
+                      )}
+                      {(focusedNode || selectedNode)?.is_async && (
+                        <span className="detail-tag async">async</span>
+                      )}
+                      {(focusedNode || selectedNode)?.is_generator && (
+                        <span className="detail-tag generator">generator</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Class-specific info */}
+              {['class', 'ClassDef'].includes((focusedNode || selectedNode)?.type) && (
+                <div className="detail-section">
+                  <span className="detail-section-title">Class Details</span>
+                  <div className="detail-tags">
+                    {(focusedNode || selectedNode)?.method_count > 0 && (
+                      <span className="detail-tag">{(focusedNode || selectedNode)?.method_count} methods</span>
+                    )}
+                    {(focusedNode || selectedNode)?.attribute_count > 0 && (
+                      <span className="detail-tag">{(focusedNode || selectedNode)?.attribute_count} attributes</span>
+                    )}
+                    {(focusedNode || selectedNode)?.attributes?.bases?.length > 0 && (
+                      <span className="detail-tag" title="Inherits from">
+                        extends {(focusedNode || selectedNode)?.attributes?.bases?.join(', ')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Code Patterns */}
+              {((focusedNode || selectedNode)?.has_try_except || (focusedNode || selectedNode)?.has_loop || (focusedNode || selectedNode)?.has_recursion) && (
+                <div className="detail-section">
+                  <span className="detail-section-title">Code Patterns</span>
+                  <div className="detail-tags">
+                    {(focusedNode || selectedNode)?.has_try_except && (
+                      <span className="detail-tag pattern">try/except</span>
+                    )}
+                    {(focusedNode || selectedNode)?.has_loop && (
+                      <span className="detail-tag pattern">loop</span>
+                    )}
+                    {(focusedNode || selectedNode)?.has_recursion && (
+                      <span className="detail-tag pattern warning">recursion</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Functions Called */}
+              {(focusedNode || selectedNode)?.functions_called?.length > 0 && (
+                <div className="detail-section">
+                  <span className="detail-section-title">Calls</span>
+                  <div className="detail-tags">
+                    {(focusedNode || selectedNode)?.functions_called?.slice(0, 8).map((fn, i) => {
+                      const targetNode = findNodeByName(fn);
+                      return (
+                        <span 
+                          key={i} 
+                          className={`detail-tag callable ${targetNode ? 'clickable' : ''}`}
+                          title={targetNode ? `Click to view ${fn}` : fn}
+                          onClick={() => {
+                            if (targetNode) {
+                              navigateToNode(targetNode);
+                            }
+                          }}
+                        >
+                          {fn}()
+                        </span>
+                      );
+                    })}
+                    {(focusedNode || selectedNode)?.functions_called?.length > 8 && (
+                      <span className="detail-tag">+{(focusedNode || selectedNode)?.functions_called?.length - 8} more</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Explanation */}
               {(focusedNode || selectedNode)?.explanation && (
                 <div className="detail-item explanation">
                   <span className="detail-label">Description</span>
                   <p className="explanation-text">{(focusedNode || selectedNode)?.explanation}</p>
                 </div>
               )}
+              
+              {/* Docstring */}
               {(focusedNode || selectedNode)?.docstring && (
                 <div className="detail-item">
                   <span className="detail-label">Docstring</span>
                   <p className="docstring">{(focusedNode || selectedNode)?.docstring}</p>
                 </div>
               )}
-              {(focusedNode || selectedNode)?.sourceCode && (
+              
+              {/* Source Code */}
+              {(focusedNode || selectedNode)?.source_code && (
                 <div className="detail-item">
                   <span className="detail-label">Source Code</span>
-                  <pre className="source-code">{(focusedNode || selectedNode)?.sourceCode}</pre>
+                  <pre className="source-code">{(focusedNode || selectedNode)?.source_code}</pre>
                 </div>
               )}
             </div>

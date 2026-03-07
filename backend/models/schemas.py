@@ -86,6 +86,40 @@ class ASTNode(BaseModel):
     source_code: Optional[str] = None
     attributes: Dict[str, Any] = Field(default_factory=dict)
     
+    # Extended information for detailed view
+    # Code metrics
+    line_count: int = Field(default=0, ge=0, description="Number of lines in this node")
+    char_count: int = Field(default=0, ge=0, description="Number of characters")
+    indent_level: int = Field(default=0, ge=0, description="Indentation level")
+    
+    # Structure info
+    child_count: int = Field(default=0, ge=0, description="Number of direct children")
+    total_descendants: int = Field(default=0, ge=0, description="Total number of descendants")
+    depth: int = Field(default=0, ge=0, description="Depth in the tree")
+    scope_name: Optional[str] = Field(None, description="Name of enclosing scope")
+    
+    # Type annotations (for functions)
+    return_type: Optional[str] = Field(None, description="Return type annotation")
+    parameter_types: Dict[str, str] = Field(default_factory=dict, description="Parameter type annotations")
+    default_values: Dict[str, str] = Field(default_factory=dict, description="Default parameter values")
+    
+    # Function/Class specific
+    method_count: int = Field(default=0, ge=0, description="Number of methods (for classes)")
+    attribute_count: int = Field(default=0, ge=0, description="Number of attributes (for classes)")
+    local_var_count: int = Field(default=0, ge=0, description="Number of local variables (for functions)")
+    
+    # Code patterns
+    has_try_except: bool = Field(default=False, description="Contains try-except block")
+    has_loop: bool = Field(default=False, description="Contains loop")
+    has_recursion: bool = Field(default=False, description="May have recursion")
+    is_generator: bool = Field(default=False, description="Is a generator function")
+    is_async: bool = Field(default=False, description="Is async function/method")
+    
+    # Dependencies
+    imports_used: List[str] = Field(default_factory=list, description="Imports used in this scope")
+    functions_called: List[str] = Field(default_factory=list, description="Functions called in this scope")
+    is_called_count: int = Field(default=0, ge=0, description="Number of times this function is called")
+    
     @field_validator('end_lineno')
     @classmethod
     def validate_end_lineno(cls, v: Optional[int], info) -> Optional[int]:

@@ -584,7 +584,7 @@
   position: absolute;
   top: 14px;
   right: 14px;
-  width: 290px;
+  width: 320px;
   max-height: calc(100% - 28px);
   background: var(--bg-secondary);
   border: 1px solid var(--border-subtle);
@@ -592,12 +592,61 @@
   overflow: hidden;
   box-shadow: var(--shadow-lg);
   animation: slideInRight var(--transition-base) forwards;
+  transition: width 0.25s ease, max-height 0.25s ease;
+}
+
+/* Expanded panel - full right side */
+.node-detail-panel.expanded {
+  width: 400px;
+  max-height: calc(100% - 28px);
 }
 
 .panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   padding: 14px 16px;
   background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.panel-header-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+
+.panel-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.panel-action-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+.panel-action-btn.panel-close-btn:hover {
+  border-color: var(--error);
+  color: var(--error);
 }
 
 .panel-header h4 {
@@ -618,9 +667,14 @@
 }
 
 .panel-body {
-  padding: 14px 16px;
-  max-height: 280px;
+  padding: 16px;
+  max-height: 350px;
   overflow-y: auto;
+}
+
+/* Expanded panel body */
+.node-detail-panel.expanded .panel-body {
+  max-height: calc(100vh - 200px);
 }
 
 .detail-item {
@@ -735,7 +789,7 @@
   color: var(--text-secondary);
   cursor: pointer;
   transition: all var(--transition-fast);
-  margin-right: 8px;
+  margin-right: 4px;
 }
 
 .simplify-select:hover {
@@ -746,6 +800,10 @@
 .simplify-select:focus {
   outline: none;
   border-color: var(--border-emphasis);
+}
+
+.layout-select {
+  min-width: 80px;
 }
 
 .simplified-badge {
@@ -1910,4 +1968,213 @@
   font-size: 9px;
   color: var(--text-muted);
   text-transform: uppercase;
+}
+
+/* ========== Detail Panel Extended Styles ========== */
+
+.detail-section {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.detail-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.detail-section-title {
+  display: block;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.detail-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  font-size: 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-weight: 500;
+  transition: all var(--transition-fast);
+}
+
+.detail-tag:hover {
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+.detail-tag.scope {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+}
+
+.detail-tag.async {
+  background: rgba(96, 165, 250, 0.15);
+  border-color: rgba(96, 165, 250, 0.3);
+  color: #60a5fa;
+}
+
+.detail-tag.generator {
+  background: rgba(52, 211, 153, 0.15);
+  border-color: rgba(52, 211, 153, 0.3);
+  color: #34d399;
+}
+
+.detail-tag.pattern {
+  background: rgba(167, 139, 250, 0.15);
+  border-color: rgba(167, 139, 250, 0.3);
+  color: #a78bfa;
+}
+
+.detail-tag.pattern.warning {
+  background: rgba(251, 146, 60, 0.15);
+  border-color: rgba(251, 146, 60, 0.3);
+  color: #fb923c;
+}
+
+.detail-tag.callable {
+  font-family: var(--font-mono);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+/* Clickable tag styles */
+.detail-tag.clickable {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.detail-tag.clickable:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-emphasis);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.detail-tag.callable.clickable {
+  cursor: pointer;
+}
+
+.detail-tag.callable.clickable:hover {
+  background: rgba(96, 165, 250, 0.15);
+  border-color: rgba(96, 165, 250, 0.4);
+  color: #60a5fa;
+}
+
+.detail-function-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-key {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.detail-value-code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--bg-tertiary);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+}
+
+.param-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.param-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  font-size: 11px;
+  background: var(--bg-tertiary);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.param-type {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.param-default {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Enhanced panel body for more content */
+.node-detail-panel .panel-body {
+  max-height: 450px;
+}
+
+.node-detail-panel.focused-panel .panel-body {
+  max-height: 550px;
+}
+
+.node-detail-panel.expanded .panel-body {
+  max-height: calc(100vh - 160px);
+}
+
+/* Scrollbar for detail sections */
+.detail-section {
+  scrollbar-width: thin;
+}
+
+.detail-section::-webkit-scrollbar {
+  width: 3px;
+}
+
+.detail-section::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 10px;
+}
+
+/* Expanded panel optimizations */
+.node-detail-panel.expanded .detail-section {
+  margin-bottom: 18px;
+}
+
+.node-detail-panel.expanded .param-list {
+  gap: 8px;
+}
+
+.node-detail-panel.expanded .source-code {
+  font-size: 11px;
+  padding: 14px 16px;
+}
+
+.node-detail-panel.expanded .explanation-text {
+  font-size: 12px;
 }

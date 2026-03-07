@@ -135,9 +135,42 @@ class NodeMapper:
                     "shape": node.shape,
                     "size": node.size,
                     "lineno": node.lineno,
+                    "end_lineno": node.end_lineno,
                     "docstring": node.docstring,
                     "source_code": node.source_code,
-                    "attributes": node.attributes
+                    "attributes": node.attributes,
+                    # Extended information
+                    "icon": node.icon,
+                    "description": node.description,
+                    "detailed_label": node.detailed_label,
+                    "explanation": node.explanation,
+                    # Code metrics
+                    "line_count": node.line_count,
+                    "char_count": node.char_count,
+                    "indent_level": node.indent_level,
+                    # Structure info
+                    "child_count": node.child_count,
+                    "total_descendants": node.total_descendants,
+                    "depth": node.depth,
+                    "scope_name": node.scope_name,
+                    # Type annotations
+                    "return_type": node.return_type,
+                    "parameter_types": node.parameter_types,
+                    "default_values": node.default_values,
+                    # Function/Class specific
+                    "method_count": node.method_count,
+                    "attribute_count": node.attribute_count,
+                    "local_var_count": node.local_var_count,
+                    # Code patterns
+                    "has_try_except": node.has_try_except,
+                    "has_loop": node.has_loop,
+                    "has_recursion": node.has_recursion,
+                    "is_generator": node.is_generator,
+                    "is_async": node.is_async,
+                    # Dependencies
+                    "imports_used": node.imports_used,
+                    "functions_called": node.functions_called,
+                    "is_called_count": node.is_called_count
                 }
             })
         
@@ -171,9 +204,42 @@ class NodeMapper:
                 "shape": node.shape,
                 "size": node.size,
                 "lineno": node.lineno,
+                "end_lineno": node.end_lineno,
                 "docstring": node.docstring,
                 "source_code": node.source_code,
-                "attributes": node.attributes
+                "attributes": node.attributes,
+                # Extended information
+                "icon": node.icon,
+                "description": node.description,
+                "detailed_label": node.detailed_label,
+                "explanation": node.explanation,
+                # Code metrics
+                "line_count": node.line_count,
+                "char_count": node.char_count,
+                "indent_level": node.indent_level,
+                # Structure info
+                "child_count": node.child_count,
+                "total_descendants": node.total_descendants,
+                "depth": node.depth,
+                "scope_name": node.scope_name,
+                # Type annotations
+                "return_type": node.return_type,
+                "parameter_types": node.parameter_types,
+                "default_values": node.default_values,
+                # Function/Class specific
+                "method_count": node.method_count,
+                "attribute_count": node.attribute_count,
+                "local_var_count": node.local_var_count,
+                # Code patterns
+                "has_try_except": node.has_try_except,
+                "has_loop": node.has_loop,
+                "has_recursion": node.has_recursion,
+                "is_generator": node.is_generator,
+                "is_async": node.is_async,
+                # Dependencies
+                "imports_used": node.imports_used,
+                "functions_called": node.functions_called,
+                "is_called_count": node.is_called_count
             })
         
         links = []

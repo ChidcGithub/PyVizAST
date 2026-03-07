@@ -1,10 +1,10 @@
 # PyVizAST
 
-[![Version](https://img.shields.io/badge/Version-0.5.0--pre.2-orange.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Version](https://img.shields.io/badge/Version-0.5.0-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
-[![Status](https://img.shields.io/badge/Status-pre--release-orange.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Status](https://img.shields.io/badge/Status-stable-brightgreen.svg)](https://github.com/ChidcGithub/PyVizAST)
 
 A Python AST Visualizer & Static Analyzer that transforms code into interactive graphs. Detect complexity, performance bottlenecks, and code smells with actionable refactoring suggestions.
 
@@ -190,6 +190,45 @@ Contributions are welcome. Please submit pull requests to the main repository.
 <details>
 
 <summary>Version History</summary>
+
+<details>
+<summary>v0.5.0 (2026-03-07)</summary>
+
+**Enhanced Node Details:**
+- Backend extracts comprehensive node information:
+  - Code metrics: line count, character count, indent level
+  - Structure info: child count, total descendants, depth, scope name
+  - Type annotations: return type, parameter types, default values
+  - Function details: local variable count, call count, async/generator flags
+  - Class details: method count, attribute count, inheritance info
+  - Code patterns: try/except, loop, recursion detection
+- Frontend displays all new information in organized sections
+
+**Detail Panel Improvements:**
+- Expandable panel with enlarge/collapse buttons
+- Close button to dismiss panel
+- Expanded mode shows more comfortable spacing and larger fonts
+- Clickable tags for navigation:
+  - "children" tag navigates to first child node
+  - "in [scope]" tag navigates to parent scope
+  - Function calls in "Calls" section navigate to corresponding nodes
+
+**3D Layout Options:**
+- **Tree Layout**: Clean hierarchical tree structure (default)
+- **Grouped Layout**: Nodes grouped by scope in circular arrangements
+- **Force Layout**: Optimized force-directed algorithm with level constraints
+- New "Minimal" detail level: shows only functions and classes
+
+**Bug Fixes:**
+- Fixed detail panel not un-dimming when clicking search result
+- Fixed search result hover state not cleared on search close
+
+**Backend Optimizations:**
+- Improved AST parsing with more attribute extraction
+- Enhanced node mapper to include all new fields
+- Added helper functions for type annotations and code patterns
+
+</details>
 
 <details>
 <summary>v0.5.0-pre.2 (2026-03-07)</summary>
