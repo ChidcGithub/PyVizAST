@@ -856,9 +856,7 @@ class PatchGenerator:
                 match = re.match(r'@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@', line)
                 if match:
                     old_start = int(match.group(1))
-                    old_count = int(match.group(2) or 1)
                     new_start = int(match.group(3))
-                    new_count = int(match.group(4) or 1)
                     
                     current_hunk = {
                         'start_line': new_start,

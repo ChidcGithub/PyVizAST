@@ -6,7 +6,6 @@ import * as THREE from 'three';
 // Performance constants
 const MAX_NODES_3D = 200;
 const NODE_SPACING = 3;
-const LAYOUT_ITERATIONS = 100;
 
 // Layout types
 const LAYOUT_TYPES = {
@@ -83,7 +82,6 @@ function computeHierarchicalLayout(nodes, edges) {
   if (nodes.length === 0) return new Map();
   
   const positions = new Map();
-  const nodeMap = new Map(nodes.map(n => [n.id, n]));
   
   // Build children map
   const childrenMap = new Map();
