@@ -6,33 +6,33 @@
   background: var(--bg-primary);
   /* 微妙纹理背景 */
   background-image: 
-    radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.015) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.01) 0%, transparent 50%);
+    radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.018) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.012) 0%, transparent 50%);
 }
 
 .panel-content {
-  padding: 24px;
+  padding: 26px;
   max-width: 100%;
 }
 
 /* Section - 信息层级优化 */
 .section {
-  margin-bottom: 32px;
+  margin-bottom: 36px;
   position: relative;
 }
 
 /* 黄金视角：标题区强调 */
 .section-title {
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.15em;
   color: var(--text-muted);
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-bottom: 10px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--border-subtle);
   position: relative;
 }
@@ -42,16 +42,16 @@
   position: absolute;
   bottom: -1px;
   left: 0;
-  width: 40px;
+  width: 50px;
   height: 1px;
   background: var(--text-muted);
-  opacity: 0.5;
+  opacity: 0.6;
 }
 
 .section-description {
   color: var(--text-secondary);
-  font-size: 12px;
-  margin-bottom: 16px;
+  font-size: 13px;
+  margin-bottom: 18px;
   line-height: 1.8;
 }
 
@@ -59,23 +59,24 @@
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-bottom: 28px;
+  gap: 14px;
+  margin-bottom: 32px;
 }
 
 .metric-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  padding: 20px 16px;
+  padding: 22px 18px;
   text-align: center;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-smooth);
   position: relative;
   overflow: hidden;
   /* 微质感：细腻投影 */
   box-shadow: 
-    0 1px 2px rgba(0, 0, 0, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    0 1px 3px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  animation: cardEntrance 0.5s ease-out backwards;
 }
 
 /* 顶部光带效果 */
@@ -88,9 +89,9 @@
   height: 1px;
   background: linear-gradient(90deg, 
     transparent 0%, 
-    rgba(255, 255, 255, 0.06) 20%, 
-    rgba(255, 255, 255, 0.08) 50%, 
-    rgba(255, 255, 255, 0.06) 80%, 
+    rgba(255, 255, 255, 0.08) 20%, 
+    rgba(255, 255, 255, 0.1) 50%, 
+    rgba(255, 255, 255, 0.08) 80%, 
     transparent 100%);
 }
 
@@ -108,35 +109,35 @@
 
 .metric-card:hover {
   border-color: var(--border-default);
-  transform: translateY(-2px);
+  transform: translateY(-4px);
   box-shadow: 
-    0 4px 12px rgba(0, 0, 0, 0.15),
-    0 2px 4px rgba(0, 0, 0, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    0 8px 20px rgba(0, 0, 0, 0.18),
+    0 3px 8px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 /* 状态指示器 - 左侧色带 */
 .metric-card.good {
   border-left: 3px solid var(--success);
-  background: linear-gradient(135deg, rgba(74, 222, 128, 0.03) 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, rgba(74, 222, 128, 0.04) 0%, var(--bg-secondary) 100%);
 }
 
 .metric-card.warning {
   border-left: 3px solid var(--warning);
-  background: linear-gradient(135deg, rgba(250, 204, 21, 0.03) 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.04) 0%, var(--bg-secondary) 100%);
 }
 
 .metric-card.danger {
   border-left: 3px solid var(--error);
-  background: linear-gradient(135deg, rgba(248, 113, 113, 0.03) 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, rgba(248, 113, 113, 0.04) 0%, var(--bg-secondary) 100%);
 }
 
 /* 主指标数值 - 巨大加粗 */
 .metric-value {
-  font-size: 32px;
-  font-weight: 700;
+  font-size: 36px;
+  font-weight: 800;
   color: var(--text-primary);
-  letter-spacing: -0.03em;
+  letter-spacing: -0.04em;
   line-height: 1;
   position: relative;
   z-index: 1;
@@ -149,8 +150,8 @@
 /* 指标标题 - 辅助信息弱化 */
 .metric-title {
   font-size: 11px;
-  font-weight: 500;
-  margin-top: 10px;
+  font-weight: 600;
+  margin-top: 12px;
   color: var(--text-secondary);
   letter-spacing: 0.02em;
 }
@@ -206,36 +207,38 @@
 .issue-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .issue-item {
   display: flex;
-  gap: 12px;
-  padding: 14px 14px;
+  gap: 14px;
+  padding: 16px 16px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
+  transition: all var(--transition-smooth);
   position: relative;
+  animation: slideUp 0.35s ease-out backwards;
 }
 
 .issue-item:hover {
   border-color: var(--border-default);
   background: var(--bg-elevated);
-  transform: translateX(2px);
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 /* 状态边框 - 颜色预警 */
 .issue-item.critical,
 .issue-item.error {
   border-left: 3px solid var(--error);
-  background: linear-gradient(135deg, rgba(248, 113, 113, 0.04) 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, rgba(248, 113, 113, 0.05) 0%, var(--bg-secondary) 100%);
 }
 
 .issue-item.warning {
   border-left: 3px solid var(--warning);
-  background: linear-gradient(135deg, rgba(250, 204, 21, 0.04) 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.05) 0%, var(--bg-secondary) 100%);
 }
 
 .issue-item.info {
@@ -260,11 +263,11 @@
 }
 
 .issue-message {
-  font-size: 12px;
-  margin-bottom: 6px;
+  font-size: 13px;
+  margin-bottom: 8px;
   color: var(--text-primary);
   line-height: 1.6;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .issue-location {
@@ -289,7 +292,7 @@
 .hotspot-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .hotspot-card {
@@ -297,10 +300,11 @@
   border: 1px solid var(--border-subtle);
   border-left: 3px solid var(--warning);
   border-radius: var(--radius-lg);
-  padding: 14px;
-  transition: all var(--transition-fast);
+  padding: 16px;
+  transition: all var(--transition-smooth);
   position: relative;
   overflow: hidden;
+  animation: slideUp 0.4s ease-out backwards;
 }
 
 .hotspot-card::before {
@@ -310,25 +314,25 @@
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(250, 204, 21, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(250, 204, 21, 0.25), transparent);
 }
 
 .hotspot-card:hover {
   border-color: var(--border-default);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
 }
 
 .hotspot-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .hotspot-type {
-  font-weight: 600;
-  font-size: 12px;
+  font-weight: 700;
+  font-size: 13px;
   text-transform: capitalize;
   color: var(--text-primary);
 }
@@ -338,30 +342,30 @@
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--warning);
-  background: rgba(250, 204, 21, 0.1);
-  padding: 4px 10px;
+  background: rgba(250, 204, 21, 0.12);
+  padding: 5px 12px;
   border-radius: 100px;
-  border: 1px solid rgba(250, 204, 21, 0.15);
-  font-weight: 600;
+  border: 1px solid rgba(250, 204, 21, 0.18);
+  font-weight: 700;
 }
 
 .hotspot-description {
   font-size: 12px;
   color: var(--text-secondary);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   line-height: 1.7;
 }
 
 .hotspot-suggestion {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--success);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .hotspot-location {
   font-size: 10px;
   color: var(--text-muted);
-  margin-top: 10px;
+  margin-top: 12px;
   display: block;
   font-family: var(--font-mono);
 }
