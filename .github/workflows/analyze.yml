@@ -37,11 +37,10 @@ jobs:
       env:
         ANALYZE_PATH: ${{ inputs.path }}
       run: |
-        python << 'EOF'
+        python -c "
         import os
         import json
         import ast
-        import sys
         
         path = os.environ.get('ANALYZE_PATH', '.')
         results = {
@@ -74,7 +73,7 @@ jobs:
                                         'file': filepath,
                                         'line': node.lineno,
                                         'type': 'long_function',
-                                        'message': f"Function '{node.name}' has {len(node.body)} lines"
+                                        'message': f\"Function '{node.name}' has {len(node.body)} lines\"
                                     })
                             elif isinstance(node, ast.ClassDef):
                                 methods = [n for n in node.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
@@ -83,7 +82,7 @@ jobs:
                                         'file': filepath,
                                         'line': node.lineno,
                                         'type': 'large_class',
-                                        'message': f"Class '{node.name}' has {len(methods)} methods"
+                                        'message': f\"Class '{node.name}' has {len(methods)} methods\"
                                     })
                                     
                     except SyntaxError as e:
@@ -100,10 +99,10 @@ jobs:
             json.dump(results, f, indent=2)
         
         print('\n=== PyVizAST Analysis Summary ===')
-        print(f"Files analyzed: {results['total_files']}")
-        print(f"Total lines: {results['total_lines']}")
-        print(f"Issues found: {len(results['issues'])}")
-        EOF
+        print(f\"Files analyzed: {results['total_files']}\")
+        print(f\"Total lines: {results['total_lines']}\")
+        print(f\"Issues found: {len(results['issues'])}\")
+        "
     
     - name: Upload results
       uses: actions/upload-artifact@v4
