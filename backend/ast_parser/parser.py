@@ -1,14 +1,15 @@
 """
 AST Parser - Parse Python source code into visualizable graph structure
 Supports performance optimization mode for large codebases
+Enhanced with code relationship analysis (inheritance, calls, decorators, variables)
 
 @author: Chidc
 @link: github.com/chidcGithub
 """
 import ast
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Set, Tuple
 from ..models.schemas import (
-    ASTNode, ASTEdge, ASTGraph, NodeType
+    ASTNode, ASTEdge, ASTGraph, NodeType, VariableInfo, CodeRelationship
 )
 
 
@@ -29,7 +30,7 @@ PRIORITY_NODE_TYPES = {
 
 
 class ASTParser:
-    """Python AST Parser - Supports performance optimization mode"""
+    """Python AST Parser - Supports performance optimization mode and enhanced code analysis"""
     
     # Maximum depth for AST traversal
     MAX_DEPTH = 50
@@ -82,12 +83,23 @@ class ASTParser:
         """
         self.nodes: Dict[str, ASTNode] = {}
         self.edges: List[ASTEdge] = []
+        self.relationships: List[CodeRelationship] = []
         self.node_counter: Dict[str, int] = {}
         self.max_nodes = max_nodes
         self.simplified = simplified
         self._node_count = 0
         self._skipped_count = 0
-        self._lineno_index: Dict[int, List[str]] = {}  # Line number to node IDs index
+        self._lineno_index: Dict[int, List[str]] = {}
+        
+        # NEW: Enhanced tracking structures
+        self._class_hierarchy: Dict[str, List[str]] = {}  # class_name -> [base_class_names]
+        self._class_nodes: Dict[str, ASTNode] = {}  # class_name -> node
+        self._function_nodes: Dict[str, ASTNode] = {}  # function_name -> node (per scope)
+        self._import_map: Dict[str, str] = {}  # imported_name -> module
+        self._scope_stack: List[str] = []  # stack of scope node IDs
+        self._variable_scopes: Dict[str, Set[str]] = {}  # scope_id -> defined variables
+        self._global_vars: Set[str] = set()
+        self._nonlocal_vars: Dict[str, Set[str]] = {}  # scope_id -> nonlocal vars
     
     def _generate_id(self, node_type: str) -> str:
         """Generate unique node ID"""
@@ -164,8 +176,33 @@ class ASTParser:
             return f"{self._get_attribute_name(node.value)}.{node.attr}"
         return node.attr
     
+    def _get_decorator_names(self, decorator_list: List[ast.AST]) -> List[str]:
+        """Get list of decorator names"""
+        decorators = []
+        for dec in decorator_list:
+            if isinstance(dec, ast.Name):
+                decorators.append(dec.id)
+            elif isinstance(dec, ast.Attribute):
+                decorators.append(self._get_attribute_name(dec))
+            elif isinstance(dec, ast.Call):
+                if isinstance(dec.func, ast.Name):
+                    decorators.append(dec.func.id)
+                elif isinstance(dec.func, ast.Attribute):
+                    decorators.append(self._get_attribute_name(dec.func))
+        return decorators
+    
+    def _get_base_class_names(self, bases: List[ast.AST]) -> List[str]:
+        """Get list of base class names"""
+        base_names = []
+        for base in bases:
+            if isinstance(base, ast.Name):
+                base_names.append(base.id)
+            elif isinstance(base, ast.Attribute):
+                base_names.append(self._get_attribute_name(base))
+        return base_names
+    
     def _create_ast_node(self, ast_node: ast.AST, parent_id: Optional[str] = None) -> ASTNode:
-        """Create ASTNode object"""
+        """Create ASTNode object with enhanced information"""
         node_type = self._get_node_type(ast_node)
         style = self.NODE_STYLES.get(node_type, self.NODE_STYLES[NodeType.OTHER])
         
@@ -186,15 +223,12 @@ class ASTParser:
         # Extract additional attributes
         attributes = self._extract_attributes(ast_node)
         
-        # Generate detailed label (for learning mode)
+        # Generate detailed label and explanation
         detailed_label = self._generate_detailed_label(ast_node, node_type, name, attributes)
-        
-        # Generate node explanation (for learning mode)
         explanation = self._generate_node_explanation(ast_node, node_type, name, attributes)
         
         # Calculate code metrics
         line_count = 0
-        char_count = 0
         indent_level = col_offset // 4 if col_offset else 0
         
         if lineno and end_lineno:
@@ -224,6 +258,26 @@ class ASTParser:
         imports_used = deps['imports_used']
         functions_called = deps['functions_called']
         
+        # ===== NEW: Extract enhanced relationships =====
+        decorators = []
+        base_classes = []
+        methods = []
+        
+        if isinstance(ast_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            decorators = self._get_decorator_names(ast_node.decorator_list)
+        elif isinstance(ast_node, ast.ClassDef):
+            decorators = self._get_decorator_names(ast_node.decorator_list)
+            base_classes = self._get_base_class_names(ast_node.bases)
+            # Extract method names
+            for item in ast_node.body:
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    methods.append(item.name)
+        
+        # Branch and loop counts
+        branch_count = self._count_branches(ast_node)
+        loop_count = self._count_loops(ast_node)
+        exception_handlers = self._count_exception_handlers(ast_node)
+        
         return ASTNode(
             id=node_id,
             type=node_type,
@@ -239,14 +293,11 @@ class ASTParser:
             parent=parent_id,
             docstring=docstring,
             attributes=attributes,
-            # Additional fields
             icon=style.get("icon", "•"),
             description=style.get("description", ""),
             detailed_label=detailed_label,
             explanation=explanation,
-            # Extended information
             line_count=line_count,
-            char_count=char_count,
             indent_level=indent_level,
             return_type=return_type,
             parameter_types=parameter_types,
@@ -260,8 +311,42 @@ class ASTParser:
             is_generator=is_generator,
             is_async=is_async,
             imports_used=imports_used,
-            functions_called=functions_called
+            functions_called=functions_called,
+            # NEW fields
+            decorators=decorators,
+            base_classes=base_classes,
+            methods=methods,
+            branch_count=branch_count,
+            loop_count=loop_count,
+            exception_handlers=exception_handlers,
         )
+    
+    def _count_branches(self, node: ast.AST) -> int:
+        """Count number of if/elif/else branches"""
+        count = 0
+        for child in ast.walk(node):
+            if isinstance(child, ast.If):
+                count += 1
+                # Count elif branches
+                if child.orelse and len(child.orelse) == 1 and isinstance(child.orelse[0], ast.If):
+                    count += self._count_branches(child.orelse[0])
+        return count
+    
+    def _count_loops(self, node: ast.AST) -> int:
+        """Count number of loops"""
+        count = 0
+        for child in ast.walk(node):
+            if isinstance(child, (ast.For, ast.AsyncFor, ast.While)):
+                count += 1
+        return count
+    
+    def _count_exception_handlers(self, node: ast.AST) -> int:
+        """Count number of except handlers"""
+        count = 0
+        for child in ast.walk(node):
+            if isinstance(child, ast.Try):
+                count += len(child.handlers)
+        return count
     
     def _generate_detailed_label(self, ast_node: ast.AST, node_type: NodeType, 
                                   name: Optional[str], attributes: Dict[str, Any]) -> str:
@@ -295,7 +380,6 @@ class ASTParser:
         elif node_type == NodeType.CALL:
             args_count = attributes.get('args_count', 0)
             kwargs = attributes.get('kwargs', [])
-            # Filter out None values before joining
             kwargs = [k for k in kwargs if k is not None]
             params = []
             if args_count > 0:
@@ -313,7 +397,7 @@ class ASTParser:
             if names:
                 import_names = []
                 for n in names[:3]:
-                    if n[0]:  # Skip if module name is None or empty
+                    if n[0]:
                         import_names.append(n[0] if n[1] is None else f"{n[0]} as {n[1]}")
                 return f"import {', '.join(import_names)}" + ('...' if len(names) > 3 else '') if import_names else "import ..."
             return "import ..."
@@ -474,14 +558,12 @@ class ASTParser:
         
         if isinstance(ast_node, ast.FunctionDef):
             attrs['args'] = [arg.arg for arg in ast_node.args.args]
-            attrs['decorators'] = [self._get_decorator_name(d) for d in ast_node.decorator_list]
+            attrs['decorators'] = self._get_decorator_names(ast_node.decorator_list)
             attrs['is_async'] = isinstance(ast_node, ast.AsyncFunctionDef)
             
-            # Extract return type annotation
             if ast_node.returns:
                 attrs['return_type'] = self._get_annotation_string(ast_node.returns)
             
-            # Extract parameter type annotations
             param_types = {}
             for arg in ast_node.args.args:
                 if arg.annotation:
@@ -489,7 +571,6 @@ class ASTParser:
             if param_types:
                 attrs['parameter_types'] = param_types
             
-            # Extract default values
             defaults = {}
             num_defaults = len(ast_node.args.defaults)
             num_args = len(ast_node.args.args)
@@ -500,14 +581,12 @@ class ASTParser:
             if defaults:
                 attrs['default_values'] = defaults
             
-            # Check if generator (contains yield)
             attrs['is_generator'] = self._contains_yield(ast_node)
         
         elif isinstance(ast_node, ast.ClassDef):
-            attrs['bases'] = [self._get_base_name(b) for b in ast_node.bases]
-            attrs['decorators'] = [self._get_decorator_name(d) for d in ast_node.decorator_list]
+            attrs['bases'] = self._get_base_class_names(ast_node.bases)
+            attrs['decorators'] = self._get_decorator_names(ast_node.decorator_list)
             
-            # Count methods and attributes
             method_count = 0
             attribute_count = 0
             for item in ast_node.body:
@@ -605,7 +684,6 @@ class ASTParser:
     def _count_local_variables(self, func_node: ast.FunctionDef) -> int:
         """Count local variables in a function"""
         local_vars = set()
-        # Parameters are not local variables
         params = {arg.arg for arg in func_node.args.args}
         
         for child in ast.walk(func_node):
@@ -633,7 +711,6 @@ class ASTParser:
             elif isinstance(child, (ast.For, ast.While)):
                 patterns['has_loop'] = True
             elif isinstance(child, ast.Call) and func_name:
-                # Check for direct recursion
                 if isinstance(child.func, ast.Name) and child.func.id == func_name:
                     patterns['has_recursion'] = True
         
@@ -646,10 +723,8 @@ class ASTParser:
         
         for child in ast.walk(node):
             if isinstance(child, ast.Name):
-                # Check if it's a potential import reference
                 imports_used.add(child.id)
             elif isinstance(child, ast.Call):
-                # Get function name
                 if isinstance(child.func, ast.Name):
                     functions_called.add(child.func.id)
                 elif isinstance(child.func, ast.Attribute):
@@ -671,27 +746,44 @@ class ASTParser:
             label=label
         )
     
+    def _add_relationship(self, source_id: str, target_id: str, rel_type: str, details: Optional[str] = None):
+        """Add a code relationship"""
+        self.relationships.append(CodeRelationship(
+            source_id=source_id,
+            target_id=target_id,
+            relationship_type=rel_type,
+            details=details
+        ))
+    
     def parse(self, code: str, source_lines: Optional[List[str]] = None, tree: Optional[ast.AST] = None) -> ASTGraph:
         """
-        Parse Python code and generate AST graph
+        Parse Python code and generate AST graph with enhanced relationships
         
         Args:
             code: Python source code string
-            source_lines: Source code line list (optional, for extracting code snippets)
-            tree: Pre-parsed AST tree (optional, to avoid double parsing)
+            source_lines: Source code line list (optional)
+            tree: Pre-parsed AST tree (optional)
         
         Returns:
-            ASTGraph: Visualizable graph structure
+            ASTGraph: Visualizable graph structure with relationships
         """
         # Reset state
         self.nodes = {}
         self.edges = []
+        self.relationships = []
         self.node_counter = {}
         self._node_count = 0
         self._skipped_count = 0
-        self._lineno_index: Dict[int, List[str]] = {}  # Line number to node IDs index
+        self._lineno_index = {}
+        self._class_hierarchy = {}
+        self._class_nodes = {}
+        self._function_nodes = {}
+        self._import_map = {}
+        self._scope_stack = []
+        self._variable_scopes = {}
+        self._global_vars = set()
+        self._nonlocal_vars = {}
         
-        # Use pre-parsed tree if provided, otherwise parse
         if tree is not None:
             ast_tree = tree
         else:
@@ -706,11 +798,12 @@ class ASTParser:
         # Traverse AST and build graph
         self._traverse(ast_tree, None, source_lines)
         
-        # Build call relationships
+        # Build enhanced relationships
+        self._build_inheritance_relationships()
         self._build_call_relationships()
-        
-        # Build import relationships
         self._build_import_relationships()
+        self._build_decorator_relationships()
+        self._analyze_variable_scopes()
         
         # Post-process: calculate additional metrics
         self._post_process_nodes()
@@ -721,10 +814,12 @@ class ASTParser:
             metadata={
                 "total_nodes": len(self.nodes),
                 "total_edges": len(self.edges),
+                "total_relationships": len(self.relationships),
                 "node_types": self._count_node_types(),
                 "skipped_nodes": self._skipped_count,
                 "simplified": self.simplified
-            }
+            },
+            relationships=self.relationships
         )
     
     def _should_skip_node(self, ast_node: ast.AST) -> bool:
@@ -734,15 +829,12 @@ class ASTParser:
         
         node_type_name = type(ast_node).__name__
         
-        # Always keep priority nodes
         if node_type_name in PRIORITY_NODE_TYPES:
             return False
         
-        # Skip certain node types in simplified mode
         if node_type_name.lower() in {t.lower() for t in SKIP_TYPES_SIMPLIFIED}:
             return True
         
-        # Skip if we've reached max nodes
         if self._node_count >= self.max_nodes:
             return True
         
@@ -753,45 +845,33 @@ class ASTParser:
         import logging
         logger = logging.getLogger(__name__)
         
-        # Check depth limit and log warning
         if depth >= self.MAX_DEPTH:
-            if depth == self.MAX_DEPTH:  # Only log once per traversal path
-                logger.warning(f"AST traversal reached max depth {self.MAX_DEPTH}, some nodes may be skipped")
+            if depth == self.MAX_DEPTH:
+                logger.warning(f"AST traversal reached max depth {self.MAX_DEPTH}")
             self._skipped_count += 1
             return
         
-        # Check if we should skip this node
         if self._should_skip_node(ast_node):
             self._skipped_count += 1
-            # Still traverse children
             for child in ast.iter_child_nodes(ast_node):
                 self._traverse(child, parent_id, source_lines, depth + 1)
             return
         
-        # Check node limit
         if self._node_count >= self.max_nodes:
             self._skipped_count += 1
             return
         
         self._node_count += 1
         
-        # Create current node with error handling
         try:
             node = self._create_ast_node(ast_node, parent_id)
         except Exception as e:
-            # Log the error but continue processing other nodes
             node_type_name = type(ast_node).__name__
             logger.warning(f"Error creating node for {node_type_name}: {e}")
-            # Create a fallback node to continue traversal
             node = ASTNode(
                 id=f"fallback_{self._node_count}",
                 type=NodeType.UNKNOWN,
                 name=f"<error: {node_type_name}>",
-                label=f"Error in {node_type_name}",
-                lineno=getattr(ast_node, 'lineno', 0),
-                end_lineno=getattr(ast_node, 'end_lineno', 0),
-                col_offset=getattr(ast_node, 'col_offset', 0),
-                end_col_offset=getattr(ast_node, 'end_col_offset', 0),
             )
         
         # Extract source code snippet
@@ -802,7 +882,21 @@ class ASTParser:
         
         self.nodes[node.id] = node
         
-        # Build line number index for fast lookup
+        # Track class and function nodes for relationship building
+        if node.type == NodeType.CLASS and node.name:
+            self._class_nodes[node.name] = node
+            self._class_hierarchy[node.name] = node.base_classes
+        elif node.type == NodeType.FUNCTION and node.name:
+            # Store with scope context
+            scope_key = f"{self._scope_stack[-1]}.{node.name}" if self._scope_stack else node.name
+            self._function_nodes[scope_key] = node
+        
+        # Track imports
+        if node.type == NodeType.IMPORT and node.attributes.get('names'):
+            for name, alias in node.attributes['names']:
+                self._import_map[alias or name] = node.attributes.get('module', name) or name
+        
+        # Build line number index
         if node.lineno:
             if node.lineno not in self._lineno_index:
                 self._lineno_index[node.lineno] = []
@@ -812,61 +906,209 @@ class ASTParser:
         if parent_id:
             edge = self._create_edge(parent_id, node.id, "parent-child")
             self.edges.append(edge)
-            # Update parent's children list
             if parent_id in self.nodes:
                 self.nodes[parent_id].children.append(node.id)
+        
+        # Update scope info
+        if node.type in (NodeType.FUNCTION, NodeType.CLASS):
+            self._scope_stack.append(node.id)
+            node.enclosing_scope_id = self._scope_stack[-2] if len(self._scope_stack) > 1 else None
+            node.scope_level = len(self._scope_stack) - 1
         
         # Traverse child nodes
         for child in ast.iter_child_nodes(ast_node):
             self._traverse(child, node.id, source_lines, depth + 1)
+        
+        # Pop scope
+        if node.type in (NodeType.FUNCTION, NodeType.CLASS):
+            if self._scope_stack and self._scope_stack[-1] == node.id:
+                self._scope_stack.pop()
+    
+    def _build_inheritance_relationships(self):
+        """Build class inheritance relationships"""
+        for class_name, base_names in self._class_hierarchy.items():
+            class_node = self._class_nodes.get(class_name)
+            if not class_node:
+                continue
+            
+            for base_name in base_names:
+                base_node = self._class_nodes.get(base_name)
+                if base_node:
+                    # Add edge for inheritance
+                    edge = self._create_edge(class_node.id, base_node.id, "inheritance", f"extends {base_name}")
+                    self.edges.append(edge)
+                    
+                    # Add relationship
+                    self._add_relationship(class_node.id, base_node.id, "inheritance", f"{class_name} extends {base_name}")
+                    
+                    # Track derived classes
+                    if base_name not in base_node.derived_classes:
+                        base_node.derived_classes.append(class_name)
+                    
+                    # Track inherited methods
+                    for method in base_node.methods:
+                        if method not in class_node.inherited_methods:
+                            class_node.inherited_methods.append(method)
+                    
+                    # Check for overridden methods
+                    for method in class_node.methods:
+                        if method in base_node.methods and method not in class_node.overridden_methods:
+                            class_node.overridden_methods.append(method)
+            
+            # Calculate inheritance depth
+            class_node.inheritance_depth = self._calculate_inheritance_depth(class_name)
+    
+    def _calculate_inheritance_depth(self, class_name: str, visited: Optional[Set[str]] = None) -> int:
+        """Calculate inheritance depth for a class"""
+        if visited is None:
+            visited = set()
+        
+        if class_name in visited:
+            return 0
+        visited.add(class_name)
+        
+        base_names = self._class_hierarchy.get(class_name, [])
+        if not base_names:
+            return 0
+        
+        max_depth = 0
+        for base_name in base_names:
+            if base_name in self._class_hierarchy:
+                depth = self._calculate_inheritance_depth(base_name, visited)
+                max_depth = max(max_depth, depth + 1)
+            else:
+                max_depth = max(max_depth, 1)
+        
+        return max_depth
     
     def _build_call_relationships(self):
         """Build function call relationships"""
-        # Find all function definitions and calls
-        function_nodes = {n.name: n for n in self.nodes.values() 
-                         if n.type == NodeType.FUNCTION and n.name}
+        # Map function names to nodes (considering scope)
+        function_map: Dict[str, ASTNode] = {}
+        for node in self.nodes.values():
+            if node.type == NodeType.FUNCTION and node.name:
+                function_map[node.name] = node
+        
+        # Track call counts
+        call_counts: Dict[str, int] = {}
         
         for node in self.nodes.values():
             if node.type == NodeType.CALL and node.name:
                 # Check if calling a defined function
-                if node.name in function_nodes:
-                    target_node = function_nodes[node.name]
-                    edge = self._create_edge(
-                        node.id, target_node.id, "call", node.name
-                    )
+                if node.name in function_map:
+                    target_node = function_map[node.name]
+                    edge = self._create_edge(node.id, target_node.id, "call", node.name)
                     self.edges.append(edge)
+                    
+                    # Track caller/callee relationships
+                    if target_node.id not in node.calls_to:
+                        node.calls_to.append(target_node.id)
+                    if node.id not in target_node.called_by:
+                        target_node.called_by.append(node.id)
+                    
+                    # Count calls
+                    call_counts[node.name] = call_counts.get(node.name, 0) + 1
+        
+        # Update is_called_count for functions
+        for func_name, count in call_counts.items():
+            if func_name in function_map:
+                function_map[func_name].is_called_count = count
     
     def _build_import_relationships(self):
         """Build import relationships"""
-        # Find all imports and usages
-        import_nodes = {}  # module_name -> node_id
+        import_nodes: Dict[str, ASTNode] = {}
         
         for node in self.nodes.values():
             if node.type == NodeType.IMPORT:
                 if node.attributes.get('names'):
                     for name, alias in node.attributes['names']:
-                        import_nodes[alias or name] = node.id
+                        key = alias or name
+                        if key:
+                            import_nodes[key] = node
+                            node.imported_symbols[key] = node.attributes.get('module', name) or name
+                            if alias:
+                                node.import_aliases[alias] = name
         
         # Check if name nodes use imports
         for node in self.nodes.values():
             if node.type == NodeType.NAME and node.name in import_nodes:
-                edge = self._create_edge(
-                    node.id, import_nodes[node.name], "import-usage", node.name
-                )
+                import_node = import_nodes[node.name]
+                edge = self._create_edge(node.id, import_node.id, "import-usage", node.name)
                 self.edges.append(edge)
+    
+    def _build_decorator_relationships(self):
+        """Build decorator relationships"""
+        decorator_functions: Dict[str, ASTNode] = {}
+        for node in self.nodes.values():
+            if node.type == NodeType.FUNCTION and node.name:
+                decorator_functions[node.name] = node
+        
+        for node in self.nodes.values():
+            if node.decorators:
+                for dec_name in node.decorators:
+                    if dec_name in decorator_functions:
+                        dec_node = decorator_functions[dec_name]
+                        edge = self._create_edge(node.id, dec_node.id, "decorator", f"@{dec_name}")
+                        self.edges.append(edge)
+                        
+                        # Track decorated_by
+                        if dec_node.id not in node.decorated_by:
+                            node.decorated_by.append(dec_node.id)
+                        
+                        # Track decorates
+                        if node.id not in dec_node.decorates:
+                            dec_node.decorates.append(node.id)
+    
+    def _analyze_variable_scopes(self):
+        """Analyze variable definitions and usages across scopes"""
+        # Find all variable definitions
+        var_definitions: Dict[str, List[Tuple[str, int, Optional[str]]]] = {}  # var_name -> [(node_id, lineno, scope)]
+        
+        for node in self.nodes.values():
+            if node.type == NodeType.ASSIGN and node.name:
+                scope = node.scope_name or "global"
+                for var_name in node.name.split(" = "):
+                    var_name = var_name.strip()
+                    if var_name:
+                        if var_name not in var_definitions:
+                            var_definitions[var_name] = []
+                        var_definitions[var_name].append((node.id, node.lineno or 0, scope))
+                        
+                        # Add to variables_defined
+                        node.variables_defined.append(VariableInfo(
+                            name=var_name,
+                            lineno=node.lineno,
+                            is_definition=True,
+                            scope=scope
+                        ))
+        
+        # Find variable usages
+        for node in self.nodes.values():
+            if node.type == NodeType.NAME and node.name:
+                if node.name in var_definitions:
+                    # Find the definition in the closest scope
+                    definitions = var_definitions[node.name]
+                    for def_node_id, def_lineno, def_scope in definitions:
+                        # Add usage info
+                        node.variables_used.append(VariableInfo(
+                            name=node.name,
+                            lineno=node.lineno,
+                            is_usage=True,
+                            scope=def_scope
+                        ))
+                        node.used_in.append(def_node_id)
     
     def _post_process_nodes(self):
         """Post-process nodes to calculate additional metrics"""
-        # Build node lookup by ID
         node_map = self.nodes
         
         # Count function calls for each function
-        call_counts = {}  # function_name -> count
+        call_counts = {}
         for node in node_map.values():
             if node.type == NodeType.CALL and node.name:
                 call_counts[node.name] = call_counts.get(node.name, 0) + 1
         
-        # Calculate depth and total descendants for each node
+        # Calculate depth and total descendants
         def get_depth(node_id: str, visited: set) -> int:
             if node_id in visited:
                 return 0
@@ -889,7 +1131,6 @@ class ASTParser:
             return count
         
         def get_scope_name(node_id: str) -> Optional[str]:
-            """Get the enclosing function or class name"""
             node = node_map.get(node_id)
             if not node or not node.parent:
                 return None
@@ -903,27 +1144,43 @@ class ASTParser:
             
             return get_scope_name(node.parent)
         
-        # Update each node with calculated metrics
+        def get_nested_scopes(node_id: str) -> List[str]:
+            """Get IDs of nested functions/classes"""
+            nested = []
+            node = node_map.get(node_id)
+            if not node:
+                return nested
+            
+            def collect_nested(nid: str, depth: int):
+                if depth > 5:  # Limit recursion
+                    return
+                n = node_map.get(nid)
+                if not n:
+                    return
+                for child_id in n.children:
+                    child = node_map.get(child_id)
+                    if child and child.type in (NodeType.FUNCTION, NodeType.CLASS):
+                        nested.append(child_id)
+                    collect_nested(child_id, depth + 1)
+            
+            collect_nested(node_id, 0)
+            return nested
+        
+        # Update each node
         for node_id, node in node_map.items():
-            # Child count (already have this from children list)
             node.child_count = len(node.children)
-            
-            # Total descendants
             node.total_descendants = count_descendants(node_id, set())
-            
-            # Depth
             node.depth = get_depth(node_id, set())
-            
-            # Scope name
             node.scope_name = get_scope_name(node_id)
             
-            # Is called count (for functions)
             if node.type == NodeType.FUNCTION and node.name:
                 node.is_called_count = call_counts.get(node.name, 0)
             
-            # Calculate char_count from source_code
             if node.source_code:
                 node.char_count = len(node.source_code)
+            
+            # Get nested scopes
+            node.nested_scopes = get_nested_scopes(node_id)
     
     def _count_node_types(self) -> Dict[str, int]:
         """Count nodes by type"""
@@ -933,13 +1190,11 @@ class ASTParser:
         return counts
     
     def get_node_by_lineno(self, lineno: int) -> Optional[ASTNode]:
-        """Get node by line number (uses index for O(1) lookup)"""
-        # Use index if available
+        """Get node by line number"""
         if hasattr(self, '_lineno_index') and lineno in self._lineno_index:
             node_ids = self._lineno_index[lineno]
             if node_ids:
                 return self.nodes.get(node_ids[0])
-        # Fallback to linear search (for backwards compatibility)
         for node in self.nodes.values():
             if node.lineno == lineno:
                 return node
@@ -958,3 +1213,56 @@ class ASTParser:
     def get_class_nodes(self) -> List[ASTNode]:
         """Get all class nodes"""
         return [n for n in self.nodes.values() if n.type == NodeType.CLASS]
+    
+    def get_inheritance_tree(self) -> Dict[str, Any]:
+        """Get class inheritance tree structure"""
+        tree = {}
+        processed = set()
+        
+        def build_tree(class_name: str) -> Dict[str, Any]:
+            if class_name in processed:
+                return {}
+            processed.add(class_name)
+            
+            node = self._class_nodes.get(class_name)
+            children = []
+            
+            # Find derived classes
+            for derived_name, bases in self._class_hierarchy.items():
+                if class_name in bases:
+                    children.append(build_tree(derived_name))
+            
+            return {
+                "name": class_name,
+                "node_id": node.id if node else None,
+                "methods": node.methods if node else [],
+                "children": children
+            }
+        
+        # Find root classes (no base class or base class not in current code)
+        for class_name, bases in self._class_hierarchy.items():
+            if not bases or all(b not in self._class_hierarchy for b in bases):
+                tree[class_name] = build_tree(class_name)
+        
+        return tree
+    
+    def get_call_graph(self) -> Dict[str, Any]:
+        """Get function call graph"""
+        nodes = []
+        links = []
+        
+        for node in self.nodes.values():
+            if node.type == NodeType.FUNCTION:
+                nodes.append({
+                    "id": node.id,
+                    "name": node.name,
+                    "called_count": node.is_called_count
+                })
+                
+                for callee_id in node.calls_to:
+                    links.append({
+                        "source": node.id,
+                        "target": callee_id
+                    })
+        
+        return {"nodes": nodes, "links": links}

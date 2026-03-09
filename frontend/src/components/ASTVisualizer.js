@@ -1187,6 +1187,140 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
                   <pre className="source-code">{selectedNode.sourceCode}</pre>
                 </div>
               )}
+              
+              {/* NEW: Inheritance Relationships */}
+              {selectedNode.baseClasses && selectedNode.baseClasses.length > 0 && (
+                <div className="detail-item relationship-section">
+                  <span className="detail-label">Inherits From</span>
+                  <div className="relationship-list">
+                    {selectedNode.baseClasses.map((base, idx) => (
+                      <span key={idx} className="relationship-tag inheritance">{base}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {selectedNode.derivedClasses && selectedNode.derivedClasses.length > 0 && (
+                <div className="detail-item relationship-section">
+                  <span className="detail-label">Derived By</span>
+                  <div className="relationship-list">
+                    {selectedNode.derivedClasses.map((derived, idx) => (
+                      <span key={idx} className="relationship-tag derived">{derived}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {selectedNode.inheritanceDepth !== undefined && selectedNode.inheritanceDepth > 0 && (
+                <div className="detail-item">
+                  <span className="detail-label">Inheritance Depth</span>
+                  <span className="detail-value metric">{selectedNode.inheritanceDepth}</span>
+                </div>
+              )}
+              
+              {/* NEW: Class Methods */}
+              {selectedNode.methods && selectedNode.methods.length > 0 && (
+                <div className="detail-item relationship-section">
+                  <span className="detail-label">Methods ({selectedNode.methods.length})</span>
+                  <div className="relationship-list methods">
+                    {selectedNode.methods.slice(0, 8).map((method, idx) => (
+                      <span key={idx} className="relationship-tag method">{method}</span>
+                    ))}
+                    {selectedNode.methods.length > 8 && (
+                      <span className="relationship-tag more">+{selectedNode.methods.length - 8} more</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {selectedNode.overriddenMethods && selectedNode.overriddenMethods.length > 0 && (
+                <div className="detail-item relationship-section">
+                  <span className="detail-label">Overrides</span>
+                  <div className="relationship-list">
+                    {selectedNode.overriddenMethods.map((method, idx) => (
+                      <span key={idx} className="relationship-tag override">{method}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* NEW: Decorators */}
+              {selectedNode.decorators && selectedNode.decorators.length > 0 && (
+                <div className="detail-item relationship-section">
+                  <span className="detail-label">Decorators</span>
+                  <div className="relationship-list">
+                    {selectedNode.decorators.map((dec, idx) => (
+                      <span key={idx} className="relationship-tag decorator">@{dec}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* NEW: Function Call Relationships */}
+              {selectedNode.functionsCalled && selectedNode.functionsCalled.length > 0 && (
+                <div className="detail-item relationship-section">
+                  <span className="detail-label">Calls</span>
+                  <div className="relationship-list">
+                    {selectedNode.functionsCalled.slice(0, 6).map((func, idx) => (
+                      <span key={idx} className="relationship-tag call">{func}</span>
+                    ))}
+                    {selectedNode.functionsCalled.length > 6 && (
+                      <span className="relationship-tag more">+{selectedNode.functionsCalled.length - 6} more</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {selectedNode.isCalledCount !== undefined && selectedNode.isCalledCount > 0 && (
+                <div className="detail-item">
+                  <span className="detail-label">Called Count</span>
+                  <span className="detail-value metric">{selectedNode.isCalledCount} times</span>
+                </div>
+              )}
+              
+              {/* NEW: Code Patterns */}
+              {(selectedNode.branchCount > 0 || selectedNode.loopCount > 0 || selectedNode.exceptionHandlers > 0) && (
+                <div className="detail-item relationship-section">
+                  <span className="detail-label">Code Patterns</span>
+                  <div className="relationship-list patterns">
+                    {selectedNode.branchCount > 0 && (
+                      <span className="relationship-tag pattern">branches: {selectedNode.branchCount}</span>
+                    )}
+                    {selectedNode.loopCount > 0 && (
+                      <span className="relationship-tag pattern">loops: {selectedNode.loopCount}</span>
+                    )}
+                    {selectedNode.exceptionHandlers > 0 && (
+                      <span className="relationship-tag pattern">excepts: {selectedNode.exceptionHandlers}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* NEW: Scope Info */}
+              {selectedNode.scopeLevel !== undefined && selectedNode.scopeLevel > 0 && (
+                <div className="detail-item">
+                  <span className="detail-label">Scope Level</span>
+                  <span className="detail-value metric">{selectedNode.scopeLevel}</span>
+                </div>
+              )}
+              
+              {/* NEW: Code Flags */}
+              {(selectedNode.isAsync || selectedNode.isGenerator || selectedNode.hasRecursion) && (
+                <div className="detail-item relationship-section">
+                  <span className="detail-label">Special Flags</span>
+                  <div className="relationship-list flags">
+                    {selectedNode.isAsync && (
+                      <span className="relationship-tag flag async">async</span>
+                    )}
+                    {selectedNode.isGenerator && (
+                      <span className="relationship-tag flag generator">generator</span>
+                    )}
+                    {selectedNode.hasRecursion && (
+                      <span className="relationship-tag flag recursion">recursive</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -54,6 +54,25 @@ class NodeType(str, Enum):
     RETURN = "return"
     YIELD = "yield"
     OTHER = "other"
+    UNKNOWN = "unknown"
+
+
+class VariableInfo(BaseModel):
+    """Variable definition/usage information"""
+    name: str
+    lineno: Optional[int] = None
+    col_offset: Optional[int] = None
+    is_definition: bool = False
+    is_usage: bool = False
+    scope: Optional[str] = None  # Function/class where defined
+
+
+class CodeRelationship(BaseModel):
+    """Code relationship between nodes"""
+    source_id: str
+    target_id: str
+    relationship_type: str  # "inheritance", "call", "decorator", "variable_use", "import"
+    details: Optional[str] = None
 
 
 class ASTNode(BaseModel):
@@ -120,6 +139,52 @@ class ASTNode(BaseModel):
     functions_called: List[str] = Field(default_factory=list, description="Functions called in this scope")
     is_called_count: int = Field(default=0, ge=0, description="Number of times this function is called")
     
+    # ===== NEW: Enhanced Code Relationship Fields =====
+    
+    # Class inheritance relationships
+    base_classes: List[str] = Field(default_factory=list, description="Base class names (for classes)")
+    derived_classes: List[str] = Field(default_factory=list, description="Derived class names")
+    inheritance_depth: int = Field(default=0, ge=0, description="Depth in inheritance hierarchy")
+    
+    # Method relationships (for classes)
+    methods: List[str] = Field(default_factory=list, description="Method names defined in this class")
+    inherited_methods: List[str] = Field(default_factory=list, description="Methods inherited from base classes")
+    overridden_methods: List[str] = Field(default_factory=list, description="Methods that override base class methods")
+    
+    # Variable tracking
+    variables_defined: List[VariableInfo] = Field(default_factory=list, description="Variables defined in this scope")
+    variables_used: List[VariableInfo] = Field(default_factory=list, description="Variables used from outer scopes")
+    global_variables: List[str] = Field(default_factory=list, description="Global variables used")
+    nonlocal_variables: List[str] = Field(default_factory=list, description="Nonlocal variables used")
+    
+    # Decorator relationships
+    decorators: List[str] = Field(default_factory=list, description="Decorator names applied to this node")
+    decorated_by: List[str] = Field(default_factory=list, description="Node IDs of decorators")
+    decorates: List[str] = Field(default_factory=list, description="Functions/classes this decorator decorates")
+    
+    # Call graph enhancement
+    calls_to: List[str] = Field(default_factory=list, description="Node IDs of functions this calls")
+    called_by: List[str] = Field(default_factory=list, description="Node IDs of functions that call this")
+    method_calls: List[str] = Field(default_factory=list, description="Method calls (obj.method format)")
+    
+    # Scope nesting
+    nested_scopes: List[str] = Field(default_factory=list, description="IDs of nested functions/classes")
+    enclosing_scope_id: Optional[str] = Field(None, description="ID of enclosing function/class")
+    scope_level: int = Field(default=0, ge=0, description="Nesting level of scope")
+    
+    # Import details
+    imported_symbols: Dict[str, str] = Field(default_factory=dict, description="Symbol -> module mapping")
+    import_aliases: Dict[str, str] = Field(default_factory=dict, description="Alias -> original name")
+    
+    # Data flow hints
+    assigned_from: List[str] = Field(default_factory=list, description="Node IDs this variable is assigned from")
+    used_in: List[str] = Field(default_factory=list, description="Node IDs where this variable is used")
+    
+    # Complexity details
+    branch_count: int = Field(default=0, ge=0, description="Number of branches (if/elif/else)")
+    loop_count: int = Field(default=0, ge=0, description="Number of loops")
+    exception_handlers: int = Field(default=0, ge=0, description="Number of except blocks")
+    
     @field_validator('end_lineno')
     @classmethod
     def validate_end_lineno(cls, v: Optional[int], info) -> Optional[int]:
@@ -135,7 +200,7 @@ class ASTEdge(BaseModel):
     id: str
     source: str
     target: str
-    edge_type: str  # "parent-child", "call", "import", etc.
+    edge_type: str  # "parent-child", "call", "import", "inheritance", "decorator", etc.
     label: Optional[str] = None
 
 
@@ -144,6 +209,9 @@ class ASTGraph(BaseModel):
     nodes: List[ASTNode]
     edges: List[ASTEdge]
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    # NEW: Code relationships summary
+    relationships: List[CodeRelationship] = Field(default_factory=list, description="Code relationships")
 
 
 class CodeIssue(BaseModel):
@@ -188,6 +256,14 @@ class ComplexityMetrics(BaseModel):
     class_count: int = Field(default=0, ge=0, description="Number of classes")
     max_nesting_depth: int = Field(default=0, ge=0, description="Maximum nesting depth")
     avg_function_length: float = Field(default=0.0, ge=0, description="Average function length")
+    
+    # NEW: Enhanced metrics
+    inheritance_depth: int = Field(default=0, ge=0, description="Maximum inheritance depth")
+    total_inheritance_chains: int = Field(default=0, ge=0, description="Total inheritance chains")
+    total_function_calls: int = Field(default=0, ge=0, description="Total function calls")
+    total_method_calls: int = Field(default=0, ge=0, description="Total method calls")
+    decorator_count: int = Field(default=0, ge=0, description="Total decorators used")
+    global_variable_count: int = Field(default=0, ge=0, description="Global variables used")
 
 
 class PerformanceHotspot(BaseModel):
