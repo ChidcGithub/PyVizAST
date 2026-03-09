@@ -750,6 +750,14 @@
   font-weight: 700;
 }
 
+/* Code Structure label - extra emphasis */
+.code-label .detail-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text-secondary);
+  letter-spacing: 0.15em;
+}
+
 .detail-value {
   font-size: 13px;
   font-weight: 500;
