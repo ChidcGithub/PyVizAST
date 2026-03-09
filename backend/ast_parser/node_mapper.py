@@ -3,7 +3,7 @@ Node Mapper - Maps AST nodes to visualization elements
 Enhanced with support for code relationships
 """
 from typing import Dict, List, Any
-from ..models.schemas import ASTNode, ASTGraph, NodeType, VariableInfo
+from ..models.schemas import ASTNode, ASTGraph, NodeType
 
 
 class NodeMapper:
