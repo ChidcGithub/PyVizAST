@@ -115,6 +115,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
+  const [isSearching, setIsSearching] = useState(false);
   const searchInputRef = useRef(null);
 
   // Format attribute key using memoized map
@@ -145,8 +146,12 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
     // Empty query clears immediately
     if (!query.trim() || !graph) {
       setSearchResults([]);
+      setIsSearching(false);
       return;
     }
+    
+    // Show searching indicator
+    setIsSearching(true);
     
     // Set debounce (200ms)
     searchDebounceRef.current = setTimeout(() => {
@@ -167,6 +172,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
       }).slice(0, 20); // Limit result count
       
       setSearchResults(results);
+      setIsSearching(false);
     }, 200);
   }, [graph]);
   
@@ -1012,7 +1018,12 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
             </div>
             
             {/* Search results list */}
-            {searchResults.length > 0 && (
+            {isSearching ? (
+              <div className="search-loading">
+                <div className="search-loading-spinner"></div>
+                <span>Searching...</span>
+              </div>
+            ) : searchResults.length > 0 ? (
               <div className="search-results">
                 <div className="search-results-header">
                   <span>Found {searchResults.length} results</span>
@@ -1055,14 +1066,11 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
                   ))}
                 </div>
               </div>
-            )}
-            
-            {/* No results hint */}
-            {searchQuery && searchResults.length === 0 && (
+            ) : searchQuery ? (
               <div className="search-no-results">
                 <span>No matching nodes found</span>
               </div>
-            )}
+            ) : null}
           </div>
         )}
         

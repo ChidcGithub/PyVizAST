@@ -189,7 +189,7 @@ logger = init_logging(level=logging.INFO)
 app = FastAPI(
     title="PyVizAST API",
     description="Python AST Visualization and Static Analysis API",
-    version="0.6.1",
+    version="0.6.2",
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -350,7 +350,7 @@ async def root():
     """API root endpoint"""
     return {
         "name": "PyVizAST API",
-        "version": "0.4.2",
+        "version": "0.6.2",
         "description": "Python AST Visualizer and Static Analyzer",
         "status": "running",
         "endpoints": {

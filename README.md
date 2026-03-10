@@ -1,6 +1,6 @@
 # PyVizAST
 
-[![Version](https://img.shields.io/badge/Version-0.6.1-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Version](https://img.shields.io/badge/Version-0.6.2-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
@@ -192,6 +192,42 @@ Contributions are welcome. Please submit pull requests to the main repository.
 <summary>Version History</summary>
 
 
+
+<details>
+
+<summary>v0.6.2 (2026-03-10)</summary>
+
+**UX Improvements & Bug Fixes**
+
+**New Features:**
+- **Toast Notification System**: Added toast notifications for user feedback
+  - Success/error states with appropriate icons
+  - Auto-dismiss after 3 seconds
+  - Smooth slide-in/fade-out animations
+- **Search Loading Indicator**: Added loading spinner during AST node search
+  - Debounced search with 200ms delay
+  - Visual feedback while searching
+- **Format Code Button**: Added code formatting functionality in Monaco Editor
+  - One-click code formatting using Monaco's built-in formatter
+
+**Bug Fixes:**
+- Fixed API version inconsistency (root endpoint now returns correct version)
+- Fixed copy link failure with no user feedback
+- Added proper error handling for clipboard operations
+
+**Code Quality:**
+- Enhanced user feedback for all operations
+- Improved error states and loading indicators
+
+**Files Modified:**
+- `backend/main.py` - API version fix
+- `frontend/src/App.js` - Toast notification system
+- `frontend/src/App.css` - Toast styles
+- `frontend/src/components/ASTVisualizer.js` - Search loading state
+- `frontend/src/components/components.css` - Search loading styles
+- `frontend/src/components/CodeEditor.js` - Format Code functionality
+
+</details>
 
 <details>
 

@@ -241,6 +241,9 @@ function App() {
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   
+  // Toast notification state
+  const [toast, setToast] = useState(null);
+  
   // Project analysis state
   const [projectResult, setProjectResult] = useState(null);
   const [isProjectAnalyzing, setIsProjectAnalyzing] = useState(false);
@@ -480,6 +483,12 @@ function App() {
     setActiveTab('challenges');
   }, []);
 
+  // Toast notification helper
+  const showToast = useCallback((message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
   // Share functionality
   const handleShare = useCallback(() => {
     const compressed = compressCode(code);
@@ -494,13 +503,12 @@ function App() {
     if (shareUrl) {
       try {
         await navigator.clipboard.writeText(shareUrl);
-        // Could add a toast notification here
+        showToast('Link copied to clipboard!', 'success');
       } catch (err) {
-        // Clipboard access may be blocked by browser permissions
-        // This is a non-critical error, no need to log
+        showToast('Failed to copy link. Please copy manually.', 'error');
       }
     }
-  }, [shareUrl]);
+  }, [shareUrl, showToast]);
 
   // Export functionality
   const handleExport = useCallback((format) => {
@@ -529,6 +537,27 @@ function App() {
   return (
     <div className={`app ${theme}`}>
       {(isLoading || isProjectAnalyzing) && <LoadingOverlay progress={progress} />}
+      
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`toast-notification toast-${toast.type}`}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            {toast.type === 'success' ? (
+              <>
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </>
+            ) : (
+              <>
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </>
+            )}
+          </svg>
+          <span>{toast.message}</span>
+        </div>
+      )}
       
       <Header 
         onAnalyze={handleAnalyze}

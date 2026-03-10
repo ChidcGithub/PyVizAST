@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import { useResizeObserver } from '../hooks/useResizeObserver';
 
@@ -168,6 +168,18 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme, readO
     getEditor: () => editorRef.current
   }));
 
+  // Format code function
+  const handleFormatCode = useCallback(() => {
+    if (!editorRef.current || !monacoRef.current) return;
+    
+    const editor = editorRef.current;
+    const model = editor.getModel();
+    if (!model) return;
+    
+    // Use Monaco's built-in format action
+    editor.getAction('editor.action.formatDocument').run();
+  }, []);
+
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
@@ -217,7 +229,7 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme, readO
           </div>
         </div>
         <div className="editor-actions">
-          <button className="btn btn-ghost" title="Format code">
+          <button className="btn btn-ghost" title="Format code" onClick={handleFormatCode}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 10H3M21 6H3M21 14H3M21 18H3" />
             </svg>
