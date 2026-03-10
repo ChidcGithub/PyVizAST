@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, forwardRef, useImperativeHandle, useEffect } from 'react';
 import { analyzeProject, generateTaskId, createProgressStream } from '../api';
+import logger from '../utils/logger';
 import './ProjectAnalysisView.css';
 
 /**
@@ -95,7 +96,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
         }
       },
       (error) => {
-        console.error('Progress stream error:', error);
+        logger.error('Progress stream error', { error });
       }
     );
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import CodeEditor from './CodeEditor';
 import { getChallenges, getChallenge, submitChallenge, getChallengeCategories } from '../api';
+import logger from '../utils/logger';
 
 /**
  * Difficulty badge classes
@@ -73,7 +74,7 @@ function ChallengeView({ theme }) {
         setCategories(categoriesData);
       } catch (err) {
         setError('Failed to load challenges');
-        console.error(err);
+        logger.error('Failed to load challenges', { error: err.message });
       } finally {
         setLoading(false);
       }
@@ -93,7 +94,7 @@ function ChallengeView({ theme }) {
       setView('detail');
     } catch (err) {
       setError('Failed to load challenge');
-      console.error(err);
+      logger.error('Failed to load challenge detail', { challengeId, error: err.message });
     } finally {
       setLoading(false);
     }
@@ -123,7 +124,10 @@ function ChallengeView({ theme }) {
       setView('result');
     } catch (err) {
       setError('Failed to submit challenge');
-      console.error(err);
+      logger.error('Failed to submit challenge', { 
+        challengeId: selectedChallenge.id, 
+        error: err.message 
+      });
     } finally {
       setLoading(false);
     }

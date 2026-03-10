@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import CodeEditor from './CodeEditor';
 import ASTVisualizer from './ASTVisualizer';
 import { analyzeCode, explainNode } from '../api';
+import logger from '../utils/logger';
 
 /**
  * Node type icons for visual representation
@@ -139,7 +140,7 @@ function LearnView({ theme }) {
       setExplanation(result);
     } catch (err) {
       setError('Failed to get explanation');
-      console.error(err);
+      logger.error('Failed to get node explanation', { nodeId: node.id, error: err.message });
     } finally {
       setLoading(false);
     }

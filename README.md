@@ -1,6 +1,6 @@
 # PyVizAST
 
-[![Version](https://img.shields.io/badge/Version-0.6.0-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Version](https://img.shields.io/badge/Version-0.6.1-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
@@ -191,7 +191,74 @@ Contributions are welcome. Please submit pull requests to the main repository.
 
 <summary>Version History</summary>
 
+
+
 <details>
+
+<summary>v0.6.1 (2026-03-09)</summary>
+
+
+
+**Bug Fixes & Code Quality Improvements**
+
+
+
+**Backend Fixes:**
+
+- Fixed custom exception classes: Added `__init__`, `__str__` methods, error codes, and default messages for `AnalysisError`, `CodeParsingError`, `CodeTooLargeError`, `ResourceNotFoundError`
+
+- Fixed `_parse_patch_hunks` line index counter initialization issue in `patches.py`
+
+- Enhanced `_notify_listeners` error handling in `progress.py` - replaced `pass` with proper error logging
+
+- Improved exception handling in `performance.py` - added logging for caught exceptions
+
+
+
+**Frontend Fixes:**
+
+- Fixed `CodeEditor` not supporting `readOnly` prop - Monaco Editor now properly receives the `readOnly` option
+
+- Unified logging system: Replaced all `console.log/error/warn` with structured `logger` utility
+
+- Files updated: `api.js`, `PatchPanel.js`, `ChallengeView.js`, `LearnView.js`, `AnalysisPanel.js`, `ProjectAnalysisView.js`, `ProjectVisualization.js`, `ASTVisualizer.js`, `ASTVisualizer3D.js`, `ErrorBoundary.js`, `App.js`
+
+
+
+**Code Quality:**
+
+- 36 console statements replaced with structured logging
+
+- Frontend errors now batch-sent to backend for persistence
+
+- Better error filtering (ignoring ResizeObserver benign errors)
+
+- Development/production environment logging support
+
+
+
+**Files Modified:**
+
+- `backend/main.py` - Exception class implementations
+
+- `backend/optimizers/patches.py` - Line index counter fix
+
+- `backend/utils/progress.py` - Error logging
+
+- `backend/analyzers/performance.py` - Exception logging
+
+- `frontend/src/components/CodeEditor.js` - readOnly prop support
+
+- `frontend/src/components/*.js` - Logger integration
+
+
+
+</details>
+
+
+
+<details>
+
 <summary>v0.6.0 (2026-03-09)</summary>
 
 **Enhanced Backend Code Relationship Analysis & Frontend Sync**

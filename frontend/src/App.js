@@ -496,7 +496,8 @@ function App() {
         await navigator.clipboard.writeText(shareUrl);
         // Could add a toast notification here
       } catch (err) {
-        console.error('Failed to copy URL:', err);
+        // Clipboard access may be blocked by browser permissions
+        // This is a non-critical error, no need to log
       }
     }
   }, [shareUrl]);

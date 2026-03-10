@@ -9,6 +9,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import PatchPanel from './PatchPanel';
+import logger from '../utils/logger';
 
 function AnalysisPanel({ result, activeTab, code, onApplyPatch, onNavigateToChallenges }) {
   if (!result) return null;
@@ -279,7 +280,7 @@ function ChallengesPanel({ onNavigateToChallenges }) {
         setChallenges(data || []);
         setError(null);
       } catch (err) {
-        console.error('Failed to fetch challenges:', err);
+        logger.error('Failed to fetch challenges', { error: err.message });
         setError('Failed to load challenges. Please check your connection.');
         // Fallback to empty array
         setChallenges([]);

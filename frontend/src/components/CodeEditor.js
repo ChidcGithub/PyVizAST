@@ -57,7 +57,7 @@ const monochromeLightTheme = {
   }
 };
 
-const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref) {
+const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme, readOnly = false }, ref) {
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
   const containerRef = useRef(null);
@@ -269,6 +269,8 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme }, ref
             overviewRulerLanes: 0,
             hideCursorInOverviewRuler: true,
             overviewRulerBorder: false,
+            readOnly: readOnly, // Support read-only mode from parent component
+            domReadOnly: readOnly, // Also set DOM-level readonly for accessibility
           }}
         />
       </div>

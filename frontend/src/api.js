@@ -1,4 +1,5 @@
 import axios from 'axios';
+import logger from './utils/logger';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 const API_TIMEOUT = 30000; // 30 seconds timeout
@@ -71,7 +72,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     // Can add auth token here
-    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+    logger.debug('API Request', { method: config.method?.toUpperCase(), url: config.url });
     return config;
   },
   (error) => {
@@ -399,12 +400,12 @@ export const createProgressStream = (taskId, onProgress, onError) => {
         eventSource.close();
       }
     } catch (e) {
-      console.error('Failed to parse progress data:', e);
+      logger.error('Failed to parse progress data', { error: e.message });
     }
   };
   
   eventSource.onerror = (error) => {
-    console.error('SSE error:', error);
+    logger.error('SSE connection error', { taskId });
     if (onError) {
       onError(error);
     }

@@ -13,6 +13,7 @@ import {
   CheckCheck
 } from 'lucide-react';
 import { generatePatches } from '../api';
+import logger from '../utils/logger';
 
 // Backend API base URL
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -38,7 +39,7 @@ async function applyPatchViaAPI(code, patch) {
     const data = await response.json();
     return data.fixed_code;
   } catch (error) {
-    console.error('Failed to call backend patch API:', error);
+    logger.warn('Backend patch API unavailable, using frontend fallback', { error: error.message });
     // If backend is unavailable, try frontend fallback
     return applyPatchFallback(code, patch);
   }
@@ -50,12 +51,12 @@ async function applyPatchViaAPI(code, patch) {
  */
 function applyPatchFallback(originalCode, patchContent) {
   if (!patchContent || typeof patchContent !== 'string') {
-    console.error('Invalid patch content');
+    logger.warn('Invalid patch content provided');
     return null;
   }
   
   if (!originalCode || typeof originalCode !== 'string') {
-    console.error('Invalid original code');
+    logger.warn('Invalid original code provided');
     return null;
   }
   
@@ -68,7 +69,7 @@ function applyPatchFallback(originalCode, patchContent) {
     const hasValidHeader = patchLines.some(line => line.startsWith('---')) && 
                            patchLines.some(line => line.startsWith('+++'));
     if (!hasValidHeader) {
-      console.error('Invalid unified diff format: missing file headers');
+      logger.warn('Invalid unified diff format: missing file headers');
       return null;
     }
     
@@ -101,7 +102,7 @@ function applyPatchFallback(originalCode, patchContent) {
             lines: [],
           };
         } else {
-          console.error(`Invalid hunk header format: ${line}`);
+          logger.warn('Invalid hunk header format', { line: line.substring(0, 50) });
           return null;
         }
       } else if (currentHunk) {
@@ -141,7 +142,7 @@ function applyPatchFallback(originalCode, patchContent) {
     
     // Validate there are valid hunks
     if (hunks.length === 0) {
-      console.error('No valid hunks found');
+      logger.warn('No valid hunks found in patch content');
       return null;
     }
     
@@ -153,7 +154,7 @@ function applyPatchFallback(originalCode, patchContent) {
       
       // Boundary check
       if (startIdx < 0 || startIdx > lines.length) {
-        console.error(`Invalid start line number: ${hunk.oldStart}`);
+        logger.warn('Invalid start line number in patch', { oldStart: hunk.oldStart, linesLength: lines.length });
         return null;
       }
       
@@ -163,7 +164,7 @@ function applyPatchFallback(originalCode, patchContent) {
       
       // Validate deletion range
       if (startIdx + deletedCount > lines.length) {
-        console.warn(`Deletion range exceeds code line count`);
+        logger.debug('Deletion range exceeds code line count, adjusting', { startIdx, deletedCount, linesLength: lines.length });
       }
       
       // Execute replacement
@@ -173,7 +174,7 @@ function applyPatchFallback(originalCode, patchContent) {
     return lines.join('\n');
     
   } catch (err) {
-    console.error('Failed to parse patch:', err);
+    logger.error('Failed to parse patch', { error: err.message, stack: err.stack });
     return null;
   }
 }
@@ -237,7 +238,7 @@ function PatchPanel({ code, onApplyPatch }) {
           setError('Patch application failed. Please check if the patch format is correct');
         }
       } catch (err) {
-        console.error('Failed to apply patch:', err);
+        logger.error('Failed to apply patch', { error: err.message, patchId: patch.suggestion_id });
         setError(err.message || 'Patch application failed');
       } finally {
         setApplying(false);
@@ -252,7 +253,7 @@ function PatchPanel({ code, onApplyPatch }) {
       setCopiedPatch(patchId);
       setTimeout(() => setCopiedPatch(null), 2000);
     } catch (err) {
-      console.error('Copy failed:', err);
+      logger.warn('Failed to copy patch to clipboard', { error: err.message });
     }
   }, []);
 

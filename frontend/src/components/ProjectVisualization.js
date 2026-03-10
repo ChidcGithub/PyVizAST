@@ -3,6 +3,7 @@ import cytoscape from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import fcose from 'cytoscape-fcose';
 import { useResizeObserver } from '../hooks/useResizeObserver';
+import logger from '../utils/logger';
 import './components.css';
 
 // Register Cytoscape layout extensions
@@ -218,7 +219,7 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
       cyRef.current = cy;
       return true;
     } catch (error) {
-      console.error('Cytoscape initialization error:', error);
+      logger.error('Cytoscape initialization error', { error: error.message });
       return false;
     }
   }, [graphData, theme]);

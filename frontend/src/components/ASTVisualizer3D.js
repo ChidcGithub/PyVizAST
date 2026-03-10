@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useMemo, useCallback, Suspense, for
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Text, Line, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
+import logger from '../utils/logger';
 
 // Performance constants
 const MAX_NODES_3D = 200;
@@ -1360,7 +1361,7 @@ function ASTVisualizer3D({ graph, theme, onGoToLine }) {
                       try {
                         if (node && node.id) handleGoToLine(node);
                       } catch (e) {
-                        console.warn('Search result click error:', e);
+                        logger.warn('Search result click error', { error: e.message });
                       }
                     }}
                     onMouseEnter={() => {
@@ -1370,7 +1371,7 @@ function ASTVisualizer3D({ graph, theme, onGoToLine }) {
                           setIsSearchResultHovered(true);
                         }
                       } catch (e) {
-                        console.warn('Search result hover error:', e);
+                        logger.warn('Search result hover error', { error: e.message });
                       }
                     }}
                     onMouseLeave={() => {

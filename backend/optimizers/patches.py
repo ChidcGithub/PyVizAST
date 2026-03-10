@@ -840,72 +840,134 @@ class PatchGenerator:
         return True
     
     def _parse_patch_hunks(self, patch_lines: List[str]) -> List[Dict[str, Any]]:
-        """Parse hunks in patch - Improved Version"""
+        """Parse hunks in patch - Improved Version with correct line number tracking
+        
+        Handles unified diff format:
+        - @@ -old_start,old_count +new_start,new_count @@ header
+        - '-' prefix: lines deleted from original
+        - '+' prefix: lines added in new version
+        - ' ' prefix: context lines (unchanged)
+        
+        Returns list of hunk dictionaries with proper line number tracking.
+        """
         hunks = []
         current_hunk = None
-        old_line_num = 0  # Original file line number
-        new_line_num = 0  # New file line number
+        old_line_num = 0  # Original file line number (tracking position in old file)
+        new_line_num = 0  # New file line number (tracking position in new file)
         
-        for line in patch_lines:
+        logger.debug(f"Parsing patch with {len(patch_lines)} lines")
+        
+        for line_idx, line in enumerate(patch_lines):
             if line.startswith('@@'):
-                # Save previous hunk
+                # Save previous hunk before starting new one
                 if current_hunk is not None:
+                    logger.debug(
+                        f"Completed hunk: old_start={current_hunk['old_start']}, "
+                        f"deleted={current_hunk['deleted']}, added={current_hunk['added']}"
+                    )
                     hunks.append(current_hunk)
                 
                 # Parse @@ -start,count +start,count @@ or @@ -start +start @@
+                # Example: @@ -10,5 +10,6 @@ means:
+                #   - Old file: starting at line 10, 5 lines affected
+                #   - New file: starting at line 10, 6 lines affected
                 match = re.match(r'@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@', line)
                 if match:
                     old_start = int(match.group(1))
+                    old_count = int(match.group(2)) if match.group(2) else 1
                     new_start = int(match.group(3))
+                    new_count = int(match.group(4)) if match.group(4) else 1
+                    
+                    # Initialize line counters for this hunk from header values
+                    # Note: line numbers in diff are 1-based
+                    old_line_num = old_start
+                    new_line_num = new_start
                     
                     current_hunk = {
-                        'start_line': new_start,
-                        'old_start': old_start,
+                        'start_line': new_start,  # Where to apply changes in target file
+                        'old_start': old_start,   # Where changes start in source file
+                        'old_count': old_count,   # Number of lines in old file
+                        'new_count': new_count,   # Number of lines in new file
                         'deleted': 0,
                         'added': 0,
-                        'lines': [],
-                        'context': [],
-                        'deleted_lines': []
+                        'lines': [],              # Lines to insert (context + additions)
+                        'context': [],            # Context lines for validation
+                        'deleted_lines': []       # Lines to delete for validation
                     }
+                    
+                    logger.debug(
+                        f"Started new hunk at line {line_idx}: "
+                        f"old={old_start},{old_count} new={new_start},{new_count}"
+                    )
                 else:
+                    logger.warning(f"Failed to parse hunk header at line {line_idx}: {line[:50]}")
                     current_hunk = None
                     
             elif current_hunk is not None:
+                # Skip file headers
                 if line.startswith('+++') or line.startswith('---'):
+                    logger.debug(f"Skipping file header: {line[:50]}")
                     continue
+                    
                 elif line.startswith('+'):
-                    # Added line
+                    # Added line (exists only in new file)
                     content = line[1:] if len(line) > 1 else ''
                     current_hunk['lines'].append(content)
                     current_hunk['added'] += 1
+                    # Only new_line_num increases for additions
                     new_line_num += 1
+                    logger.debug(f"Added line at new:{new_line_num}: {content[:30]}...")
+                    
                 elif line.startswith('-'):
-                    # Deleted line - record content for validation
+                    # Deleted line (exists only in old file)
                     deleted_content = line[1:] if len(line) > 1 else ''
                     current_hunk['deleted'] += 1
+                    # Record with current old file line number for validation
                     current_hunk['deleted_lines'].append((old_line_num, deleted_content))
-                    old_line_num += 1  # Original file line number increases
+                    # Only old_line_num increases for deletions
+                    old_line_num += 1
+                    logger.debug(f"Deleted line at old:{old_line_num}: {deleted_content[:30]}...")
+                    
                 elif line.startswith('\\'):
-                    # Continuation indicator (e.g., "\ No newline at end of file"), ignore
+                    # Continuation indicator (e.g., "\\ No newline at end of file")
+                    logger.debug(f"Skipping continuation marker: {line}")
                     continue
+                    
                 elif line.startswith(' '):
-                    # Context line (starts with space)
+                    # Context line (exists in both old and new)
                     context_content = line[1:] if len(line) > 1 else ''
                     current_hunk['lines'].append(context_content)
+                    # Record context with new file line number
                     current_hunk['context'].append((new_line_num, context_content))
+                    # Both line numbers increase for context
                     old_line_num += 1
                     new_line_num += 1
-                else:
-                    # Empty line or other case, treat as context
+                    
+                elif line == '':
+                    # Empty line could be a context line with no content
                     current_hunk['lines'].append('')
                     current_hunk['context'].append((new_line_num, ''))
                     old_line_num += 1
                     new_line_num += 1
+                    
+                else:
+                    # Unexpected line format - log warning but try to handle
+                    logger.warning(f"Unexpected line format at patch line {line_idx}: {line[:50]}")
+                    # Treat as context line for robustness
+                    current_hunk['lines'].append(line)
+                    current_hunk['context'].append((new_line_num, line))
+                    old_line_num += 1
+                    new_line_num += 1
         
-        # Add last hunk
+        # Add the last hunk
         if current_hunk is not None:
+            logger.debug(
+                f"Final hunk: old_start={current_hunk['old_start']}, "
+                f"deleted={current_hunk['deleted']}, added={current_hunk['added']}"
+            )
             hunks.append(current_hunk)
         
+        logger.info(f"Parsed {len(hunks)} hunks from patch")
         return hunks
     
     def generate_all_patches(

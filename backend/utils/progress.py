@@ -99,12 +99,15 @@ class ProgressTracker:
     
     def _notify_listeners(self, task_id: str, state: ProgressState) -> None:
         """Notify all listeners of state change"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         # Call synchronous callbacks
         for callback in self._listeners.get(task_id, []):
             try:
                 callback(state)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Progress callback failed for task {task_id}: {e}")
         
         # Put in async queue for SSE - use call_soon_threadsafe for thread safety
         if task_id in self._queues:
@@ -114,11 +117,13 @@ class ProgressTracker:
                 try:
                     loop = asyncio.get_running_loop()
                     loop.call_soon_threadsafe(lambda: queue.put_nowait(state))
-                except RuntimeError:
-                    # No running loop, try to create task in a new way
-                    pass
-            except Exception:
-                pass
+                except RuntimeError as e:
+                    # No running loop - this is expected when called from non-async context
+                    logger.debug(f"No running event loop for task {task_id}: {e}")
+                except Exception as e:
+                    logger.warning(f"Failed to schedule queue put for task {task_id}: {e}")
+            except Exception as e:
+                logger.warning(f"Failed to notify SSE queue for task {task_id}: {e}")
     
     def get_state(self, task_id: str) -> Optional[ProgressState]:
         """Get current progress state"""

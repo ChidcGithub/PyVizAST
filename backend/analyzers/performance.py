@@ -489,8 +489,13 @@ class PerformanceAnalyzer:
                             self.reported.add(expr_repr)
                         elif expr_repr:
                             self.expressions[expr_repr] = (node, getattr(node, 'lineno', 0))
-                    except (ValueError, TypeError, AttributeError):
-                        pass
+                    except (ValueError, TypeError, AttributeError) as e:
+                        # ast.unparse may fail for complex or malformed expressions
+                        # This is expected for some edge cases, log at debug level
+                        import logging
+                        logging.getLogger(__name__).debug(
+                            f"Could not unparse expression for redundancy check: {e}"
+                        )
                 self.generic_visit(node)
         
         visitor = RedundantCalcVisitor(self)

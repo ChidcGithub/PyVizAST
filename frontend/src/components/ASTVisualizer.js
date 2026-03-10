@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import logger from '../utils/logger';
 
 // Performance constants
 const MAX_NODES_FULL = 300;
@@ -565,7 +566,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
         });
 
       } catch (error) {
-        console.error('Failed to initialize Cytoscape:', error);
+        logger.error('Failed to initialize Cytoscape', { error: error.message });
       }
     };
 
@@ -1029,7 +1030,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
                             handleGoToLine(node);
                           }
                         } catch (e) {
-                          console.warn('Search result click error:', e);
+                          logger.warn('Search result click error', { error: e.message });
                         }
                       }}
                       onMouseEnter={() => {
@@ -1038,7 +1039,7 @@ function ASTVisualizer({ graph, theme, onGoToLine }) {
                             focusSearchResult(node, index);
                           }
                         } catch (e) {
-                          console.warn('Search result hover error:', e);
+                          logger.warn('Search result hover error', { error: e.message });
                         }
                       }}
                     >
