@@ -9,6 +9,7 @@ import ProjectVisualization from './components/ProjectVisualization';
 import LearnView from './components/LearnView';
 import ChallengeView from './components/ChallengeView';
 import GestureControl from './components/GestureControl';
+import { GestureType } from './utils/GestureService';
 import { analyzeCode, checkServerHealth, getApiBaseUrl } from './api';
 import { setupGlobalErrorHandlers } from './utils/logger';
 import './App.css';
@@ -492,7 +493,14 @@ function App() {
 
   // Gesture control toggle
   const handleGestureToggle = useCallback(() => {
-    setGestureEnabled(prev => !prev);
+    setGestureEnabled(prev => {
+      const newValue = !prev;
+      // Clear pointing cursor when disabling gesture control
+      if (!newValue && visualizerRef.current && visualizerRef.current.clearPointingCursor) {
+        visualizerRef.current.clearPointingCursor();
+      }
+      return newValue;
+    });
   }, []);
 
   // Gesture callback - receives gesture data and forwards to visualizer
@@ -500,12 +508,23 @@ function App() {
     if (visualizerRef.current && visualizerRef.current.handleGesture) {
       visualizerRef.current.handleGesture(gestureData);
     }
+    // Clear pointing cursor when gesture is not Pointing_Up
+    if (gestureData.gesture !== GestureType.POINTING_UP && visualizerRef.current && visualizerRef.current.clearPointingCursor) {
+      visualizerRef.current.clearPointingCursor();
+    }
   }, []);
 
   // Two hands gesture callback - for pinch zoom
   const handleTwoHandsGesture = useCallback((twoHandsData) => {
     if (visualizerRef.current && visualizerRef.current.handleTwoHands) {
       visualizerRef.current.handleTwoHands(twoHandsData);
+    }
+  }, []);
+
+  // Pointing direction callback - for gesture-based node selection
+  const handlePointingDirection = useCallback((pointingData) => {
+    if (visualizerRef.current && visualizerRef.current.handlePointingDirection) {
+      visualizerRef.current.handlePointingDirection(pointingData);
     }
   }, []);
 
@@ -967,6 +986,7 @@ function App() {
         enabled={gestureEnabled}
         onGesture={handleGesture}
         onTwoHands={handleTwoHandsGesture}
+        onPointingDirection={handlePointingDirection}
         theme={theme}
         showGuide={true}
         compact={false}

@@ -118,6 +118,30 @@
   white-space: nowrap;
 }
 
+/* Cooldown indicator */
+.current-gesture-display.cooldown {
+  background: rgba(250, 204, 21, 0.9);
+  animation: cooldownPulse 0.5s ease infinite;
+}
+
+@keyframes cooldownPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.cooldown-indicator {
+  margin-left: 4px;
+  font-size: 12px;
+  animation: dots 1s steps(4, end) infinite;
+}
+
+@keyframes dots {
+  0%, 20% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75%, 100% { content: '...'; }
+}
+
 /* 展开/收起按钮 */
 .gesture-expand-btn {
   position: absolute;

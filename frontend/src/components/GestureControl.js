@@ -31,19 +31,19 @@ const PalmIcon = () => (
   </svg>
 );
 
-const PointingIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2v10M12 2l4 4M12 2L8 6" />
-    <circle cx="12" cy="14" r="2" />
-    <path d="M12 16v4" />
-  </svg>
-);
-
 const VictoryIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M8 3v10M16 3v10" />
     <path d="M8 13c0 2 2 4 4 4s4-2 4-4" />
     <path d="M4 21l4-4M20 21l-4-4" />
+  </svg>
+);
+
+const PointingIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2v10" />
+    <circle cx="12" cy="14" r="2" />
+    <path d="M12 16v6" />
   </svg>
 );
 
@@ -63,20 +63,20 @@ const GESTURE_ICONS = {
   [GestureType.THUMB_DOWN]: ThumbDownIcon,
   [GestureType.CLOSED_FIST]: FistIcon,
   [GestureType.OPEN_PALM]: PalmIcon,
-  [GestureType.POINTING_UP]: PointingIcon,
   [GestureType.VICTORY]: VictoryIcon,
+  [GestureType.POINTING_UP]: PointingIcon,
   'PINCH': PinchIcon,
 };
 
-// Gesture guide
+// Gesture guide (6 core gestures + PINCH)
 const GESTURE_GUIDE = [
   { gesture: GestureType.THUMB_UP, action: 'Zoom In', description: 'Thumb up' },
   { gesture: GestureType.THUMB_DOWN, action: 'Zoom Out', description: 'Thumb down' },
-  { gesture: GestureType.CLOSED_FIST, action: 'Pan', description: 'Closed fist drag' },
-  { gesture: GestureType.OPEN_PALM, action: 'Reset', description: 'Open palm (hold)' },
-  { gesture: GestureType.POINTING_UP, action: 'Select', description: 'Point at node' },
-  { gesture: GestureType.VICTORY, action: 'Rotate', description: 'V sign rotate' },
-  { gesture: 'PINCH', action: 'Zoom', description: 'Two hands zoom' },
+  { gesture: GestureType.CLOSED_FIST, action: 'Pan', description: 'Fist drag' },
+  { gesture: GestureType.OPEN_PALM, action: 'Reset', description: 'Open palm' },
+  { gesture: GestureType.VICTORY, action: 'Select', description: 'V sign' },
+  { gesture: GestureType.POINTING_UP, action: 'Point Select', description: 'Point to select' },
+  { gesture: 'PINCH', action: 'Zoom', description: 'Two hands pinch' },
 ];
 
 /**
@@ -87,6 +87,7 @@ const GestureControl = forwardRef(({
   enabled = false, 
   onGesture,
   onTwoHands,
+  onPointingDirection,
   theme = 'dark',
   showGuide = true,
   compact = false,
@@ -96,6 +97,7 @@ const GestureControl = forwardRef(({
   const [currentGesture, setCurrentGesture] = useState(null);
   const [currentAction, setCurrentAction] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isInCooldown, setIsInCooldown] = useState(false);
   
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
@@ -113,6 +115,10 @@ const GestureControl = forwardRef(({
       setCurrentGesture(gestureData.gesture);
       setCurrentAction(gestureData.action);
       
+      // Check if gesture service is in cooldown
+      const serviceStatus = gestureService.getStatus();
+      setIsInCooldown(serviceStatus.isInCooldown || false);
+      
       if (onGesture) {
         onGesture(gestureData);
       }
@@ -124,12 +130,19 @@ const GestureControl = forwardRef(({
       }
     });
     
+    gestureService.onPointingDirection((pointingData) => {
+      if (onPointingDirection) {
+        onPointingDirection(pointingData);
+      }
+    });
+    
     return () => {
       gestureService.onStatusChange(null);
       gestureService.onGesture(null);
       gestureService.onTwoHands(null);
+      gestureService.onPointingDirection(null);
     };
-  }, [onGesture, onTwoHands]);
+  }, [onGesture, onTwoHands, onPointingDirection]);
 
   // Start gesture control
   const startGestureControl = useCallback(async () => {
@@ -229,9 +242,10 @@ const GestureControl = forwardRef(({
         
         {/* Current gesture display */}
         {currentGesture && currentGesture !== GestureType.NONE && (
-          <div className="current-gesture-display">
+          <div className={`current-gesture-display ${isInCooldown ? 'cooldown' : ''}`}>
             <span className="gesture-icon">{getGestureIcon(currentGesture)}</span>
             <span className="gesture-action">{getActionDescription(currentAction)}</span>
+            {isInCooldown && <span className="cooldown-indicator">...</span>}
           </div>
         )}
         

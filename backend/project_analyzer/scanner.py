@@ -88,11 +88,31 @@ class ProjectScanner:
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 # Check for path traversal attacks before extracting
                 for member in zip_ref.namelist():
+                    # Skip entries that are absolute paths (Unix or Windows style)
+                    if member.startswith('/') or (len(member) > 1 and member[1] == ':'):
+                        logger.warning(f"Skipping absolute path in ZIP: {member}")
+                        continue
+                    
+                    # Skip entries with parent directory references
+                    if '..' in member.split(os.sep) or '..' in member.split('/'):
+                        logger.warning(f"Skipping path with parent reference in ZIP: {member}")
+                        continue
+                    
                     # Resolve the member path and check if it's within temp_dir
                     member_path = os.path.realpath(os.path.join(temp_dir, member))
-                    if not member_path.startswith(os.path.realpath(temp_dir) + os.sep) and member_path != os.path.realpath(temp_dir):
+                    temp_dir_real = os.path.realpath(temp_dir)
+                    
+                    # Check if the resolved path is within the target directory
+                    if not member_path.startswith(temp_dir_real + os.sep) and member_path != temp_dir_real:
                         logger.warning(f"Skipping potentially malicious path in ZIP: {member}")
                         continue
+                    
+                    # Check if it's a symlink in the ZIP (suspicious)
+                    member_info = zip_ref.getinfo(member)
+                    if hasattr(member_info, 'external_attr') and (member_info.external_attr >> 28) == 0xA:
+                        logger.warning(f"Skipping symbolic link in ZIP: {member}")
+                        continue
+                    
                     # Extract individual member safely
                     zip_ref.extract(member, temp_dir)
             

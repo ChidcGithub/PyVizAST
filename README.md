@@ -1,6 +1,6 @@
 # PyVizAST
 
-[![Version](https://img.shields.io/badge/Version-0.7.0--beta-orange.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Version](https://img.shields.io/badge/Version-0.7.0--beta2-orange.svg)](https://github.com/ChidcGithub/PyVizAST)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
@@ -198,6 +198,52 @@ Contributions are welcome. Please submit pull requests to the main repository.
 <details>
 
 <summary>Version History</summary>
+
+<details>
+<summary>v0.7.0-beta2 (2026-03-12)</summary>
+
+**Gesture Control Improvements**
+
+**Stability Enhancements:**
+- Added gesture stability filter: requires 5 consecutive frames with same gesture
+- Raised confidence threshold from 0.5 to 0.7
+- Added 300ms cooldown period between gesture changes
+- Fast reset when hand leaves frame (immediate instead of waiting 5 frames)
+- Position tracking continues during cooldown for smooth UX
+
+**Simplified Gesture Set (4 core gestures + pinch):**
+- **Thumb Up**: Zoom in
+- **Thumb Down**: Zoom out
+- **Closed Fist**: Pan mode
+- **Open Palm**: Reset view
+- **Victory (V sign)**: Select node
+- **Pointing Up**: Point-to-select with hover progress
+- **Two Hands Pinch**: Pinch to zoom
+
+**Point-to-Select Feature:**
+- Virtual cursor appears on AST graph when pointing
+- Hover over a node for 2 seconds to auto-select
+- Progress ring animation shows selection countdown
+- X-axis mirrored to match video preview
+
+**Bug Fixes:**
+- Fixed undefined GestureType references (POINTING_UP, VICTORY)
+- Fixed callback cleanup on component unmount
+- Fixed cooldown visual feedback timing
+
+**Files Modified:**
+- `frontend/src/utils/GestureService.js` - Stability filtering, cooldown, pointing direction
+- `frontend/src/components/GestureControl.js` - Removed unused icons, added pointing callback
+- `frontend/src/components/GestureControl.css` - Cooldown styling
+- `frontend/src/utils/logger.js` - Browser safety checks
+- `frontend/src/components/ASTVisualizer.js` - Pointing cursor, hover detection, progress ring
+- `frontend/src/components/components.css` - Pointing cursor styling
+- `frontend/src/App.js` - Pointing direction handling
+- `backend/analyzers/security.py` - Expanded secret detection (25+ patterns)
+- `backend/project_analyzer/scanner.py` - ZIP path validation
+- `frontend/public/index.html` - Title updated to "PyVisAST"
+
+</details>
 
 <details>
 <summary>v0.7.0-beta (2026-03-11)</summary>

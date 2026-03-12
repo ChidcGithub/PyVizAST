@@ -2,28 +2,32 @@
  * GestureService - Hand gesture recognition service
  * Real-time gesture detection using MediaPipe Gesture Recognizer
  * 
- * Supported gestures:
- * - Closed_Fist: Fist (pan/grab)
- * - Open_Palm: Open palm (reset/select)
- * - Pointing_Up: Pointing up (select)
- * - Thumb_Down: Thumb down (zoom out)
- * - Thumb_Up: Thumb up (zoom in)
- * - Victory: V sign (rotate mode)
- * - ILoveYou: I love you gesture
+ * Supported gestures (6 gestures):
+ * - Thumb_Up: Zoom in
+ * - Thumb_Down: Zoom out
+ * - Closed_Fist: Pan mode
+ * - Open_Palm: Reset view
+ * - Victory: Select node (V sign)
+ * - Pointing_Up: Point to select (tracks pointing direction)
+ * 
+ * Stability improvements:
+ * - A. Stability filter: Requires N consecutive frames with same gesture
+ * - B. Confidence threshold: Raised to 0.7
+ * - C. Cooldown period: Prevents rapid gesture switching
  */
 
 import { FilesetResolver, GestureRecognizer } from '@mediapipe/tasks-vision';
+import logger from './logger';
 
 // Gesture types
 export const GestureType = {
   NONE: 'None',
   CLOSED_FIST: 'Closed_Fist',
   OPEN_PALM: 'Open_Palm',
-  POINTING_UP: 'Pointing_Up',
   THUMB_DOWN: 'Thumb_Down',
   THUMB_UP: 'Thumb_Up',
   VICTORY: 'Victory',
-  ILOVEYOU: 'ILoveYou',
+  POINTING_UP: 'Pointing_Up',
 };
 
 // Gesture action types
@@ -34,9 +38,13 @@ export const GestureAction = {
   PAN: 'pan',
   RESET: 'reset',
   SELECT: 'select',
-  ROTATE: 'rotate',
   PINCH: 'pinch',
 };
+
+// Stability constants
+const STABLE_FRAMES_REQUIRED = 5; // A. Require 5 consecutive frames
+const COOLDOWN_MS = 300; // C. 300ms cooldown between gesture changes
+const CONFIDENCE_THRESHOLD = 0.7; // B. Higher confidence threshold
 
 class GestureService {
   constructor() {
@@ -52,12 +60,25 @@ class GestureService {
     this.onHandPositionCallback = null;
     this.onTwoHandsCallback = null;
     this.onStatusChangeCallback = null;
+    this.onPointingDirectionCallback = null;
     
     // State tracking
     this.currentGesture = GestureType.NONE;
-    this.lastGesture = GestureType.NONE;
+    this.lastStableGesture = GestureType.NONE;
     this.gestureStartTime = 0;
     this.gestureHoldTime = 0;
+    
+    // Pointing direction tracking
+    this.currentPointingDirection = null;
+    this.pointingOrigin = null;
+    
+    // A. Gesture stability - history buffer
+    this.gestureHistory = [];
+    this.maxHistoryLength = STABLE_FRAMES_REQUIRED;
+    
+    // C. Gesture cooldown
+    this.lastGestureChangeTime = 0;
+    this.isInCooldown = false;
     
     // Two hands tracking (for pinch zoom)
     this.previousHandDistance = null;
@@ -88,7 +109,7 @@ class GestureService {
         'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
       );
       
-      // Create GestureRecognizer
+      // Create GestureRecognizer with higher confidence thresholds
       this.gestureRecognizer = await GestureRecognizer.createFromOptions(vision, {
         baseOptions: {
           modelAssetPath: 'https://storage.googleapis.com/mediapipe-tasks/gesture_recognizer/gesture_recognizer.task',
@@ -96,16 +117,16 @@ class GestureService {
         },
         runningMode: 'VIDEO',
         numHands: 2,
-        minHandDetectionConfidence: 0.5,
-        minHandPresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
+        minHandDetectionConfidence: CONFIDENCE_THRESHOLD,
+        minHandPresenceConfidence: CONFIDENCE_THRESHOLD,
+        minTrackingConfidence: CONFIDENCE_THRESHOLD,
       });
       
       this.isInitialized = true;
       this.notifyStatus('ready', 'Gesture recognition ready');
       return true;
     } catch (error) {
-      console.error('Failed to initialize GestureRecognizer:', error);
+      logger.error('Failed to initialize GestureRecognizer', { error: error.message, stack: error.stack });
       this.notifyStatus('error', `Failed to load: ${error.message}`);
       return false;
     }
@@ -140,13 +161,18 @@ class GestureService {
       this.isRunning = true;
       this.lastVideoTime = -1;
       
+      // Reset stability state
+      this.gestureHistory = [];
+      this.lastGestureChangeTime = 0;
+      this.isInCooldown = false;
+      
       // Start detection loop
       this.detectLoop();
       
       this.notifyStatus('running', 'Gesture control active');
       return true;
     } catch (error) {
-      console.error('Failed to start camera:', error);
+      logger.error('Failed to start camera', { error: error.message });
       this.notifyStatus('error', `Camera error: ${error.message}`);
       return false;
     }
@@ -170,10 +196,16 @@ class GestureService {
     }
     
     this.currentGesture = GestureType.NONE;
-    this.lastGesture = GestureType.NONE;
+    this.lastStableGesture = GestureType.NONE;
     this.previousHandDistance = null;
     this.previousHandCenter = null;
     this.handPositions = { left: null, right: null };
+    this.gestureHistory = [];
+    this.smoothedPosition = null;
+    this.isInCooldown = false;
+    this.lastGestureChangeTime = 0;
+    this.gestureStartTime = 0;
+    this.gestureHoldTime = 0;
     
     this.notifyStatus('stopped', 'Gesture control stopped');
   }
@@ -196,7 +228,7 @@ class GestureService {
         const results = this.gestureRecognizer.recognizeForVideo(video, performance.now());
         this.processResults(results);
       } catch (error) {
-        console.error('Gesture recognition error:', error);
+        logger.error('Gesture recognition error', { error: error.message });
       }
     }
     
@@ -212,11 +244,17 @@ class GestureService {
     // Reset hand positions
     this.handPositions = { left: null, right: null };
     
-    // No hand detected
+    // No hand detected - fast reset for responsiveness
     if (!gestures || gestures.length === 0) {
+      // Fast reset: clear history immediately for quick response
+      this.gestureHistory = [];
       this.currentGesture = GestureType.NONE;
+      this.lastStableGesture = GestureType.NONE;
       this.previousHandDistance = null;
       this.previousHandCenter = null;
+      this.smoothedPosition = null;
+      this.isInCooldown = false;
+      this.gestureHoldTime = 0;
       
       if (this.onGestureCallback) {
         this.onGestureCallback({
@@ -235,6 +273,9 @@ class GestureService {
       const hand = handedness[i][0];
       
       if (!gesture || !handLandmarks || !hand) continue;
+      
+      // B. Check confidence threshold
+      if (gesture.score < CONFIDENCE_THRESHOLD) continue;
       
       // Get palm center position (using wrist and middle finger base)
       const wrist = handLandmarks[0];
@@ -256,10 +297,34 @@ class GestureService {
       
       // Record hand position
       const handLabel = hand.categoryName.toLowerCase(); // 'left' or 'right'
+      
+      // Calculate pointing direction (index finger: MCP=5, TIP=8)
+      const indexMcp = handLandmarks[5];
+      const indexTip = handLandmarks[8];
+      const pointingDirection = {
+        x: indexTip.x - indexMcp.x,
+        y: indexTip.y - indexMcp.y,
+        z: (indexTip.z - indexMcp.z) * 2, // Z is usually small, amplify
+      };
+      
+      // Normalize pointing direction
+      const length = Math.sqrt(
+        pointingDirection.x * pointingDirection.x +
+        pointingDirection.y * pointingDirection.y +
+        pointingDirection.z * pointingDirection.z
+      );
+      if (length > 0.001) {
+        pointingDirection.x /= length;
+        pointingDirection.y /= length;
+        pointingDirection.z /= length;
+      }
+      
       this.handPositions[handLabel] = {
         landmarks: handLandmarks,
         center: { ...this.smoothedPosition },
         gesture: gesture.categoryName,
+        pointingDirection,
+        indexTip: { x: indexTip.x, y: indexTip.y, z: indexTip.z },
       };
     }
     
@@ -282,32 +347,101 @@ class GestureService {
   }
 
   /**
+   * A. Add gesture to history and return stable gesture
+   */
+  addToGestureHistory(gesture) {
+    this.gestureHistory.push(gesture);
+    
+    // Keep only last N frames
+    if (this.gestureHistory.length > this.maxHistoryLength) {
+      this.gestureHistory.shift();
+    }
+    
+    // Check if we have stable gesture (all N frames are the same)
+    if (this.gestureHistory.length === this.maxHistoryLength) {
+      const allSame = this.gestureHistory.every(g => g === gesture);
+      if (allSame) {
+        return gesture;
+      }
+    }
+    
+    return null; // Not stable yet
+  }
+
+  /**
    * Handle single hand gesture
    */
   handleSingleHand(handData) {
-    const gestureName = handData.gesture;
+    const rawGesture = handData.gesture;
     const now = Date.now();
     
-    // Gesture change
-    if (gestureName !== this.lastGesture) {
-      this.lastGesture = gestureName;
+    // D. Simplify - only accept certain gestures
+    const allowedGestures = [
+      GestureType.THUMB_UP,
+      GestureType.THUMB_DOWN,
+      GestureType.CLOSED_FIST,
+      GestureType.OPEN_PALM,
+      GestureType.VICTORY,
+      GestureType.POINTING_UP,
+    ];
+    
+    // Filter out unsupported gestures
+    const gestureName = allowedGestures.includes(rawGesture) ? rawGesture : GestureType.NONE;
+    
+    // A. Stability filter - add to history
+    const stableGesture = this.addToGestureHistory(gestureName);
+    
+    // If no stable gesture, use NONE
+    const effectiveGesture = stableGesture || GestureType.NONE;
+    
+    // C. Check cooldown - still process position during cooldown
+    if (this.isInCooldown) {
+      const timeSinceLastChange = now - this.lastGestureChangeTime;
+      if (timeSinceLastChange < COOLDOWN_MS) {
+        // Still in cooldown - keep current gesture but continue position tracking
+        if (this.onHandPositionCallback) {
+          this.onHandPositionCallback(handData.center, handData.landmarks);
+        }
+        return;
+      }
+      this.isInCooldown = false;
+    }
+    
+    // Gesture change detection
+    if (effectiveGesture !== this.lastStableGesture) {
+      // C. Start cooldown on gesture change
+      this.lastGestureChangeTime = now;
+      this.isInCooldown = true;
+      this.lastStableGesture = effectiveGesture;
       this.gestureStartTime = now;
       this.gestureHoldTime = 0;
-    } else {
+    } else if (effectiveGesture !== GestureType.NONE) {
       this.gestureHoldTime = now - this.gestureStartTime;
     }
     
-    this.currentGesture = gestureName;
+    this.currentGesture = effectiveGesture;
     
     // Map gesture to action
-    const action = this.gestureToAction(gestureName, this.gestureHoldTime);
+    const action = this.gestureToAction(effectiveGesture, this.gestureHoldTime);
     
     if (this.onGestureCallback) {
       this.onGestureCallback({
-        gesture: gestureName,
+        gesture: effectiveGesture,
         action,
         holdTime: this.gestureHoldTime,
         position: handData.center,
+        confidence: stableGesture ? 1.0 : 0.5, // Indicate stability
+        pointingDirection: handData.pointingDirection,
+        indexTip: handData.indexTip,
+      });
+    }
+    
+    // Call pointing direction callback for Pointing_Up gesture
+    if (effectiveGesture === GestureType.POINTING_UP && this.onPointingDirectionCallback) {
+      this.onPointingDirectionCallback({
+        origin: handData.indexTip,
+        direction: handData.pointingDirection,
+        gesture: effectiveGesture,
       });
     }
   }
@@ -332,7 +466,9 @@ class GestureService {
     const center = { x: centerX, y: centerY };
     
     // Calculate zoom and pan
+    // eslint-disable-next-line no-unused-vars
     let pinchScale = 0;
+    // eslint-disable-next-line no-unused-vars
     let panDelta = { x: 0, y: 0 };
     
     if (this.previousHandDistance !== null && this.previousHandCenter !== null) {
@@ -378,12 +514,9 @@ class GestureService {
   }
 
   /**
-   * Map gesture to action
+   * Map gesture to action (6 gestures)
    */
   gestureToAction(gesture, holdTime) {
-    // Long press threshold (500ms)
-    const isLongPress = holdTime > 500;
-    
     switch (gesture) {
       case GestureType.THUMB_UP:
         return GestureAction.ZOOM_IN;
@@ -395,13 +528,13 @@ class GestureService {
         return GestureAction.PAN;
       
       case GestureType.OPEN_PALM:
-        return isLongPress ? GestureAction.RESET : GestureAction.SELECT;
+        return GestureAction.RESET;
+      
+      case GestureType.VICTORY:
+        return GestureAction.SELECT;
       
       case GestureType.POINTING_UP:
         return GestureAction.SELECT;
-      
-      case GestureType.VICTORY:
-        return GestureAction.ROTATE;
       
       default:
         return GestureAction.NONE;
@@ -427,6 +560,10 @@ class GestureService {
     this.onStatusChangeCallback = callback;
   }
 
+  onPointingDirection(callback) {
+    this.onPointingDirectionCallback = callback;
+  }
+
   /**
    * Notify status change
    */
@@ -444,6 +581,7 @@ class GestureService {
       isInitialized: this.isInitialized,
       isRunning: this.isRunning,
       currentGesture: this.currentGesture,
+      isInCooldown: this.isInCooldown,
     };
   }
 

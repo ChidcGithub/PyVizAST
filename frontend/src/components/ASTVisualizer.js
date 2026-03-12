@@ -133,6 +133,14 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   // Search debounce ref
   const searchDebounceRef = useRef(null);
   
+  // Pointing cursor state
+  const [pointingPosition, setPointingPosition] = useState(null); // Screen position in graph
+  const [hoveredNode, setHoveredNode] = useState(null); // Currently hovered node
+  const [hoverProgress, setHoverProgress] = useState(0); // 0-100 progress
+  const hoverTimerRef = useRef(null);
+  const hoverStartTimeRef = useRef(null);
+  const HOVER_SELECT_TIME = 2000; // 2 seconds to select
+  
   // Clear debounce timer
   useEffect(() => {
     return () => {
@@ -248,15 +256,152 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     }
   }, [gestureEnabled]);
   
+  // Pointing cursor handler - converts pointing direction to graph coordinates
+  const handlePointingDirection = useCallback((pointingData) => {
+    if (!cyRef.current || !gestureEnabled || !containerRef.current) return;
+    
+    const cy = cyRef.current;
+    const container = containerRef.current;
+    const containerRect = container.getBoundingClientRect();
+    
+    // Calculate pointing position in graph coordinates
+    // pointingData.origin is normalized (0-1) from video feed
+    // We need to map it to the graph container
+    // Note: X is inverted because video is mirrored
+    const graphX = containerRect.width * (1 - pointingData.origin.x);
+    const graphY = containerRect.height * pointingData.origin.y;
+    
+    // Update pointing position for rendering
+    setPointingPosition({ x: graphX, y: graphY });
+    
+    // Find node at pointing position
+    const renderedPosition = cy.pan(); // Current pan offset
+    const zoom = cy.zoom();
+    
+    // Convert screen position to model position
+    const modelX = (graphX - renderedPosition.x) / zoom;
+    const modelY = (graphY - renderedPosition.y) / zoom;
+    
+    // Find the nearest node
+    let nearestNode = null;
+    let nearestDistance = Infinity;
+    
+    cy.nodes().forEach(node => {
+      const nodePos = node.position();
+      const nodeWidth = node.width() / 2;
+      const nodeHeight = node.height() / 2;
+      
+      // Calculate distance from pointing position to node center
+      const dx = modelX - nodePos.x;
+      const dy = modelY - nodePos.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      // Check if pointing is within node bounds (with some tolerance)
+      if (Math.abs(dx) < nodeWidth * 1.5 && Math.abs(dy) < nodeHeight * 1.5) {
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestNode = node;
+        }
+      }
+    });
+    
+    // Handle hover state changes
+    if (nearestNode) {
+      const nodeId = nearestNode.data().id;
+      
+      if (hoveredNode?.id !== nodeId) {
+        // New node hovered - reset timer
+        setHoveredNode({
+          id: nodeId,
+          type: nearestNode.data().type,
+          name: nearestNode.data().name,
+        });
+        setHoverProgress(0);
+        hoverStartTimeRef.current = Date.now();
+        
+        // Clear existing timer
+        if (hoverTimerRef.current) {
+          cancelAnimationFrame(hoverTimerRef.current);
+        }
+        
+        // Start progress animation
+        const updateProgress = () => {
+          const elapsed = Date.now() - hoverStartTimeRef.current;
+          const progress = Math.min(100, (elapsed / HOVER_SELECT_TIME) * 100);
+          setHoverProgress(progress);
+          
+          if (progress < 100) {
+            hoverTimerRef.current = requestAnimationFrame(updateProgress);
+          } else {
+            // Select the node after 2 seconds
+            nearestNode.select();
+            setSelectedNode({
+              id: nearestNode.data().id,
+              type: nearestNode.data().type,
+              name: nearestNode.data().name,
+              label: nearestNode.data().label,
+              lineno: nearestNode.data().lineno,
+              docstring: nearestNode.data().docstring,
+              sourceCode: nearestNode.data().source_code,
+              icon: nearestNode.data().icon,
+              description: nearestNode.data().description,
+              explanation: nearestNode.data().explanation,
+              attributes: nearestNode.data().attributes,
+            });
+            
+            // Reset hover state after selection
+            setHoveredNode(null);
+            setHoverProgress(0);
+            setPointingPosition(null);
+          }
+        };
+        
+        hoverTimerRef.current = requestAnimationFrame(updateProgress);
+      }
+    } else {
+      // No node hovered - reset state
+      if (hoveredNode) {
+        setHoveredNode(null);
+        setHoverProgress(0);
+        if (hoverTimerRef.current) {
+          cancelAnimationFrame(hoverTimerRef.current);
+          hoverTimerRef.current = null;
+        }
+      }
+    }
+  }, [gestureEnabled, hoveredNode]);
+  
+  // Clear pointing cursor
+  const clearPointingCursor = useCallback(() => {
+    setPointingPosition(null);
+    setHoveredNode(null);
+    setHoverProgress(0);
+    if (hoverTimerRef.current) {
+      cancelAnimationFrame(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  }, []);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) {
+        cancelAnimationFrame(hoverTimerRef.current);
+      }
+    };
+  }, []);
+  
   // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
     handleGesture,
     handleTwoHands,
+    handlePointingDirection,
+    clearPointingCursor,
     zoomIn: () => cyRef.current?.zoom(cyRef.current.zoom() * 1.4),
     zoomOut: () => cyRef.current?.zoom(cyRef.current.zoom() / 1.4),
     fit: () => cyRef.current?.fit(undefined, 50),
     getZoom: () => cyRef.current?.zoom(),
-  }), [handleGesture, handleTwoHands]);
+  }), [handleGesture, handleTwoHands, handlePointingDirection, clearPointingCursor]);
   
   // Clear debounce timer
   
@@ -894,7 +1039,10 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       if (cyRef.current) {
         try {
           cyRef.current.destroy();
-        } catch (e) {}
+        } catch (e) {
+          // Log error but don't crash - destroy may fail if already destroyed
+          logger.debug('Cytoscape cleanup warning', { message: e.message });
+        }
         cyRef.current = null;
       }
       
@@ -1208,6 +1356,64 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
           </div>
         )}
         <div className="cytoscape-container" ref={containerRef}></div>
+        
+        {/* Pointing cursor overlay */}
+        {pointingPosition && gestureEnabled && (
+          <div className="pointing-cursor-overlay">
+            <div 
+              className="pointing-cursor-dot"
+              style={{
+                left: pointingPosition.x,
+                top: pointingPosition.y,
+              }}
+            />
+            {/* Progress ring around cursor when hovering a node */}
+            {hoveredNode && hoverProgress > 0 && (
+              <svg 
+                className="pointing-progress-ring"
+                style={{
+                  position: 'absolute',
+                  left: pointingPosition.x,
+                  top: pointingPosition.y,
+                  transform: 'translate(-50%, -50%)',
+                }}
+                width="50" 
+                height="50"
+                viewBox="0 0 50 50"
+              >
+                <circle
+                  className="progress-ring-bg"
+                  cx="25"
+                  cy="25"
+                  r="20"
+                  fill="none"
+                  strokeWidth="3"
+                />
+                <circle
+                  className="progress-ring-fill"
+                  cx="25"
+                  cy="25"
+                  r="20"
+                  fill="none"
+                  strokeWidth="3"
+                  strokeDasharray={`${hoverProgress * 1.256} 125.6`}
+                  transform="rotate(-90 25 25)"
+                />
+              </svg>
+            )}
+          </div>
+        )}
+        
+        {/* Hover progress indicator on node */}
+        {hoveredNode && hoverProgress > 0 && (
+          <div className="hover-progress-indicator">
+            <div 
+              className="hover-progress-bar"
+              style={{ width: `${hoverProgress}%` }}
+            />
+            <span className="hover-progress-text">{hoveredNode.name || hoveredNode.type}</span>
+          </div>
+        )}
         
         {/* Signal particles overlay */}
         <svg className="particles-overlay">

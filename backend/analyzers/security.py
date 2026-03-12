@@ -38,13 +38,41 @@ class SecurityScanner:
     # Sensitive word patterns (for detecting hardcoded secrets)
     # Updated to handle escaped quotes in string values
     SENSITIVE_PATTERNS = [
+        # Password patterns
         (r'(?i)(password|passwd|pwd)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'password'),
-        (r'(?i)(api_key|apikey|api_secret)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'API key'),
-        (r'(?i)(secret|secret_key)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'secret key'),
-        (r'(?i)(token|auth_token|access_token)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'token'),
-        (r'(?i)(private_key|privatekey)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'private key'),
-        (r'(?i)(aws_access_key|aws_secret)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'AWS credential'),
-        (r'(?i)(database_url|db_password)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'database credential'),
+        (r'(?i)(password|passwd|pwd)\s*=\s*[\'"][^\'"]{8,}[\'"]', 'password'),  # Longer passwords
+        
+        # API keys and secrets
+        (r'(?i)(api_key|apikey|api_secret|api-key)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'API key'),
+        (r'(?i)api[_-]?key[_-]?\w*\s*=\s*[\'"][a-zA-Z0-9_\-]{16,}[\'"]', 'API key'),  # API_KEY_XXX pattern
+        (r'(?i)(secret|secret_key|secretkey)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'secret key'),
+        (r'(?i)secret[_-]?key[_-]?\w*\s*=\s*[\'"][a-zA-Z0-9_\-]{16,}[\'"]', 'secret key'),
+        
+        # Token patterns
+        (r'(?i)(token|auth_token|access_token|bearer|jwt)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'token'),
+        (r'(?i)(token|auth_token|access_token)\s*=\s*[\'"][a-zA-Z0-9_\-\.]{20,}[\'"]', 'token'),
+        (r'(?i)jwt[_-]?secret\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'JWT secret'),
+        
+        # Private keys
+        (r'(?i)(private_key|privatekey|private-key)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'private key'),
+        (r'(?i)(private_key|privatekey)\s*=\s*[\'"][\'"]-----BEGIN', 'private key'),  # PEM format
+        
+        # Cloud provider credentials
+        (r'(?i)(aws_access_key|aws_secret|aws_key)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'AWS credential'),
+        (r'(?i)(gcp_key|gcp_secret|google_api_key)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'GCP credential'),
+        (r'(?i)(azure_key|azure_secret|azure_connection_string)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'Azure credential'),
+        
+        # Database credentials
+        (r'(?i)(database_url|db_password|db_user|db_host)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'database credential'),
+        (r'(?i)(mongodb_uri|mongo_url|postgres_url|mysql_url)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'database URL'),
+        
+        # OAuth and authentication
+        (r'(?i)(oauth_token|oauth_secret|client_secret)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'OAuth credential'),
+        (r'(?i)(client_id|client_secret)\s*=\s*[\'"][a-zA-Z0-9_\-]{16,}[\'"]', 'OAuth credential'),
+        
+        # Encryption keys
+        (r'(?i)(encryption_key|encrypt_key|cipher_key)\s*=\s*[\'"](?:[^\'"\\]|\\.)*[\'"]', 'encryption key'),
+        (r'(?i)(salt|iv)\s*=\s*[\'"][a-zA-Z0-9_\-]{8,}[\'"]', 'encryption salt/IV'),
     ]
     
     # SQL injection risk patterns
@@ -286,14 +314,19 @@ class SecurityScanner:
     
     def _check_command_injection(self, tree: ast.AST):
         """Check for command injection risks"""
-        os_functions = {'system', 'popen', 'spawn', 'call', 'run'}
-        subprocess_functions = {'call', 'run', 'Popen', 'check_output'}
+        # Extended list of dangerous os functions
+        os_functions = {'system', 'popen', 'spawn', 'spawnl', 'spawnle', 'spawnlp', 
+                        'spawnlpe', 'spawnv', 'spawnve', 'spawnvp', 'spawnvpe',
+                        'call', 'run', 'startfile'}
+        subprocess_functions = {'call', 'run', 'Popen', 'check_output', 'check_call', 'getoutput', 'getstatusoutput'}
+        # Legacy/deprecated modules (Python 2 compatibility layer in Python 3)
+        legacy_modules = {'commands', 'popen2', 'popen3', 'popen4'}
         
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 func_full_name = self._get_func_full_name(node.func)
                 
-                # os.system, os.popen
+                # os.system, os.popen, os.spawn*, etc.
                 if func_full_name.startswith('os.'):
                     # Ensure node.func is ast.Attribute type before accessing attr
                     if isinstance(node.func, ast.Attribute) and node.func.attr in os_functions:
@@ -336,6 +369,43 @@ class SecurityScanner:
                                         lineno=node.lineno,
                                         suggestion="Use shell=False and pass argument list"
                                     ))
+                
+                # Legacy modules like commands.getoutput
+                elif func_full_name.startswith('commands.'):
+                    self.issues.append(CodeIssue(
+                        id=self._generate_issue_id("legacy_command"),
+                        type="security",
+                        severity=SeverityLevel.ERROR,
+                        message=f"Legacy module 'commands' is insecure and removed in Python 3",
+                        lineno=node.lineno,
+                        suggestion="Use subprocess.run() with shell=False"
+                    ))
+                
+                # popen2, popen3, popen4 modules
+                elif any(func_full_name.startswith(f'{mod}.') for mod in legacy_modules):
+                    self.issues.append(CodeIssue(
+                        id=self._generate_issue_id("popen_legacy"),
+                        type="security",
+                        severity=SeverityLevel.ERROR,
+                        message=f"Legacy module '{func_full_name.split('.')[0]}' is deprecated and insecure",
+                        lineno=node.lineno,
+                        suggestion="Use subprocess.Popen() instead"
+                    ))
+                
+                # eval() and exec() with potentially user-controlled input
+                elif isinstance(node.func, ast.Name) and node.func.id in ('eval', 'exec'):
+                    if node.args:
+                        arg = node.args[0]
+                        # Check if it's not a constant (i.e., potentially dynamic)
+                        if not isinstance(arg, ast.Constant):
+                            self.issues.append(CodeIssue(
+                                id=self._generate_issue_id("code_injection"),
+                                type="security",
+                                severity=SeverityLevel.ERROR,
+                                message=f"Using {node.func.id}() with dynamic input is a code injection risk",
+                                lineno=node.lineno,
+                                suggestion="Avoid eval/exec with user input; use ast.literal_eval() for safe evaluation"
+                            ))
     
     def _check_path_traversal(self, tree: ast.AST):
         """Check for path traversal risks"""

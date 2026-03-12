@@ -13,6 +13,12 @@ const LOG_LEVELS = {
 // Log buffer for batch sending
 let logBuffer = [];
 let flushTimer = null;
+let isInitialized = false;
+
+// Check if running in browser environment
+const isBrowser = () => {
+  return typeof window !== 'undefined' && typeof navigator !== 'undefined';
+};
 
 // Get API base URL
 const getApiBaseUrl = () => {
@@ -21,7 +27,7 @@ const getApiBaseUrl = () => {
 
 // Batch send logs to backend
 const flushLogs = async () => {
-  if (logBuffer.length === 0) return;
+  if (logBuffer.length === 0 || !isBrowser()) return;
 
   const logsToSend = [...logBuffer];
   logBuffer = [];
@@ -81,9 +87,13 @@ const addLog = (level, message, data = {}) => {
     level,
     message,
     ...data,
-    userAgent: navigator.userAgent,
-    url: window.location.href,
   };
+
+  // Add browser info only if available
+  if (isBrowser()) {
+    logEntry.userAgent = navigator.userAgent;
+    logEntry.url = window.location.href;
+  }
 
   logBuffer.push(logEntry);
 
@@ -113,6 +123,13 @@ export const logger = {
 
 // Global error handling
 export const setupGlobalErrorHandlers = () => {
+  // Skip if not in browser environment or already initialized
+  if (!isBrowser() || isInitialized) {
+    return;
+  }
+  
+  isInitialized = true;
+
   // Capture unhandled Promise rejections
   window.addEventListener('unhandledrejection', (event) => {
     // Ignore ResizeObserver related errors
