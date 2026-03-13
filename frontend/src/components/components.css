@@ -647,8 +647,6 @@
   --cursor-progress-fill: #000000;
   --cursor-snap-bg: rgba(255, 255, 255, 0.95);
   --cursor-snap-border: #000000;
-  --cursor-indicator-bg: rgba(255, 255, 255, 0.95);
-  --cursor-indicator-text: #333333;
 }
 
 .dark {
@@ -661,8 +659,6 @@
   --cursor-progress-fill: #ffffff;
   --cursor-snap-bg: rgba(30, 30, 30, 0.95);
   --cursor-snap-border: #ffffff;
-  --cursor-indicator-bg: rgba(30, 30, 30, 0.95);
-  --cursor-indicator-text: #e0e0e0;
 }
 
 /* 光标容器 */
@@ -677,28 +673,26 @@
   overflow: hidden;
 }
 
-/* 主光标点 */
+/* 主光标点 - 使用 transform 定位 (GPU加速) */
 .cursor-dot {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 10px;
   height: 10px;
-  margin-left: -5px;
-  margin-top: -5px;
   background: var(--cursor-bg);
   border: 2px solid var(--cursor-border);
   border-radius: 50%;
   box-shadow: 
     0 0 0 2px var(--cursor-glow),
     0 2px 8px var(--cursor-shadow);
-  will-change: left, top;
-  transition: width 0.15s ease, height 0.15s ease, margin 0.15s ease;
+  will-change: transform, opacity;
+  transition: width 0.15s ease, height 0.15s ease, box-shadow 0.15s ease;
 }
 
 .cursor-dot.snapped {
   width: 8px;
   height: 8px;
-  margin-left: -4px;
-  margin-top: -4px;
   box-shadow: 
     0 0 0 3px var(--cursor-border),
     0 0 16px var(--cursor-shadow);
@@ -707,24 +701,25 @@
 /* 光标环 - 悬停检测范围 */
 .cursor-ring {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 44px;
   height: 44px;
-  margin-left: -22px;
-  margin-top: -22px;
   border: 1.5px dashed var(--cursor-ring-color);
   border-radius: 50%;
-  will-change: left, top;
-  opacity: 0.8;
+  will-change: transform, opacity;
+  transition: opacity 0.2s ease;
 }
 
 /* 进度环 */
 .cursor-progress {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 52px;
   height: 52px;
-  margin-left: -26px;
-  margin-top: -26px;
-  will-change: left, top;
+  will-change: transform, opacity;
+  transition: opacity 0.15s ease;
 }
 
 .cursor-progress circle {
@@ -744,21 +739,21 @@
   stroke-width: 3;
   stroke-linecap: round;
   filter: drop-shadow(0 1px 3px var(--cursor-shadow));
-  transition: stroke-dasharray 0.05s linear;
 }
 
-/* 吸附指示器 */
+/* 吸附指示器 - 平滑动画 */
 .cursor-snap {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 28px;
   height: 28px;
-  margin-left: -14px;
-  margin-top: -14px;
   border: 2px solid var(--cursor-snap-border);
   border-radius: 50%;
   background: var(--cursor-snap-bg);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-  will-change: left, top;
+  will-change: transform, opacity;
+  transition: opacity 0.2s ease;
   animation: snapPulse 1.5s ease-in-out infinite;
 }
 
@@ -776,55 +771,8 @@
 }
 
 @keyframes snapPulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.1); opacity: 0.8; }
-}
-
-/* 悬停进度提示 */
-.cursor-tooltip {
-  position: absolute;
-  bottom: 70px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 8px 14px;
-  background: var(--cursor-indicator-bg);
-  backdrop-filter: blur(8px);
-  border-radius: 8px;
-  border: 1px solid var(--cursor-ring-color);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--cursor-indicator-text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-.cursor-tooltip::after {
-  content: '';
-  position: absolute;
-  bottom: -6px;
-  left: 50%;
-  margin-left: -6px;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-top: 6px solid var(--cursor-indicator-bg);
-}
-
-/* 进度条 */
-.cursor-tooltip .progress-track {
-  width: 100%;
-  height: 3px;
-  background: var(--cursor-progress-bg);
-  border-radius: 2px;
-  margin-top: 6px;
-  overflow: hidden;
-}
-
-.cursor-tooltip .progress-bar {
-  height: 100%;
-  background: var(--cursor-progress-fill);
-  border-radius: 2px;
-  transition: width 0.05s linear;
+  0%, 100% { transform: translate(var(--tx, 0), var(--ty, 0)) translate(-50%, -50%) scale(1); }
+  50% { transform: translate(var(--tx, 0), var(--ty, 0)) translate(-50%, -50%) scale(1.1); }
 }
 
 /* ========== Node Detail Panel - 详情面板 ========== */

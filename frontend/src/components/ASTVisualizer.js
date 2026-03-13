@@ -137,22 +137,26 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   // Virtual Cursor System - 虚拟光标系统
   // ========================================
   const HOVER_SELECT_TIME = 2000; // 2秒悬停选择
-  const SNAP_DISTANCE = 40; // 吸附距离阈值
-  const SMOOTH_FACTOR = 0.3; // 平滑因子 (0-1, 越小越平滑)
+  const SNAP_DISTANCE = 50; // 吸附距离阈值
+  const CURSOR_SMOOTH = 0.35; // 光标平滑因子
+  const SNAP_SMOOTH = 0.2; // 吸附平滑因子（更平滑）
   
   // 光标状态 - 使用单一 ref 管理
   const cursorStateRef = useRef({
     visible: false,
+    // 光标位置
     x: 0,
     y: 0,
     targetX: 0,
     targetY: 0,
-    snapped: false,
+    // 吸附位置（平滑动画）
     snapX: 0,
     snapY: 0,
+    snapTargetX: 0,
+    snapTargetY: 0,
+    snapped: false,
+    // 悬停状态
     hoveredNodeId: null,
-    hoveredNodeName: '',
-    hoveredNodeType: '',
     progress: 0,
     hoverStartTime: 0,
   });
@@ -166,6 +170,11 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   
   // 动画帧 ID
   const cursorAnimFrameRef = useRef(null);
+  
+  // 节点位置缓存（性能优化）
+  const nodePositionsCacheRef = useRef([]);
+  const lastCacheUpdateRef = useRef(0);
+  const CACHE_UPDATE_INTERVAL = 100; // 缓存更新间隔(ms)
   
   // Clear debounce timer
   useEffect(() => {
@@ -299,9 +308,15 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       return;
     }
     
-    // 平滑插值
-    state.x += (state.targetX - state.x) * SMOOTH_FACTOR;
-    state.y += (state.targetY - state.y) * SMOOTH_FACTOR;
+    // 光标位置平滑插值
+    state.x += (state.targetX - state.x) * CURSOR_SMOOTH;
+    state.y += (state.targetY - state.y) * CURSOR_SMOOTH;
+    
+    // 吸附位置平滑插值
+    if (state.snapped) {
+      state.snapX += (state.snapTargetX - state.snapX) * SNAP_SMOOTH;
+      state.snapY += (state.snapTargetY - state.snapY) * SNAP_SMOOTH;
+    }
     
     // 更新进度
     if (state.hoveredNodeId && state.hoverStartTime > 0) {
@@ -337,37 +352,41 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       }
     }
     
-    // 更新 DOM
+    // 更新 DOM - 使用 transform 实现 GPU 加速
     const dot = cursorDotRef.current;
     const ring = cursorRingRef.current;
     const progress = cursorProgressRef.current;
     const snap = cursorSnapRef.current;
     
+    // 光标点
     if (dot) {
-      dot.style.left = `${state.x}px`;
-      dot.style.top = `${state.y}px`;
+      dot.style.transform = `translate(${state.x}px, ${state.y}px) translate(-50%, -50%)`;
       dot.classList.toggle('snapped', state.snapped);
     }
+    // 光标环
     if (ring) {
-      ring.style.left = `${state.x}px`;
-      ring.style.top = `${state.y}px`;
-      ring.style.display = state.hoveredNodeId ? 'block' : 'none';
+      ring.style.transform = `translate(${state.x}px, ${state.y}px) translate(-50%, -50%)`;
+      ring.style.opacity = state.hoveredNodeId ? '0.8' : '0';
     }
+    // 进度环
     if (progress) {
-      progress.style.left = `${state.x}px`;
-      progress.style.top = `${state.y}px`;
-      progress.style.display = state.progress > 0 ? 'block' : 'none';
+      progress.style.transform = `translate(${state.x}px, ${state.y}px) translate(-50%, -50%)`;
+      progress.style.opacity = state.progress > 0 ? '1' : '0';
       const progressCircle = progress.querySelector('.progress-fill');
       if (progressCircle) {
-        const circumference = 2 * Math.PI * 22; // r=22
+        const circumference = 2 * Math.PI * 22;
         const dash = (state.progress / 100) * circumference;
         progressCircle.setAttribute('stroke-dasharray', `${dash} ${circumference}`);
       }
     }
+    // 吸附指示器 - 平滑动画
     if (snap) {
-      snap.style.left = `${state.snapX}px`;
-      snap.style.top = `${state.snapY}px`;
-      snap.style.display = state.snapped ? 'block' : 'none';
+      if (state.snapped) {
+        snap.style.transform = `translate(${state.snapX}px, ${state.snapY}px) translate(-50%, -50%)`;
+        snap.style.opacity = '1';
+      } else {
+        snap.style.opacity = '0';
+      }
     }
     
     // 继续动画
@@ -397,46 +416,75 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       state.visible = true;
       state.x = targetX;
       state.y = targetY;
+      // 显示光标元素
+      if (cursorDotRef.current) cursorDotRef.current.style.opacity = '1';
     }
     state.targetX = targetX;
     state.targetY = targetY;
     
-    // 查找最近节点
+    // 获取视口参数
     const pan = cy.pan();
     const zoom = cy.zoom();
     const modelX = (targetX - pan.x) / zoom;
     const modelY = (targetY - pan.y) / zoom;
     const snapRadius = SNAP_DISTANCE / zoom;
     
+    // 更新节点位置缓存（性能优化）
+    const now = Date.now();
+    if (now - lastCacheUpdateRef.current > CACHE_UPDATE_INTERVAL) {
+      const nodes = cy.nodes();
+      nodePositionsCacheRef.current = [];
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        const pos = node.position();
+        nodePositionsCacheRef.current.push({
+          node,
+          x: pos.x,
+          y: pos.y,
+          w: node.width() / 2,
+          h: node.height() / 2,
+        });
+      }
+      lastCacheUpdateRef.current = now;
+    }
+    
+    // 使用缓存查找最近节点
     let nearestNode = null;
     let nearestDist = Infinity;
     let nearestScreenPos = null;
     
-    const nodes = cy.nodes();
-    for (let i = 0; i < nodes.length; i++) {
-      const node = nodes[i];
-      const pos = node.position();
-      const dx = modelX - pos.x;
-      const dy = modelY - pos.y;
+    const cache = nodePositionsCacheRef.current;
+    for (let i = 0; i < cache.length; i++) {
+      const item = cache[i];
+      const dx = modelX - item.x;
+      const dy = modelY - item.y;
       const distSq = dx * dx + dy * dy;
-      const maxDist = Math.max(node.width(), node.height()) / 2 + snapRadius;
+      const maxDist = Math.max(item.w, item.h) + snapRadius;
       
       if (distSq < maxDist * maxDist && distSq < nearestDist) {
         nearestDist = Math.sqrt(distSq);
-        nearestNode = node;
+        nearestNode = item.node;
         nearestScreenPos = {
-          x: pos.x * zoom + pan.x,
-          y: pos.y * zoom + pan.y
+          x: item.x * zoom + pan.x,
+          y: item.y * zoom + pan.y
         };
       }
     }
     
-    // 更新吸附状态
+    // 更新吸附状态（平滑动画目标）
     const isSnapped = nearestNode && nearestDist < snapRadius;
+    const wasSnapped = state.snapped;
     state.snapped = isSnapped;
+    
     if (isSnapped && nearestScreenPos) {
-      state.snapX = nearestScreenPos.x;
-      state.snapY = nearestScreenPos.y;
+      // 设置吸附目标位置（会被平滑插值）
+      state.snapTargetX = nearestScreenPos.x;
+      state.snapTargetY = nearestScreenPos.y;
+      // 首次吸附时，直接设置位置避免延迟
+      if (!wasSnapped) {
+        state.snapX = nearestScreenPos.x;
+        state.snapY = nearestScreenPos.y;
+      }
     }
     
     // 更新悬停状态
@@ -444,8 +492,6 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       const nodeId = nearestNode.data().id;
       if (state.hoveredNodeId !== nodeId) {
         state.hoveredNodeId = nodeId;
-        state.hoveredNodeName = nearestNode.data().name || '';
-        state.hoveredNodeType = nearestNode.data().type || '';
         state.progress = 0;
         state.hoverStartTime = Date.now();
       }
@@ -476,10 +522,10 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     }
     
     // 隐藏 DOM 元素
-    if (cursorDotRef.current) cursorDotRef.current.style.display = 'none';
-    if (cursorRingRef.current) cursorRingRef.current.style.display = 'none';
-    if (cursorProgressRef.current) cursorProgressRef.current.style.display = 'none';
-    if (cursorSnapRef.current) cursorSnapRef.current.style.display = 'none';
+    if (cursorDotRef.current) cursorDotRef.current.style.opacity = '0';
+    if (cursorRingRef.current) cursorRingRef.current.style.opacity = '0';
+    if (cursorProgressRef.current) cursorProgressRef.current.style.opacity = '0';
+    if (cursorSnapRef.current) cursorSnapRef.current.style.opacity = '0';
   }, []);
   
   // Cleanup on unmount
@@ -1463,16 +1509,16 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
         {gestureEnabled && (
           <div className="pointing-cursor-overlay">
             {/* 光标点 */}
-            <div ref={cursorDotRef} className="cursor-dot" style={{ display: 'none' }} />
+            <div ref={cursorDotRef} className="cursor-dot" style={{ opacity: 0 }} />
             {/* 光标环 */}
-            <div ref={cursorRingRef} className="cursor-ring" style={{ display: 'none' }} />
+            <div ref={cursorRingRef} className="cursor-ring" style={{ opacity: 0 }} />
             {/* 进度环 */}
-            <svg ref={cursorProgressRef} className="cursor-progress" width="52" height="52" style={{ display: 'none' }}>
+            <svg ref={cursorProgressRef} className="cursor-progress" width="52" height="52" style={{ opacity: 0 }}>
               <circle className="progress-bg" />
               <circle className="progress-fill" transform="rotate(-90 26 26)" />
             </svg>
             {/* 吸附指示器 */}
-            <div ref={cursorSnapRef} className="cursor-snap" style={{ display: 'none' }} />
+            <div ref={cursorSnapRef} className="cursor-snap" style={{ opacity: 0 }} />
           </div>
         )}
         
