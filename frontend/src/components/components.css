@@ -670,13 +670,14 @@
 /* 指向光标点 - 黑白色调，简洁高效 */
 .pointing-cursor-dot {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 12px;
   height: 12px;
   background: #000;
   border: 2px solid #fff;
   border-radius: 50%;
-  transform: translate(-50%, -50%);
-  will-change: left, top;
+  will-change: transform;
   pointer-events: none;
   z-index: 151;
   animation: dotAppear 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
@@ -684,34 +685,35 @@
 
 @keyframes dotAppear {
   0% {
-    transform: translate(-50%, -50%) scale(0);
+    transform: translate(0, 0) translate(-50%, -50%) scale(0);
     opacity: 0;
   }
   60% {
-    transform: translate(-50%, -50%) scale(1.2);
+    transform: translate(0, 0) translate(-50%, -50%) scale(1.2);
   }
   100% {
-    transform: translate(-50%, -50%) scale(1);
+    transform: translate(0, 0) translate(-50%, -50%) scale(1);
     opacity: 1;
   }
 }
 
 /* 吸附状态 - 光标变小并淡出 */
 .pointing-cursor-dot.snapped {
-  transform: translate(-50%, -50%) scale(0.5);
+  transform: scale(0.5);
   opacity: 0.5;
 }
 
 /* 吸附手掌图标 */
 .pointing-snap-icon {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 24px;
   height: 24px;
   color: #000;
   background: #fff;
   border-radius: 50%;
-  transform: translate(-50%, -50%);
-  will-change: left, top;
+  will-change: transform;
   pointer-events: none;
   z-index: 152;
   display: flex;
@@ -723,14 +725,14 @@
 
 @keyframes snapAppear {
   0% {
-    transform: translate(-50%, -50%) scale(0);
+    transform: translate(0, 0) translate(-50%, -50%) scale(0);
     opacity: 0;
   }
   60% {
-    transform: translate(-50%, -50%) scale(1.15);
+    transform: translate(0, 0) translate(-50%, -50%) scale(1.15);
   }
   100% {
-    transform: translate(-50%, -50%) scale(1);
+    transform: translate(0, 0) translate(-50%, -50%) scale(1);
     opacity: 1;
   }
 }
@@ -754,12 +756,13 @@
 /* 指向光标外环 - 用于指示悬停状态 */
 .pointing-cursor-ring {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 40px;
   height: 40px;
   border: 2px solid rgba(0, 0, 0, 0.5);
   border-radius: 50%;
-  transform: translate(-50%, -50%);
-  will-change: left, top;
+  will-change: transform;
   pointer-events: none;
   z-index: 150;
   opacity: 0.8;
@@ -768,10 +771,12 @@
 /* 进度圆环 - SVG 样式 */
 .pointing-progress-ring {
   position: absolute;
+  top: 0;
+  left: 0;
   pointer-events: none;
   width: 50px;
   height: 50px;
-  will-change: left, top;
+  will-change: transform;
 }
 
 .progress-ring-bg {
