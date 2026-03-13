@@ -165,6 +165,21 @@ class GestureService {
       videoElement.srcObject = stream;
       await videoElement.play();
       
+      // Wait for video to have valid dimensions before starting detection
+      // This prevents MediaPipe "ROI width and height must be > 0" error
+      let attempts = 0;
+      const maxAttempts = 50; // 5 seconds max (50 * 100ms)
+      while ((!videoElement.videoWidth || !videoElement.videoHeight) && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      
+      if (!videoElement.videoWidth || !videoElement.videoHeight) {
+        logger.error('Video element has no valid dimensions after waiting');
+        this.notifyStatus('error', 'Camera failed to initialize properly');
+        return false;
+      }
+      
       this.isRunning = true;
       this.lastVideoTime = -1;
       
@@ -227,6 +242,12 @@ class GestureService {
     
     const video = this.videoElement;
     
+    // Skip if video has no valid dimensions (prevents ROI width/height = 0 error)
+    if (!video.videoWidth || !video.videoHeight) {
+      this.animationFrameId = requestAnimationFrame(() => this.detectLoop());
+      return;
+    }
+    
     // Process only when video frame updates
     if (video.currentTime !== this.lastVideoTime) {
       this.lastVideoTime = video.currentTime;
@@ -235,7 +256,10 @@ class GestureService {
         const results = this.gestureRecognizer.recognizeForVideo(video, performance.now());
         this.processResults(results);
       } catch (error) {
-        logger.error('Gesture recognition error', { error: error.message });
+        // Silently ignore ROI errors which can occur during video initialization
+        if (!error.message?.includes('ROI')) {
+          logger.error('Gesture recognition error', { error: error.message });
+        }
       }
     }
     
