@@ -754,7 +754,10 @@
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
   will-change: transform, opacity;
   transition: opacity 0.2s ease;
-  animation: snapPulse 1.5s ease-in-out infinite;
+  /* 使用 margin 居中，transform 用于动画 */
+  margin-left: -14px;
+  margin-top: -14px;
+  animation: snapScale 1.5s ease-in-out infinite;
 }
 
 .cursor-snap::after {
@@ -770,9 +773,10 @@
   border-radius: 50%;
 }
 
-@keyframes snapPulse {
-  0%, 100% { transform: translate(var(--tx, 0), var(--ty, 0)) translate(-50%, -50%) scale(1); }
-  50% { transform: translate(var(--tx, 0), var(--ty, 0)) translate(-50%, -50%) scale(1.1); }
+/* 动画只控制缩放，不控制位置 */
+@keyframes snapScale {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
 }
 
 /* ========== Node Detail Panel - 详情面板 ========== */

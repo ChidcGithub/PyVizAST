@@ -377,10 +377,11 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
         progressCircle.setAttribute('stroke-dasharray', `${dash} ${circumference}`);
       }
     }
-    // 吸附指示器 - 平滑动画
+    // 吸附指示器 - 平滑动画（使用 left/top，不与 CSS 动画冲突）
     if (snap) {
       if (state.snapped) {
-        snap.style.transform = `translate(${state.snapX}px, ${state.snapY}px) translate(-50%, -50%)`;
+        snap.style.left = `${state.snapX}px`;
+        snap.style.top = `${state.snapY}px`;
         snap.style.opacity = '1';
       } else {
         snap.style.opacity = '0';
