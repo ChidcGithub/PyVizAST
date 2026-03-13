@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="PyVizAST API",
     description="Python AST Visualization and Static Analysis API",
-    version="0.7.0-rc1",
+    version="0.7.0-rc2",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan

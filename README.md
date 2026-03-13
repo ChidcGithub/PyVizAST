@@ -13,7 +13,7 @@
 
 # PyVizAST
 
-[![Version](https://img.shields.io/badge/Version-0.7.0--rc1-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Version](https://img.shields.io/badge/Version-0.7.0--rc2-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
@@ -211,6 +211,41 @@ Contributions are welcome. Please submit pull requests to the main repository.
 <details>
 
 <summary>Version History</summary>
+
+<details>
+<summary>v0.7.0-rc2 (2026-03-13)</summary>
+
+**Virtual Cursor System Rewrite**
+
+**Complete Refactor:**
+- Unified state management: Single `cursorStateRef` object instead of multiple states
+- Smooth position interpolation with `CURSOR_SMOOTH` and `SNAP_SMOOTH` factors
+- CSS variables for theme support (`--cursor-bg`, `--cursor-border`, etc.)
+- Cleaner class naming: `cursor-dot`, `cursor-ring`, `cursor-progress`, `cursor-snap`
+
+**Snap Animation:**
+- Smooth snap indicator following with separate smooth factor (0.2)
+- First snap initializes position immediately to avoid delay
+- Snap indicator now correctly follows node center position
+
+**Performance Optimizations:**
+- CSS `transform` instead of `left/top` for GPU acceleration
+- Use `node.renderedPosition()` for accurate screen coordinates
+- `opacity` transitions instead of `display` for smoother animations
+- CSS `will-change` for optimized rendering
+
+**Bug Fixes:**
+- Fixed CSS animation conflicting with JS position (use margin centering)
+- Fixed snap position using `renderedPosition()` instead of manual calculation
+- Fixed snap selecting wrong node (distance squared comparison bug)
+- Added validation for `renderedPosition()` return values
+
+**Files Modified:**
+- `frontend/src/components/ASTVisualizer.js` - Complete cursor system rewrite
+- `frontend/src/components/components.css` - CSS variables, simplified animations
+- `frontend/src/App.js` - Removed unused GestureType import
+
+</details>
 
 <details>
 <summary>v0.7.0-rc1 (2026-03-13)</summary>
