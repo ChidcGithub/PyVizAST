@@ -143,6 +143,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   
   // Snap-to-node feature
   const [isSnapped, setIsSnapped] = useState(false); // Whether cursor is snapped to a node
+  const [snappedNodePos, setSnappedNodePos] = useState(null); // Screen position of snapped node
   const SNAP_DISTANCE = 40; // Distance threshold for snapping (in screen pixels)
   
   // Performance optimization: refs for direct DOM updates
@@ -305,6 +306,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     // Use larger search radius for snap-to-node feature
     let nearestNode = null;
     let nearestDistance = Infinity;
+    let nearestNodeScreenPos = null;
     const SNAP_RADIUS = SNAP_DISTANCE / zoom; // Convert screen distance to model distance
     
     const nodes = cy.nodes();
@@ -325,62 +327,60 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       if (distance < nearestDistance) {
         nearestDistance = distance;
         nearestNode = node;
+        nearestNodeScreenPos = {
+          x: nodePos.x * zoom + renderedPosition.x,
+          y: nodePos.y * zoom + renderedPosition.y
+        };
       }
     }
     
-    // Soft snap-to-node feature: partial attraction for better follow-hand feel
-    let finalX = graphX;
-    let finalY = graphY;
-    let snapped = false;
-    
-    if (nearestNode && nearestDistance < SNAP_RADIUS) {
-      const nodePos = nearestNode.position();
-      const nodeScreenX = nodePos.x * zoom + renderedPosition.x;
-      const nodeScreenY = nodePos.y * zoom + renderedPosition.y;
-      
-      // Soft snap: blend cursor position with node center based on distance
-      // Closer to node = stronger snap, but never fully locked
-      const snapStrength = 0.25 * (1 - nearestDistance / SNAP_RADIUS); // Max 25% attraction
-      
-      finalX = graphX + (nodeScreenX - graphX) * snapStrength;
-      finalY = graphY + (nodeScreenY - graphY) * snapStrength;
-      snapped = true;
-      
-      // Update snap icon position at node center
-      if (cursorSnapIconRef.current) {
-        cursorSnapIconRef.current.style.left = `${nodeScreenX}px`;
-        cursorSnapIconRef.current.style.top = `${nodeScreenY}px`;
-      }
-    }
+    // Snap detection: cursor is within snap range of a node
+    // Cursor position stays 100% with hand (no modification)
+    // Snap effect is only visual feedback (palm icon at node center)
+    const snapped = nearestNode && nearestDistance < SNAP_RADIUS;
     
     // Update snapped state
     if (snapped !== isSnapped) {
       setIsSnapped(snapped);
+      if (snapped && nearestNodeScreenPos) {
+        setSnappedNodePos({ x: nearestNodeScreenPos.x, y: nearestNodeScreenPos.y });
+      } else {
+        setSnappedNodePos(null);
+      }
+    } else if (snapped && nearestNodeScreenPos) {
+      // Update snapped node position continuously for smooth tracking
+      setSnappedNodePos({ x: nearestNodeScreenPos.x, y: nearestNodeScreenPos.y });
     }
     
     // Direct DOM update for cursor position (avoids React re-render)
+    // Cursor ALWAYS follows hand position exactly
     const now = performance.now();
     if (now - lastPositionUpdateRef.current >= POSITION_UPDATE_THROTTLE) {
       lastPositionUpdateRef.current = now;
       
-      // Update cursor dot position via DOM
+      // Update cursor dot position via DOM - always at hand position
       if (cursorDotRef.current) {
-        cursorDotRef.current.style.left = `${finalX}px`;
-        cursorDotRef.current.style.top = `${finalY}px`;
+        cursorDotRef.current.style.left = `${graphX}px`;
+        cursorDotRef.current.style.top = `${graphY}px`;
       }
-      // Update cursor ring position via DOM
+      // Update cursor ring position via DOM - always at hand position
       if (cursorRingRef.current) {
-        cursorRingRef.current.style.left = `${finalX}px`;
-        cursorRingRef.current.style.top = `${finalY}px`;
+        cursorRingRef.current.style.left = `${graphX}px`;
+        cursorRingRef.current.style.top = `${graphY}px`;
       }
-      // Update progress ring position via DOM
+      // Update progress ring position via DOM - always at hand position
       if (cursorProgressRingRef.current) {
-        cursorProgressRingRef.current.style.left = `${finalX}px`;
-        cursorProgressRingRef.current.style.top = `${finalY}px`;
+        cursorProgressRingRef.current.style.left = `${graphX}px`;
+        cursorProgressRingRef.current.style.top = `${graphY}px`;
+      }
+      // Update snap icon position at NODE CENTER (not cursor position)
+      if (cursorSnapIconRef.current && nearestNodeScreenPos) {
+        cursorSnapIconRef.current.style.left = `${nearestNodeScreenPos.x}px`;
+        cursorSnapIconRef.current.style.top = `${nearestNodeScreenPos.y}px`;
       }
     }
     
-    // Handle hover state changes
+    // Handle hover state changes - use snap range for easier selection
     if (nearestNode && snapped) {
       const nodeId = nearestNode.data().id;
       const isNewNode = currentHoveredNodeIdRef.current !== nodeId;
@@ -1485,14 +1485,14 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
                 top: pointingPosition.y,
               }}
             />
-            {/* Snap indicator - palm icon when snapped to a node */}
-            {isSnapped && (
+            {/* Snap indicator - palm icon at NODE CENTER when cursor is in snap range */}
+            {isSnapped && snappedNodePos && (
               <div 
                 ref={cursorSnapIconRef}
                 className="pointing-snap-icon"
                 style={{
-                  left: pointingPosition.x,
-                  top: pointingPosition.y,
+                  left: snappedNodePos.x,
+                  top: snappedNodePos.y,
                 }}
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
