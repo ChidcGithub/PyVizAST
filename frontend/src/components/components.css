@@ -631,7 +631,41 @@
   overflow: visible;
 }
 
-/* Pointing cursor overlay for gesture control */
+/* ========================================
+   Virtual Cursor - 虚拟光标系统
+   使用 CSS 变量支持主题切换
+   ======================================== */
+
+/* CSS 变量定义 */
+:root {
+  --cursor-bg: #ffffff;
+  --cursor-border: #000000;
+  --cursor-shadow: rgba(0, 0, 0, 0.3);
+  --cursor-glow: rgba(255, 255, 255, 0.8);
+  --cursor-ring-color: rgba(0, 0, 0, 0.2);
+  --cursor-progress-bg: rgba(0, 0, 0, 0.1);
+  --cursor-progress-fill: #000000;
+  --cursor-snap-bg: rgba(255, 255, 255, 0.95);
+  --cursor-snap-border: #000000;
+  --cursor-indicator-bg: rgba(255, 255, 255, 0.95);
+  --cursor-indicator-text: #333333;
+}
+
+.dark {
+  --cursor-bg: #000000;
+  --cursor-border: #ffffff;
+  --cursor-shadow: rgba(255, 255, 255, 0.2);
+  --cursor-glow: rgba(0, 0, 0, 0.5);
+  --cursor-ring-color: rgba(255, 255, 255, 0.2);
+  --cursor-progress-bg: rgba(255, 255, 255, 0.15);
+  --cursor-progress-fill: #ffffff;
+  --cursor-snap-bg: rgba(30, 30, 30, 0.95);
+  --cursor-snap-border: #ffffff;
+  --cursor-indicator-bg: rgba(30, 30, 30, 0.95);
+  --cursor-indicator-text: #e0e0e0;
+}
+
+/* 光标容器 */
 .pointing-cursor-overlay {
   position: absolute;
   top: 0;
@@ -641,317 +675,156 @@
   pointer-events: none;
   z-index: 150;
   overflow: hidden;
-  animation: overlayFadeIn 0.15s ease-out both;
 }
 
-@keyframes overlayFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* 主光标 - 现代指针设计 */
-/* 使用 left/top + 负边距 居中，transform 只用于缩放动画 */
-.pointing-cursor-dot {
+/* 主光标点 */
+.cursor-dot {
   position: absolute;
-  width: 8px;
-  height: 8px;
-  /* 居中：总宽高 = 8 + 2*2 = 12px, margin = -6px */
-  margin-left: -6px;
-  margin-top: -6px;
-  background: #fff;
-  border: 2px solid #000;
-  border-radius: 50%;
-  box-shadow: 
-    0 0 0 2px rgba(255, 255, 255, 0.8),
-    0 2px 8px rgba(0, 0, 0, 0.3);
-  will-change: left, top;
-  pointer-events: none;
-  z-index: 151;
-  transform-origin: center center;
-  animation: dotPopIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-@keyframes dotPopIn {
-  0% {
-    transform: scale(0);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* 光标拖尾效果 */
-.pointing-cursor-dot::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 24px;
-  height: 24px;
-  background: radial-gradient(circle, rgba(0, 0, 0, 0.1) 0%, transparent 70%);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-/* 吸附状态 - 光标变化 */
-.pointing-cursor-dot.snapped {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
   margin-left: -5px;
   margin-top: -5px;
-  background: #000;
-  border-color: #fff;
-  box-shadow: 
-    0 0 0 3px rgba(0, 0, 0, 0.8),
-    0 0 12px rgba(0, 0, 0, 0.4);
-}
-
-/* 吸附指示器 - 优雅的圆环设计 */
-.pointing-snap-icon {
-  position: absolute;
-  width: 32px;
-  height: 32px;
-  /* 居中：32px / 2 = 16px */
-  margin-left: -16px;
-  margin-top: -16px;
-  pointer-events: none;
-  z-index: 152;
-  transform-origin: center center;
-  animation: snapAppear 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-@keyframes snapAppear {
-  0% {
-    transform: scale(0.5);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* 外环 */
-.pointing-snap-icon::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 32px;
-  height: 32px;
-  border: 2px solid #000;
+  background: var(--cursor-bg);
+  border: 2px solid var(--cursor-border);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-  animation: snapRingPulse 2s ease-in-out infinite;
+  box-shadow: 
+    0 0 0 2px var(--cursor-glow),
+    0 2px 8px var(--cursor-shadow);
+  will-change: left, top;
+  transition: width 0.15s ease, height 0.15s ease, margin 0.15s ease;
 }
 
-@keyframes snapRingPulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.1);
-    opacity: 0.8;
-  }
-}
-
-/* 内部圆点 */
-.pointing-snap-icon::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
+.cursor-dot.snapped {
   width: 8px;
   height: 8px;
-  background: #000;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
+  margin-left: -4px;
+  margin-top: -4px;
+  box-shadow: 
+    0 0 0 3px var(--cursor-border),
+    0 0 16px var(--cursor-shadow);
 }
 
-/* 隐藏原始 SVG */
-.pointing-snap-icon svg {
-  display: none;
-}
-
-/* 外环 - 悬停检测范围指示 */
-.pointing-cursor-ring {
+/* 光标环 - 悬停检测范围 */
+.cursor-ring {
   position: absolute;
-  width: 48px;
-  height: 48px;
-  /* 居中：48px / 2 = 24px */
-  margin-left: -24px;
-  margin-top: -24px;
-  border: 1.5px dashed rgba(0, 0, 0, 0.25);
+  width: 44px;
+  height: 44px;
+  margin-left: -22px;
+  margin-top: -22px;
+  border: 1.5px dashed var(--cursor-ring-color);
   border-radius: 50%;
-  background: transparent;
   will-change: left, top;
-  pointer-events: none;
-  z-index: 150;
-  transform-origin: center center;
-  animation: ringFadeIn 0.2s ease-out both;
+  opacity: 0.8;
 }
 
-@keyframes ringFadeIn {
-  from {
-    transform: scale(0.8);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* 进度圆环 - 精致设计 */
-.pointing-progress-ring {
+/* 进度环 */
+.cursor-progress {
   position: absolute;
-  width: 50px;
-  height: 50px;
-  /* 居中：50px / 2 = 25px */
-  margin-left: -25px;
-  margin-top: -25px;
-  pointer-events: none;
+  width: 52px;
+  height: 52px;
+  margin-left: -26px;
+  margin-top: -26px;
   will-change: left, top;
-  transform-origin: center center;
-  animation: progressRingAppear 0.15s ease-out both;
 }
 
-@keyframes progressRingAppear {
-  from {
-    transform: scale(0.9);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.progress-ring-bg {
-  stroke: rgba(0, 0, 0, 0.1);
+.cursor-progress circle {
   fill: none;
+  cx: 26;
+  cy: 26;
+  r: 22;
 }
 
-.progress-ring-fill {
-  stroke: #000;
+.cursor-progress .progress-bg {
+  stroke: var(--cursor-progress-bg);
+  stroke-width: 3;
+}
+
+.cursor-progress .progress-fill {
+  stroke: var(--cursor-progress-fill);
+  stroke-width: 3;
   stroke-linecap: round;
-  fill: none;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+  filter: drop-shadow(0 1px 3px var(--cursor-shadow));
   transition: stroke-dasharray 0.05s linear;
 }
 
-/* Hover progress indicator */
-.hover-progress-indicator {
+/* 吸附指示器 */
+.cursor-snap {
   position: absolute;
-  bottom: 60px;
+  width: 28px;
+  height: 28px;
+  margin-left: -14px;
+  margin-top: -14px;
+  border: 2px solid var(--cursor-snap-border);
+  border-radius: 50%;
+  background: var(--cursor-snap-bg);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  will-change: left, top;
+  animation: snapPulse 1.5s ease-in-out infinite;
+}
+
+.cursor-snap::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  margin-top: -3px;
+  background: var(--cursor-snap-border);
+  border-radius: 50%;
+}
+
+@keyframes snapPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+/* 悬停进度提示 */
+.cursor-tooltip {
+  position: absolute;
+  bottom: 70px;
   left: 50%;
   transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 16px;
-  background: rgba(255, 255, 255, 0.95);
+  padding: 8px 14px;
+  background: var(--cursor-indicator-bg);
   backdrop-filter: blur(8px);
-  border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  z-index: 160;
-  min-width: 140px;
-  animation: indicatorSlideUp 0.2s ease-out both;
-}
-
-@keyframes indicatorSlideUp {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-.hover-progress-bar {
-  height: 3px;
-  background: #000;
-  border-radius: 2px;
-  transition: width 0.05s linear;
-  width: 0;
-}
-
-.hover-progress-text {
-  font-size: 12px;
-  color: #333;
-  font-weight: 500;
+  border-radius: 8px;
+  border: 1px solid var(--cursor-ring-color);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cursor-indicator-text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* ========== 暗色模式 ========== */
-.dark .pointing-cursor-dot {
-  background: #000;
-  border-color: #fff;
-  box-shadow: 
-    0 0 0 2px rgba(0, 0, 0, 0.5),
-    0 2px 8px rgba(255, 255, 255, 0.2);
+.cursor-tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  margin-left: -6px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid var(--cursor-indicator-bg);
 }
 
-.dark .pointing-cursor-dot::before {
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
+/* 进度条 */
+.cursor-tooltip .progress-track {
+  width: 100%;
+  height: 3px;
+  background: var(--cursor-progress-bg);
+  border-radius: 2px;
+  margin-top: 6px;
+  overflow: hidden;
 }
 
-.dark .pointing-cursor-dot.snapped {
-  background: #fff;
-  border-color: #000;
-  box-shadow: 
-    0 0 0 3px rgba(255, 255, 255, 0.8),
-    0 0 12px rgba(255, 255, 255, 0.3);
-}
-
-.dark .pointing-snap-icon::before {
-  border-color: #fff;
-  background: rgba(30, 30, 30, 0.95);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
-}
-
-.dark .pointing-snap-icon::after {
-  background: #fff;
-}
-
-.dark .pointing-cursor-ring {
-  border-color: rgba(255, 255, 255, 0.25);
-}
-
-.dark .progress-ring-bg {
-  stroke: rgba(255, 255, 255, 0.15);
-}
-
-.dark .progress-ring-fill {
-  stroke: #fff;
-  filter: drop-shadow(0 1px 2px rgba(255, 255, 255, 0.2));
-}
-
-.dark .hover-progress-indicator {
-  background: rgba(30, 30, 30, 0.95);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-}
-
-.dark .hover-progress-bar {
-  background: #fff;
-}
-
-.dark .hover-progress-text {
-  color: #e0e0e0;
+.cursor-tooltip .progress-bar {
+  height: 100%;
+  background: var(--cursor-progress-fill);
+  border-radius: 2px;
+  transition: width 0.05s linear;
 }
 
 /* ========== Node Detail Panel - 详情面板 ========== */

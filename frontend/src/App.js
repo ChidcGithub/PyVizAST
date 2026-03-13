@@ -9,7 +9,6 @@ import ProjectVisualization from './components/ProjectVisualization';
 import LearnView from './components/LearnView';
 import ChallengeView from './components/ChallengeView';
 import GestureControl from './components/GestureControl';
-import { GestureType } from './utils/GestureService';
 import { analyzeCode, checkServerHealth, getApiBaseUrl } from './api';
 import { setupGlobalErrorHandlers } from './utils/logger';
 import './App.css';

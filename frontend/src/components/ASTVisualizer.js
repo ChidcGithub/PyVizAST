@@ -133,29 +133,39 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   // Search debounce ref
   const searchDebounceRef = useRef(null);
   
-  // Pointing cursor state
-  const [pointingPosition, setPointingPosition] = useState(null); // Screen position in graph
-  const [hoveredNode, setHoveredNode] = useState(null); // Currently hovered node
-  const [hoverProgress, setHoverProgress] = useState(0); // 0-100 progress
-  const hoverTimerRef = useRef(null);
-  const hoverStartTimeRef = useRef(null);
-  const HOVER_SELECT_TIME = 2000; // 2 seconds to select
+  // ========================================
+  // Virtual Cursor System - 虚拟光标系统
+  // ========================================
+  const HOVER_SELECT_TIME = 2000; // 2秒悬停选择
+  const SNAP_DISTANCE = 40; // 吸附距离阈值
+  const SMOOTH_FACTOR = 0.3; // 平滑因子 (0-1, 越小越平滑)
   
-  // Snap-to-node feature
-  const [isSnapped, setIsSnapped] = useState(false); // Whether cursor is snapped to a node
-  const [snappedNodePos, setSnappedNodePos] = useState(null); // Screen position of snapped node
-  const SNAP_DISTANCE = 40; // Distance threshold for snapping (in screen pixels)
+  // 光标状态 - 使用单一 ref 管理
+  const cursorStateRef = useRef({
+    visible: false,
+    x: 0,
+    y: 0,
+    targetX: 0,
+    targetY: 0,
+    snapped: false,
+    snapX: 0,
+    snapY: 0,
+    hoveredNodeId: null,
+    hoveredNodeName: '',
+    hoveredNodeType: '',
+    progress: 0,
+    hoverStartTime: 0,
+  });
   
-  // Performance optimization: refs for direct DOM updates
+  // 光标 DOM refs
   const cursorDotRef = useRef(null);
   const cursorRingRef = useRef(null);
-  const cursorProgressRingRef = useRef(null);
-  const cursorSnapIconRef = useRef(null); // Palm icon when snapped
-  const lastContainerRectRef = useRef(null); // Cache for container getBoundingClientRect
-  
-  // Cache for performance
+  const cursorProgressRef = useRef(null);
+  const cursorSnapRef = useRef(null);
   const containerRectCacheRef = useRef(null);
-  const lastSnappedNodePosRef = useRef(null); // Use ref to avoid re-renders for position tracking
+  
+  // 动画帧 ID
+  const cursorAnimFrameRef = useRef(null);
   
   // Clear debounce timer
   useEffect(() => {
@@ -169,7 +179,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   // Clear cached container rect on window resize
   useEffect(() => {
     const handleResize = () => {
-      lastContainerRectRef.current = null;
+      containerRectCacheRef.current = null;
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -281,203 +291,202 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     }
   }, [gestureEnabled]);
   
-  // Ref to track the current hovering node ID (avoids closure stale state issues)
-  const currentHoveredNodeIdRef = useRef(null);
+  // 光标动画循环 - 平滑插值
+  const runCursorAnimation = useCallback(() => {
+    const state = cursorStateRef.current;
+    if (!state.visible) {
+      cursorAnimFrameRef.current = null;
+      return;
+    }
+    
+    // 平滑插值
+    state.x += (state.targetX - state.x) * SMOOTH_FACTOR;
+    state.y += (state.targetY - state.y) * SMOOTH_FACTOR;
+    
+    // 更新进度
+    if (state.hoveredNodeId && state.hoverStartTime > 0) {
+      const elapsed = Date.now() - state.hoverStartTime;
+      state.progress = Math.min(100, (elapsed / HOVER_SELECT_TIME) * 100);
+      
+      // 进度完成，选择节点
+      if (state.progress >= 100 && cyRef.current) {
+        const node = cyRef.current.getElementById(state.hoveredNodeId);
+        if (node) {
+          node.select();
+          const data = node.data();
+          setSelectedNode({
+            id: data.id,
+            type: data.type,
+            name: data.name,
+            label: data.label,
+            lineno: data.lineno,
+            docstring: data.docstring,
+            sourceCode: data.source_code,
+            icon: data.icon,
+            description: data.description,
+            explanation: data.explanation,
+            attributes: data.attributes,
+          });
+        }
+        // 重置状态
+        state.hoveredNodeId = null;
+        state.progress = 0;
+        state.visible = false;
+        cursorAnimFrameRef.current = null;
+        return;
+      }
+    }
+    
+    // 更新 DOM
+    const dot = cursorDotRef.current;
+    const ring = cursorRingRef.current;
+    const progress = cursorProgressRef.current;
+    const snap = cursorSnapRef.current;
+    
+    if (dot) {
+      dot.style.left = `${state.x}px`;
+      dot.style.top = `${state.y}px`;
+      dot.classList.toggle('snapped', state.snapped);
+    }
+    if (ring) {
+      ring.style.left = `${state.x}px`;
+      ring.style.top = `${state.y}px`;
+      ring.style.display = state.hoveredNodeId ? 'block' : 'none';
+    }
+    if (progress) {
+      progress.style.left = `${state.x}px`;
+      progress.style.top = `${state.y}px`;
+      progress.style.display = state.progress > 0 ? 'block' : 'none';
+      const progressCircle = progress.querySelector('.progress-fill');
+      if (progressCircle) {
+        const circumference = 2 * Math.PI * 22; // r=22
+        const dash = (state.progress / 100) * circumference;
+        progressCircle.setAttribute('stroke-dasharray', `${dash} ${circumference}`);
+      }
+    }
+    if (snap) {
+      snap.style.left = `${state.snapX}px`;
+      snap.style.top = `${state.snapY}px`;
+      snap.style.display = state.snapped ? 'block' : 'none';
+    }
+    
+    // 继续动画
+    cursorAnimFrameRef.current = requestAnimationFrame(runCursorAnimation);
+  }, []);
   
-  // Pointing cursor handler - converts pointing direction to graph coordinates
-  // Performance optimized: direct DOM updates for position, throttled state updates
+  // 指向手势处理
   const handlePointingDirection = useCallback((pointingData) => {
     if (!cyRef.current || !gestureEnabled || !containerRef.current) return;
     
     const cy = cyRef.current;
     const container = containerRef.current;
+    const state = cursorStateRef.current;
     
-    // Cache container rect to avoid frequent getBoundingClientRect calls
-    let containerRect = containerRectCacheRef.current;
-    if (!containerRect) {
-      containerRect = container.getBoundingClientRect();
-      containerRectCacheRef.current = containerRect;
+    // 缓存容器尺寸
+    if (!containerRectCacheRef.current) {
+      containerRectCacheRef.current = container.getBoundingClientRect();
     }
+    const rect = containerRectCacheRef.current;
     
-    // Calculate pointing position in graph coordinates
-    const graphX = containerRect.width * (1 - pointingData.origin.x);
-    const graphY = containerRect.height * pointingData.origin.y;
+    // 计算目标位置
+    const targetX = rect.width * (1 - pointingData.origin.x);
+    const targetY = rect.height * pointingData.origin.y;
     
-    // Initialize cursor if not visible
-    if (!pointingPosition) {
-      setPointingPosition({ x: graphX, y: graphY });
+    // 初始化或更新目标
+    if (!state.visible) {
+      state.visible = true;
+      state.x = targetX;
+      state.y = targetY;
     }
+    state.targetX = targetX;
+    state.targetY = targetY;
     
-    // Direct DOM update for cursor position using left/top
-    // This allows CSS animations to control transform (scale, translate(-50%, -50%))
-    // No throttling - rely on browser's requestAnimationFrame pacing
-    
-    if (cursorDotRef.current) {
-      cursorDotRef.current.style.left = `${graphX}px`;
-      cursorDotRef.current.style.top = `${graphY}px`;
-    }
-    if (cursorRingRef.current) {
-      cursorRingRef.current.style.left = `${graphX}px`;
-      cursorRingRef.current.style.top = `${graphY}px`;
-    }
-    if (cursorProgressRingRef.current) {
-      cursorProgressRingRef.current.style.left = `${graphX}px`;
-      cursorProgressRingRef.current.style.top = `${graphY}px`;
-    }
-    
-    // Find node at pointing position
-    const renderedPosition = cy.pan();
+    // 查找最近节点
+    const pan = cy.pan();
     const zoom = cy.zoom();
-    const modelX = (graphX - renderedPosition.x) / zoom;
-    const modelY = (graphY - renderedPosition.y) / zoom;
+    const modelX = (targetX - pan.x) / zoom;
+    const modelY = (targetY - pan.y) / zoom;
+    const snapRadius = SNAP_DISTANCE / zoom;
     
-    // Find the nearest node (optimized - early exit)
     let nearestNode = null;
-    let nearestDistance = Infinity;
-    let nearestNodeScreenPos = null;
-    const SNAP_RADIUS = SNAP_DISTANCE / zoom;
+    let nearestDist = Infinity;
+    let nearestScreenPos = null;
     
     const nodes = cy.nodes();
-    const nodesLength = nodes.length;
-    
-    for (let i = 0; i < nodesLength; i++) {
+    for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
-      const nodePos = node.position();
-      
-      const dx = modelX - nodePos.x;
-      const dy = modelY - nodePos.y;
-      
-      // Quick distance check without sqrt first
+      const pos = node.position();
+      const dx = modelX - pos.x;
+      const dy = modelY - pos.y;
       const distSq = dx * dx + dy * dy;
-      const maxDim = Math.max(node.width(), node.height()) / 2 + SNAP_RADIUS;
+      const maxDist = Math.max(node.width(), node.height()) / 2 + snapRadius;
       
-      if (distSq > maxDim * maxDim) continue;
-      
-      const distance = Math.sqrt(distSq);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
+      if (distSq < maxDist * maxDist && distSq < nearestDist) {
+        nearestDist = Math.sqrt(distSq);
         nearestNode = node;
-        nearestNodeScreenPos = {
-          x: nodePos.x * zoom + renderedPosition.x,
-          y: nodePos.y * zoom + renderedPosition.y
+        nearestScreenPos = {
+          x: pos.x * zoom + pan.x,
+          y: pos.y * zoom + pan.y
         };
       }
     }
     
-    // Snap detection
-    const snapped = nearestNode && nearestDistance < SNAP_RADIUS;
-    
-    // Update snap icon position via left/top
-    if (snapped && nearestNodeScreenPos && cursorSnapIconRef.current) {
-      cursorSnapIconRef.current.style.left = `${nearestNodeScreenPos.x}px`;
-      cursorSnapIconRef.current.style.top = `${nearestNodeScreenPos.y}px`;
+    // 更新吸附状态
+    const isSnapped = nearestNode && nearestDist < snapRadius;
+    state.snapped = isSnapped;
+    if (isSnapped && nearestScreenPos) {
+      state.snapX = nearestScreenPos.x;
+      state.snapY = nearestScreenPos.y;
     }
     
-    // Update snapped state only when changed
-    if (snapped !== isSnapped) {
-      setIsSnapped(snapped);
-      if (snapped && nearestNodeScreenPos) {
-        // Use ref to avoid re-render, but also set state for initial render
-        lastSnappedNodePosRef.current = nearestNodeScreenPos;
-        setSnappedNodePos(nearestNodeScreenPos);
-      } else {
-        lastSnappedNodePosRef.current = null;
-        setSnappedNodePos(null);
-      }
-    }
-    
-    // Handle hover state changes
-    if (nearestNode && snapped) {
+    // 更新悬停状态
+    if (isSnapped && nearestNode) {
       const nodeId = nearestNode.data().id;
-      const isNewNode = currentHoveredNodeIdRef.current !== nodeId;
-      
-      if (isNewNode) {
-        currentHoveredNodeIdRef.current = nodeId;
-        setHoveredNode({
-          id: nodeId,
-          type: nearestNode.data().type,
-          name: nearestNode.data().name,
-        });
-        setHoverProgress(0);
-        hoverStartTimeRef.current = Date.now();
-        
-        if (hoverTimerRef.current) {
-          cancelAnimationFrame(hoverTimerRef.current);
-          hoverTimerRef.current = null;
-        }
-        
-        // Start progress animation
-        const updateProgress = () => {
-          const elapsed = Date.now() - hoverStartTimeRef.current;
-          const progress = Math.min(100, (elapsed / HOVER_SELECT_TIME) * 100);
-          setHoverProgress(progress);
-          
-          if (progress >= 100) {
-            const currentNodeId = currentHoveredNodeIdRef.current;
-            if (currentNodeId) {
-              const nodeToSelect = cy.getElementById(currentNodeId);
-              if (nodeToSelect) {
-                nodeToSelect.select();
-                setSelectedNode({
-                  id: nodeToSelect.data().id,
-                  type: nodeToSelect.data().type,
-                  name: nodeToSelect.data().name,
-                  label: nodeToSelect.data().label,
-                  lineno: nodeToSelect.data().lineno,
-                  docstring: nodeToSelect.data().docstring,
-                  sourceCode: nodeToSelect.data().source_code,
-                  icon: nodeToSelect.data().icon,
-                  description: nodeToSelect.data().description,
-                  explanation: nodeToSelect.data().explanation,
-                  attributes: nodeToSelect.data().attributes,
-                });
-              }
-            }
-            currentHoveredNodeIdRef.current = null;
-            setHoveredNode(null);
-            setHoverProgress(0);
-            setPointingPosition(null);
-            hoverTimerRef.current = null;
-            return;
-          }
-          hoverTimerRef.current = requestAnimationFrame(updateProgress);
-        };
-        
-        hoverTimerRef.current = requestAnimationFrame(updateProgress);
+      if (state.hoveredNodeId !== nodeId) {
+        state.hoveredNodeId = nodeId;
+        state.hoveredNodeName = nearestNode.data().name || '';
+        state.hoveredNodeType = nearestNode.data().type || '';
+        state.progress = 0;
+        state.hoverStartTime = Date.now();
       }
     } else {
-      currentHoveredNodeIdRef.current = null;
-      setIsSnapped(false);
-      if (hoveredNode) {
-        setHoveredNode(null);
-        setHoverProgress(0);
-        if (hoverTimerRef.current) {
-          cancelAnimationFrame(hoverTimerRef.current);
-          hoverTimerRef.current = null;
-        }
-      }
+      state.hoveredNodeId = null;
+      state.progress = 0;
+      state.hoverStartTime = 0;
     }
-  }, [gestureEnabled, hoveredNode, pointingPosition, isSnapped]);
+    
+    // 启动动画循环
+    if (!cursorAnimFrameRef.current) {
+      cursorAnimFrameRef.current = requestAnimationFrame(runCursorAnimation);
+    }
+  }, [gestureEnabled, runCursorAnimation]);
   
-  // Clear pointing cursor immediately when gesture ends
+  // 清除光标
   const clearPointingCursor = useCallback(() => {
-    setPointingPosition(null);
-    setHoveredNode(null);
-    setHoverProgress(0);
-    setIsSnapped(false);
-    setSnappedNodePos(null);
-    currentHoveredNodeIdRef.current = null;
-    if (hoverTimerRef.current) {
-      cancelAnimationFrame(hoverTimerRef.current);
-      hoverTimerRef.current = null;
+    const state = cursorStateRef.current;
+    state.visible = false;
+    state.hoveredNodeId = null;
+    state.progress = 0;
+    state.hoverStartTime = 0;
+    state.snapped = false;
+    
+    if (cursorAnimFrameRef.current) {
+      cancelAnimationFrame(cursorAnimFrameRef.current);
+      cursorAnimFrameRef.current = null;
     }
+    
+    // 隐藏 DOM 元素
+    if (cursorDotRef.current) cursorDotRef.current.style.display = 'none';
+    if (cursorRingRef.current) cursorRingRef.current.style.display = 'none';
+    if (cursorProgressRef.current) cursorProgressRef.current.style.display = 'none';
+    if (cursorSnapRef.current) cursorSnapRef.current.style.display = 'none';
   }, []);
   
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (hoverTimerRef.current) {
-        cancelAnimationFrame(hoverTimerRef.current);
+      if (cursorAnimFrameRef.current) {
+        cancelAnimationFrame(cursorAnimFrameRef.current);
       }
     };
   }, []);
@@ -1450,73 +1459,20 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
         )}
         <div className="cytoscape-container" ref={containerRef}></div>
         
-        {/* Pointing cursor overlay - optimized for performance */}
-        {pointingPosition && gestureEnabled && (
+        {/* Virtual Cursor - 虚拟光标 */}
+        {gestureEnabled && (
           <div className="pointing-cursor-overlay">
-            {/* Outer ring - indicates hoverable area */}
-            {hoveredNode && (
-              <div 
-                ref={cursorRingRef}
-                className="pointing-cursor-ring"
-              />
-            )}
-            {/* Center dot */}
-            <div 
-              ref={cursorDotRef}
-              className={`pointing-cursor-dot ${isSnapped ? 'snapped' : ''}`}
-            />
-            {/* Snap indicator - palm icon at NODE CENTER when cursor is in snap range */}
-            {isSnapped && snappedNodePos && (
-              <div 
-                ref={cursorSnapIconRef}
-                className="pointing-snap-icon"
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/>
-                  <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/>
-                  <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
-                  <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
-                </svg>
-              </div>
-            )}
-            {/* Progress ring - only render when hovering a node with progress */}
-            {hoveredNode && hoverProgress > 0 && (
-              <svg 
-                ref={cursorProgressRingRef}
-                className="pointing-progress-ring"
-                width="50" 
-                height="50"
-                viewBox="0 0 50 50"
-              >
-                <circle
-                  className="progress-ring-bg"
-                  cx="25"
-                  cy="25"
-                  r="20"
-                  strokeWidth="3"
-                />
-                <circle
-                  className="progress-ring-fill"
-                  cx="25"
-                  cy="25"
-                  r="20"
-                  strokeWidth="3"
-                  strokeDasharray={`${hoverProgress * 1.256} 125.6`}
-                  transform="rotate(-90 25 25)"
-                />
-              </svg>
-            )}
-          </div>
-        )}
-        
-        {/* Hover progress indicator on node */}
-        {hoveredNode && hoverProgress > 0 && (
-          <div className="hover-progress-indicator">
-            <div 
-              className="hover-progress-bar"
-              style={{ width: `${hoverProgress}%` }}
-            />
-            <span className="hover-progress-text">{hoveredNode.name || hoveredNode.type}</span>
+            {/* 光标点 */}
+            <div ref={cursorDotRef} className="cursor-dot" style={{ display: 'none' }} />
+            {/* 光标环 */}
+            <div ref={cursorRingRef} className="cursor-ring" style={{ display: 'none' }} />
+            {/* 进度环 */}
+            <svg ref={cursorProgressRef} className="cursor-progress" width="52" height="52" style={{ display: 'none' }}>
+              <circle className="progress-bg" />
+              <circle className="progress-fill" transform="rotate(-90 26 26)" />
+            </svg>
+            {/* 吸附指示器 */}
+            <div ref={cursorSnapRef} className="cursor-snap" style={{ display: 'none' }} />
           </div>
         )}
         
