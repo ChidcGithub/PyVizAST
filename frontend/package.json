@@ -1,6 +1,6 @@
 {
   "name": "pyvizast-frontend",
-  "version": "0.7.0-beta2",
+  "version": "0.7.0-rc1",
   "author": "Chidc (github.com/chidcGithub)",
   "private": true,
   "dependencies": {
@@ -8,19 +8,19 @@
     "@monaco-editor/react": "^4.6.0",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
-    "axios": "^1.6.0",
-    "cytoscape": "^3.28.0",
+    "axios": "^1.8.0",
+    "cytoscape": "^3.31.0",
     "cytoscape-dagre": "^2.5.0",
     "cytoscape-fcose": "^2.2.0",
     "cytoscape-react": "^2.0.0",
-    "framer-motion": "^10.16.0",
-    "lucide-react": "^0.294.0",
-    "monaco-editor": "^0.45.0",
-    "prismjs": "^1.29.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "framer-motion": "^10.18.0",
+    "lucide-react": "^0.577.0",
+    "monaco-editor": "^0.55.0",
+    "prismjs": "^1.30.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
     "react-scripts": "5.0.1",
-    "three": "^0.160.0"
+    "three": "^0.170.0"
   },
   "scripts": {
     "start": "react-scripts start",

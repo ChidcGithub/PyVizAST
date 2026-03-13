@@ -7,6 +7,9 @@ AST-based Python Code Visualizer and Optimization Analyzer
 """
 import logging
 import os
+import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI, Request, status
@@ -37,13 +40,28 @@ from .routers import (
 logger = init_logging(level=logging.INFO)
 
 
-# Create FastAPI application
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Application lifespan context manager for startup and shutdown events."""
+    # Startup
+    logger.info("PyVizAST API starting up...")
+    logger.info(f"Python version: {__import__('sys').version.split()[0]}")
+    logger.info(f"FastAPI version: {__import__('fastapi').__version__}")
+    
+    yield
+    
+    # Shutdown
+    logger.info("PyVizAST API shutting down...")
+
+
+# Create FastAPI application with lifespan
 app = FastAPI(
     title="PyVizAST API",
     description="Python AST Visualization and Static Analysis API",
     version="0.7.0-rc1",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # Configure CORS
@@ -55,6 +73,22 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "Accept", "Cache-Control"],
 )
+
+
+# Request timing middleware for performance monitoring
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    """Add processing time header to responses for monitoring."""
+    start_time = time.perf_counter()
+    response = await call_next(request)
+    process_time = time.perf_counter() - start_time
+    response.headers["X-Process-Time"] = f"{process_time:.4f}"
+    
+    # Log slow requests (> 1 second)
+    if process_time > 1.0:
+        logger.warning(f"Slow request: {request.method} {request.url.path} took {process_time:.2f}s")
+    
+    return response
 
 
 # ============== Global Exception Handlers ==============
