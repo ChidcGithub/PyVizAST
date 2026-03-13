@@ -76,6 +76,10 @@ class ASTParser:
                 ast_tree = ast.parse(code)
             except SyntaxError as e:
                 raise ValueError(f"Syntax error in code: {e}")
+            except MemoryError:
+                raise ValueError("Code too large to parse (out of memory). Try simplifying the code or use simplified mode.")
+            except RecursionError:
+                raise ValueError("Code structure too deeply nested to parse.")
         
         if source_lines is None:
             source_lines = code.splitlines()

@@ -5,6 +5,7 @@ Project analysis API routes
 @link: github.com/chidcGithub
 """
 import ast
+import asyncio
 import logging
 import shutil
 import tempfile
@@ -158,16 +159,21 @@ class QuickModeOptions(BaseModel):
 
 
 async def _analyze_single_file(file_info: FileInfo, project_root: str) -> FileAnalysisResult:
-    """Analyze single file"""
+    """Analyze single file - async version with non-blocking IO"""
     file_path = Path(file_info.path)
     code_content = ""
     tree = None
     
-    # Read file content
-    try:
-        code_content = file_path.read_text(encoding='utf-8', errors='ignore')
-    except Exception as e:
-        logger.warning(f"Failed to read file {file_info.relative_path}: {e}")
+    # Read file content asynchronously
+    def read_file_sync():
+        try:
+            return file_path.read_text(encoding='utf-8', errors='ignore')
+        except Exception as e:
+            logger.warning(f"Failed to read file {file_info.relative_path}: {e}")
+            return None
+    
+    code_content = await asyncio.to_thread(read_file_sync)
+    if code_content is None:
         return FileAnalysisResult(
             file=file_info,
             content="",
@@ -178,39 +184,49 @@ async def _analyze_single_file(file_info: FileInfo, project_root: str) -> FileAn
             suggestions=[],
         )
     
-    # Parse AST
-    try:
-        tree = ast.parse(code_content)
-    except SyntaxError as e:
-        return FileAnalysisResult(
-            file=file_info,
-            content=code_content,
-            summary=FileSummary(
-                lines_of_code=file_info.line_count,
-                issue_count=1,
-            ),
-            issues=[CodeIssue(
-                id=f'syntax_error_{file_info.relative_path}',
-                type='code_smell',
-                severity=SeverityLevel.ERROR,
-                message=f"Syntax error: {str(e)}",
-                lineno=e.lineno,
-            )],
-            complexity={},
-            performance_hotspots=[],
-            suggestions=[],
-        )
-    except Exception as e:
-        logger.warning(f"Failed to parse AST for {file_info.relative_path}: {e}")
-        return FileAnalysisResult(
-            file=file_info,
-            content=code_content,
-            summary=FileSummary(lines_of_code=file_info.line_count),
-            issues=[],
-            complexity={},
-            performance_hotspots=[],
-            suggestions=[],
-        )
+    # Parse AST asynchronously (CPU-bound, run in thread pool)
+    def parse_ast_sync():
+        try:
+            return ast.parse(code_content), None
+        except SyntaxError as e:
+            return None, ('syntax', e)
+        except Exception as e:
+            return None, ('other', e)
+    
+    tree, error = await asyncio.to_thread(parse_ast_sync)
+    
+    if error:
+        if error[0] == 'syntax':
+            e = error[1]
+            return FileAnalysisResult(
+                file=file_info,
+                content=code_content,
+                summary=FileSummary(
+                    lines_of_code=file_info.line_count,
+                    issue_count=1,
+                ),
+                issues=[CodeIssue(
+                    id=f'syntax_error_{file_info.relative_path}',
+                    type='code_smell',
+                    severity=SeverityLevel.ERROR,
+                    message=f"Syntax error: {str(e)}",
+                    lineno=e.lineno,
+                )],
+                complexity={},
+                performance_hotspots=[],
+                suggestions=[],
+            )
+        else:
+            logger.warning(f"Failed to parse AST for {file_info.relative_path}: {error[1]}")
+            return FileAnalysisResult(
+                file=file_info,
+                content=code_content,
+                summary=FileSummary(lines_of_code=file_info.line_count),
+                issues=[],
+                complexity={},
+                performance_hotspots=[],
+                suggestions=[],
+            )
     
     # Run analyzers
     complexity_analyzer = ComplexityAnalyzer()

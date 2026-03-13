@@ -1,6 +1,6 @@
 {
   "name": "pyvizast-frontend",
-  "version": "0.7.0-rc2",
+  "version": "0.7.0-rc3",
   "author": "Chidc (github.com/chidcGithub)",
   "private": true,
   "dependencies": {

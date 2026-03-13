@@ -193,10 +193,11 @@ class NodeBuilder:
                 if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     methods.append(item.name)
         
-        # Branch and loop counts
-        branch_count = self._count_branches(ast_node)
-        loop_count = self._count_loops(ast_node)
-        exception_handlers = self._count_exception_handlers(ast_node)
+        # Branch and loop counts - use single-pass counting
+        structure_counts = self._count_structures(ast_node)
+        branch_count = structure_counts['branches']
+        loop_count = structure_counts['loops']
+        exception_handlers = structure_counts['exception_handlers']
         
         return ASTNode(
             id=node_id,
@@ -240,29 +241,35 @@ class NodeBuilder:
             exception_handlers=exception_handlers,
         )
     
-    def _count_branches(self, node: ast.AST) -> int:
-        """Count number of if/elif/else branches"""
-        count = 0
+    def _count_structures(self, node: ast.AST) -> Dict[str, int]:
+        """Count branches, loops, and exception handlers in a single pass"""
+        counts = {
+            'branches': 0,
+            'loops': 0,
+            'exception_handlers': 0
+        }
+        
         for child in ast.walk(node):
             if isinstance(child, ast.If):
-                count += 1
-        return count
+                counts['branches'] += 1
+            elif isinstance(child, (ast.For, ast.AsyncFor, ast.While)):
+                counts['loops'] += 1
+            elif isinstance(child, ast.Try):
+                counts['exception_handlers'] += len(child.handlers)
+        
+        return counts
+    
+    def _count_branches(self, node: ast.AST) -> int:
+        """Count number of if/elif/else branches - deprecated, use _count_structures"""
+        return self._count_structures(node)['branches']
     
     def _count_loops(self, node: ast.AST) -> int:
-        """Count number of loops"""
-        count = 0
-        for child in ast.walk(node):
-            if isinstance(child, (ast.For, ast.AsyncFor, ast.While)):
-                count += 1
-        return count
+        """Count number of loops - deprecated, use _count_structures"""
+        return self._count_structures(node)['loops']
     
     def _count_exception_handlers(self, node: ast.AST) -> int:
-        """Count number of except handlers"""
-        count = 0
-        for child in ast.walk(node):
-            if isinstance(child, ast.Try):
-                count += len(child.handlers)
-        return count
+        """Count number of except handlers - deprecated, use _count_structures"""
+        return self._count_structures(node)['exception_handlers']
     
     def _generate_detailed_label(self, ast_node: ast.AST, node_type: NodeType, 
                                   name: Optional[str], attributes: Dict[str, Any]) -> str:

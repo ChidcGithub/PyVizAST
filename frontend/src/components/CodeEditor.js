@@ -1,6 +1,10 @@
-import React, { useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
+import React, { useRef, useEffect, forwardRef, useImperativeHandle, useCallback, useMemo, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { useResizeObserver } from '../hooks/useResizeObserver';
+
+// Performance thresholds
+const LARGE_FILE_LINES = 2000;
+const VERY_LARGE_FILE_LINES = 5000;
 
 // Minimalist Monochrome Theme Definitions
 const monochromeDarkTheme = {
@@ -61,6 +65,29 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme, readO
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
   const containerRef = useRef(null);
+  
+  // Performance state for large files
+  const [performanceMode, setPerformanceMode] = useState('normal'); // 'normal', 'large', 'very-large'
+  const [showPerformanceWarning, setShowPerformanceWarning] = useState(false);
+
+  // Calculate file size and set performance mode
+  const lineCount = useMemo(() => {
+    return code ? code.split('\n').length : 0;
+  }, [code]);
+  
+  // Update performance mode based on file size
+  useEffect(() => {
+    if (lineCount > VERY_LARGE_FILE_LINES) {
+      setPerformanceMode('very-large');
+      setShowPerformanceWarning(true);
+    } else if (lineCount > LARGE_FILE_LINES) {
+      setPerformanceMode('large');
+      setShowPerformanceWarning(true);
+    } else {
+      setPerformanceMode('normal');
+      setShowPerformanceWarning(false);
+    }
+  }, [lineCount]);
 
   // Use our ResizeObserver to trigger layout updates
   // This avoids conflicts between Monaco's internal ResizeObserver and other ResizeObservers
@@ -226,6 +253,11 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme, readO
           <div className="file-tab active">
             <span className="file-icon">PY</span>
             <span>main.py</span>
+            {lineCount > LARGE_FILE_LINES && (
+              <span className="file-size-indicator" title={`${lineCount} lines`}>
+                {lineCount > VERY_LARGE_FILE_LINES ? '⚠️' : '📄'}
+              </span>
+            )}
           </div>
         </div>
         <div className="editor-actions">
@@ -241,6 +273,30 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme, readO
           </button>
         </div>
       </div>
+      
+      {/* Performance warning banner */}
+      {showPerformanceWarning && (
+        <div className="performance-warning">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <span>
+            Large file ({lineCount.toLocaleString()} lines). 
+            {performanceMode === 'very-large' 
+              ? ' Some features disabled for performance.' 
+              : ' Performance mode enabled.'}
+          </span>
+          <button className="warning-dismiss" onClick={() => setShowPerformanceWarning(false)}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
+      
       <div className="editor-container" ref={containerRef}>
         <Editor
           height="100%"
@@ -259,30 +315,41 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme, readO
             fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Consolas', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
             lineHeight: 22,
             padding: { top: 16, bottom: 16 },
-            minimap: { enabled: false },
+            minimap: { enabled: performanceMode === 'normal' }, // Disable minimap for large files
             scrollBeyondLastLine: false,
             automaticLayout: false, // Disable built-in ResizeObserver, use our own
             tabSize: 4,
             wordWrap: 'on',
-            renderLineHighlight: 'all',
+            renderLineHighlight: performanceMode === 'normal' ? 'all' : 'line', // Simplified for large files
             cursorBlinking: 'smooth',
-            smoothScrolling: true,
-            folding: true,
-            foldingHighlight: true,
-            bracketPairColorization: { enabled: false },
+            smoothScrolling: performanceMode !== 'very-large', // Disable for very large files
+            folding: performanceMode !== 'very-large', // Disable folding for very large files
+            foldingHighlight: performanceMode === 'normal',
+            bracketPairColorization: { enabled: performanceMode === 'normal' }, // Disable for large files
             guides: {
-              bracketPairs: false,
-              indentation: true,
+              bracketPairs: performanceMode === 'normal',
+              indentation: performanceMode !== 'very-large',
             },
             scrollbar: {
               verticalScrollbarSize: 8,
               horizontalScrollbarSize: 8,
+              // Performance optimizations for large files
+              verticalHasArrows: false,
+              horizontalHasArrows: false,
             },
-            overviewRulerLanes: 0,
-            hideCursorInOverviewRuler: true,
+            overviewRulerLanes: performanceMode === 'normal' ? 3 : 0,
+            hideCursorInOverviewRuler: performanceMode !== 'normal',
             overviewRulerBorder: false,
             readOnly: readOnly, // Support read-only mode from parent component
             domReadOnly: readOnly, // Also set DOM-level readonly for accessibility
+            // Additional performance options for large files
+            quickSuggestions: performanceMode !== 'very-large',
+            suggestOnTriggerCharacters: performanceMode !== 'very-large',
+            parameterHints: { enabled: performanceMode === 'normal' },
+            lightbulb: { enabled: performanceMode === 'normal' },
+            occurrencesHighlight: performanceMode === 'normal' ? 'singleFile' : 'off',
+            selectionHighlight: performanceMode !== 'very-large',
+            renderWhitespace: performanceMode === 'normal' ? 'selection' : 'none',
           }}
         />
       </div>

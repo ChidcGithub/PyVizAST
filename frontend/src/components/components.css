@@ -2606,3 +2606,45 @@
 .node-detail-panel.expanded .explanation-text {
   font-size: 12px;
 }
+
+/* ========== Performance Warning ========== */
+.performance-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.08) 100%);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.2);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.performance-warning svg {
+  flex-shrink: 0;
+  color: #f59e0b;
+}
+
+.warning-dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.warning-dismiss:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+}
+
+.file-size-indicator {
+  margin-left: 6px;
+  font-size: 12px;
+  opacity: 0.7;
+}

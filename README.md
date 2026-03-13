@@ -13,7 +13,7 @@
 
 # PyVizAST
 
-[![Version](https://img.shields.io/badge/Version-0.7.0--rc2-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Version](https://img.shields.io/badge/Version-0.7.0--rc3-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
@@ -211,6 +211,39 @@ Contributions are welcome. Please submit pull requests to the main repository.
 <details>
 
 <summary>Version History</summary>
+
+<details>
+<summary>v0.7.0-rc3 (2026-03-13)</summary>
+
+**Bug Fixes & Performance Optimizations**
+
+**Backend Fixes:**
+- Fixed async sync blocking in `projects.py`: Added `run_in_executor` for file I/O and AST parsing operations
+- Fixed incomplete exception handling in `parser.py`: Added `MemoryError` catch with smart truncation
+- Fixed redundant AST traversal in `node_builder.py`: Combined 3 separate `ast.walk` calls into single pass for 3x performance improvement
+- Fixed lint errors (F541, F821, F401) across multiple files
+
+**Frontend Improvements:**
+- Enhanced `CodeEditor.js` for large file performance:
+  - Disabled minimap for files > 3000 lines
+  - Disabled folding for files > 5000 lines
+  - Added performance warning banner for large files
+  - Improved memory management for very large files
+- Confirmed proper cleanup in `useResizeObserver.js`, `GestureService.js`, and `ASTVisualizer3D.js`
+
+**Performance:**
+- `node_builder.py`: `_count_code_elements()` now does single traversal instead of 3
+- Reduced memory usage for large file editing
+- Better error handling for edge cases
+
+**Files Modified:**
+- `backend/routers/projects.py` - Async file operations
+- `backend/ast_parser/parser.py` - MemoryError handling
+- `backend/ast_parser/node_builder.py` - Performance optimization
+- `frontend/src/components/CodeEditor.js` - Large file handling
+- `frontend/src/components/components.css` - Performance warning styles
+
+</details>
 
 <details>
 <summary>v0.7.0-rc2 (2026-03-13)</summary>
