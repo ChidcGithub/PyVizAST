@@ -308,18 +308,21 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       setPointingPosition({ x: graphX, y: graphY });
     }
     
-    // Direct DOM update for cursor position using transform (GPU accelerated)
+    // Direct DOM update for cursor position using left/top
+    // This allows CSS animations to control transform (scale, translate(-50%, -50%))
     // No throttling - rely on browser's requestAnimationFrame pacing
-    const transformStr = `translate(${graphX}px, ${graphY}px) translate(-50%, -50%)`;
     
     if (cursorDotRef.current) {
-      cursorDotRef.current.style.transform = transformStr;
+      cursorDotRef.current.style.left = `${graphX}px`;
+      cursorDotRef.current.style.top = `${graphY}px`;
     }
     if (cursorRingRef.current) {
-      cursorRingRef.current.style.transform = transformStr;
+      cursorRingRef.current.style.left = `${graphX}px`;
+      cursorRingRef.current.style.top = `${graphY}px`;
     }
     if (cursorProgressRingRef.current) {
-      cursorProgressRingRef.current.style.transform = transformStr;
+      cursorProgressRingRef.current.style.left = `${graphX}px`;
+      cursorProgressRingRef.current.style.top = `${graphY}px`;
     }
     
     // Find node at pointing position
@@ -364,11 +367,10 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     // Snap detection
     const snapped = nearestNode && nearestDistance < SNAP_RADIUS;
     
-    // Update snap icon position via transform (position + centering)
+    // Update snap icon position via left/top
     if (snapped && nearestNodeScreenPos && cursorSnapIconRef.current) {
-      const x = nearestNodeScreenPos.x;
-      const y = nearestNodeScreenPos.y;
-      cursorSnapIconRef.current.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+      cursorSnapIconRef.current.style.left = `${nearestNodeScreenPos.x}px`;
+      cursorSnapIconRef.current.style.top = `${nearestNodeScreenPos.y}px`;
     }
     
     // Update snapped state only when changed

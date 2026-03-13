@@ -641,35 +641,43 @@
   pointer-events: none;
   z-index: 150;
   overflow: hidden;
+  animation: overlayFadeIn 0.15s ease-out both;
+}
+
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* 主光标 - 现代指针设计 */
+/* 使用 left/top + 负边距 居中，transform 只用于缩放动画 */
 .pointing-cursor-dot {
   position: absolute;
-  top: 0;
-  left: 0;
   width: 8px;
   height: 8px;
+  /* 居中：总宽高 = 8 + 2*2 = 12px, margin = -6px */
+  margin-left: -6px;
+  margin-top: -6px;
   background: #fff;
   border: 2px solid #000;
   border-radius: 50%;
   box-shadow: 
     0 0 0 2px rgba(255, 255, 255, 0.8),
     0 2px 8px rgba(0, 0, 0, 0.3);
-  will-change: transform;
+  will-change: left, top;
   pointer-events: none;
   z-index: 151;
-  transform: translate(-50%, -50%);
+  transform-origin: center center;
   animation: dotPopIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 @keyframes dotPopIn {
   0% {
-    transform: translate(-50%, -50%) scale(0);
+    transform: scale(0);
     opacity: 0;
   }
   100% {
-    transform: translate(-50%, -50%) scale(1);
+    transform: scale(1);
     opacity: 1;
   }
 }
@@ -692,6 +700,8 @@
 .pointing-cursor-dot.snapped {
   width: 6px;
   height: 6px;
+  margin-left: -5px;
+  margin-top: -5px;
   background: #000;
   border-color: #fff;
   box-shadow: 
@@ -702,24 +712,25 @@
 /* 吸附指示器 - 优雅的圆环设计 */
 .pointing-snap-icon {
   position: absolute;
-  top: 0;
-  left: 0;
   width: 32px;
   height: 32px;
+  /* 居中：32px / 2 = 16px */
+  margin-left: -16px;
+  margin-top: -16px;
   pointer-events: none;
   z-index: 152;
-  transform: translate(-50%, -50%);
+  transform-origin: center center;
   animation: snapAppear 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 @keyframes snapAppear {
   0% {
+    transform: scale(0.5);
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.5);
   }
   100% {
+    transform: scale(1);
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
   }
 }
 
@@ -770,52 +781,54 @@
 /* 外环 - 悬停检测范围指示 */
 .pointing-cursor-ring {
   position: absolute;
-  top: 0;
-  left: 0;
   width: 48px;
   height: 48px;
+  /* 居中：48px / 2 = 24px */
+  margin-left: -24px;
+  margin-top: -24px;
   border: 1.5px dashed rgba(0, 0, 0, 0.25);
   border-radius: 50%;
   background: transparent;
-  will-change: transform;
+  will-change: left, top;
   pointer-events: none;
   z-index: 150;
-  transform: translate(-50%, -50%);
+  transform-origin: center center;
   animation: ringFadeIn 0.2s ease-out both;
 }
 
 @keyframes ringFadeIn {
   from {
+    transform: scale(0.8);
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.8);
   }
   to {
+    transform: scale(1);
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
   }
 }
 
 /* 进度圆环 - 精致设计 */
 .pointing-progress-ring {
   position: absolute;
-  top: 0;
-  left: 0;
+  width: 50px;
+  height: 50px;
+  /* 居中：50px / 2 = 25px */
+  margin-left: -25px;
+  margin-top: -25px;
   pointer-events: none;
-  width: 56px;
-  height: 56px;
-  will-change: transform;
-  transform: translate(-50%, -50%);
+  will-change: left, top;
+  transform-origin: center center;
   animation: progressRingAppear 0.15s ease-out both;
 }
 
 @keyframes progressRingAppear {
   from {
+    transform: scale(0.9);
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.9);
   }
   to {
+    transform: scale(1);
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
   }
 }
 
