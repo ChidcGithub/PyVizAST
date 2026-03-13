@@ -151,9 +151,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   const cursorRingRef = useRef(null);
   const cursorProgressRingRef = useRef(null);
   const cursorSnapIconRef = useRef(null); // Palm icon when snapped
-  const lastPositionUpdateRef = useRef(0);
   const lastContainerRectRef = useRef(null); // Cache for container getBoundingClientRect
-  const POSITION_UPDATE_THROTTLE = 16; // ~60fps
   
   // Cache for performance
   const containerRectCacheRef = useRef(null);
@@ -311,23 +309,17 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     }
     
     // Direct DOM update for cursor position using transform (GPU accelerated)
-    // This avoids layout thrashing from left/top updates
-    const now = performance.now();
-    if (now - lastPositionUpdateRef.current >= POSITION_UPDATE_THROTTLE) {
-      lastPositionUpdateRef.current = now;
-      
-      // Use transform for GPU-accelerated positioning
-      const transformStr = `translate(${graphX}px, ${graphY}px) translate(-50%, -50%)`;
-      
-      if (cursorDotRef.current) {
-        cursorDotRef.current.style.transform = transformStr;
-      }
-      if (cursorRingRef.current) {
-        cursorRingRef.current.style.transform = transformStr;
-      }
-      if (cursorProgressRingRef.current) {
-        cursorProgressRingRef.current.style.transform = transformStr;
-      }
+    // No throttling - rely on browser's requestAnimationFrame pacing
+    const transformStr = `translate(${graphX}px, ${graphY}px) translate(-50%, -50%)`;
+    
+    if (cursorDotRef.current) {
+      cursorDotRef.current.style.transform = transformStr;
+    }
+    if (cursorRingRef.current) {
+      cursorRingRef.current.style.transform = transformStr;
+    }
+    if (cursorProgressRingRef.current) {
+      cursorProgressRingRef.current.style.transform = transformStr;
     }
     
     // Find node at pointing position
@@ -411,46 +403,39 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
           hoverTimerRef.current = null;
         }
         
-        // Start progress animation (throttled to 30fps for performance)
-        let lastProgressUpdate = 0;
-        const PROGRESS_UPDATE_INTERVAL = 33; // ~30fps
-        
+        // Start progress animation
         const updateProgress = () => {
-          const now = performance.now();
-          if (now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL) {
-            lastProgressUpdate = now;
-            const elapsed = Date.now() - hoverStartTimeRef.current;
-            const progress = Math.min(100, (elapsed / HOVER_SELECT_TIME) * 100);
-            setHoverProgress(progress);
-            
-            if (progress >= 100) {
-              const currentNodeId = currentHoveredNodeIdRef.current;
-              if (currentNodeId) {
-                const nodeToSelect = cy.getElementById(currentNodeId);
-                if (nodeToSelect) {
-                  nodeToSelect.select();
-                  setSelectedNode({
-                    id: nodeToSelect.data().id,
-                    type: nodeToSelect.data().type,
-                    name: nodeToSelect.data().name,
-                    label: nodeToSelect.data().label,
-                    lineno: nodeToSelect.data().lineno,
-                    docstring: nodeToSelect.data().docstring,
-                    sourceCode: nodeToSelect.data().source_code,
-                    icon: nodeToSelect.data().icon,
-                    description: nodeToSelect.data().description,
-                    explanation: nodeToSelect.data().explanation,
-                    attributes: nodeToSelect.data().attributes,
-                  });
-                }
+          const elapsed = Date.now() - hoverStartTimeRef.current;
+          const progress = Math.min(100, (elapsed / HOVER_SELECT_TIME) * 100);
+          setHoverProgress(progress);
+          
+          if (progress >= 100) {
+            const currentNodeId = currentHoveredNodeIdRef.current;
+            if (currentNodeId) {
+              const nodeToSelect = cy.getElementById(currentNodeId);
+              if (nodeToSelect) {
+                nodeToSelect.select();
+                setSelectedNode({
+                  id: nodeToSelect.data().id,
+                  type: nodeToSelect.data().type,
+                  name: nodeToSelect.data().name,
+                  label: nodeToSelect.data().label,
+                  lineno: nodeToSelect.data().lineno,
+                  docstring: nodeToSelect.data().docstring,
+                  sourceCode: nodeToSelect.data().source_code,
+                  icon: nodeToSelect.data().icon,
+                  description: nodeToSelect.data().description,
+                  explanation: nodeToSelect.data().explanation,
+                  attributes: nodeToSelect.data().attributes,
+                });
               }
-              currentHoveredNodeIdRef.current = null;
-              setHoveredNode(null);
-              setHoverProgress(0);
-              setPointingPosition(null);
-              hoverTimerRef.current = null;
-              return;
             }
+            currentHoveredNodeIdRef.current = null;
+            setHoveredNode(null);
+            setHoverProgress(0);
+            setPointingPosition(null);
+            hoverTimerRef.current = null;
+            return;
           }
           hoverTimerRef.current = requestAnimationFrame(updateProgress);
         };
