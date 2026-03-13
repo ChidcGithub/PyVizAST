@@ -277,12 +277,6 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   const handlePointingDirection = useCallback((pointingData) => {
     if (!cyRef.current || !gestureEnabled || !containerRef.current) return;
     
-    // Cancel any pending clear cursor timer (user is pointing again)
-    if (clearPointingCursorTimerRef.current) {
-      clearTimeout(clearPointingCursorTimerRef.current);
-      clearPointingCursorTimerRef.current = null;
-    }
-    
     const cy = cyRef.current;
     const container = containerRef.current;
     const containerRect = container.getBoundingClientRect();
@@ -460,30 +454,19 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     }
   }, [gestureEnabled, hoveredNode, pointingPosition, isSnapped]);
   
-  // Clear pointing cursor with a small delay to avoid flickering during gesture instability
+  // Clear pointing cursor immediately when gesture ends
   const clearPointingCursor = useCallback(() => {
-    // Don't clear immediately - wait a short moment to see if pointing resumes
-    // This prevents the progress animation from being interrupted by brief gesture instability
-    const clearTimer = setTimeout(() => {
-      // Only clear if we're still not pointing (check via ref)
-      if (!currentHoveredNodeIdRef.current) {
-        setPointingPosition(null);
-        setHoveredNode(null);
-        setHoverProgress(0);
-        setIsSnapped(false);
-        if (hoverTimerRef.current) {
-          cancelAnimationFrame(hoverTimerRef.current);
-          hoverTimerRef.current = null;
-        }
-      }
-    }, 150); // 150ms grace period
-    
-    // Store timer for cleanup
-    clearPointingCursorTimerRef.current = clearTimer;
+    setPointingPosition(null);
+    setHoveredNode(null);
+    setHoverProgress(0);
+    setIsSnapped(false);
+    setSnappedNodePos(null);
+    currentHoveredNodeIdRef.current = null;
+    if (hoverTimerRef.current) {
+      cancelAnimationFrame(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
   }, []);
-  
-  // Ref for clear cursor timer
-  const clearPointingCursorTimerRef = useRef(null);
   
   // Cleanup on unmount
   useEffect(() => {

@@ -641,6 +641,30 @@
   pointer-events: none;
   z-index: 150;
   overflow: hidden;
+  animation: cursorFadeIn 0.2s ease-out forwards;
+}
+
+/* 光标消失动画 - 使用 CSS 类控制 */
+.pointing-cursor-overlay.hiding {
+  animation: cursorFadeOut 0.15s ease-in forwards;
+}
+
+@keyframes cursorFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes cursorFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 /* 指向光标点 - 黑白色调，简洁高效 */
@@ -655,7 +679,21 @@
   will-change: left, top;
   pointer-events: none;
   z-index: 151;
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  animation: dotAppear 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes dotAppear {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
 }
 
 /* 吸附状态 - 光标变小并淡出 */
@@ -680,7 +718,21 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  animation: snapPulse 1.5s ease-in-out infinite;
+  animation: snapAppear 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards, snapPulse 1.5s ease-in-out 0.2s infinite;
+}
+
+@keyframes snapAppear {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes snapPulse {
