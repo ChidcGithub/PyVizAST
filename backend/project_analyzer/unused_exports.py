@@ -214,7 +214,7 @@ class UnusedExportDetector:
                         if self._is_main_block(node):
                             return True
             except Exception as e:
-                logger.debug(f"Failed to check entry module {module_name}: {e}")
+                logger.warning(f"Failed to check entry module {module_name}: {e}")
         
         return False
     
@@ -250,7 +250,7 @@ class UnusedExportDetector:
             
             return False
         except Exception as e:
-            logger.debug(f"Failed to check internal usage for {definition.name} in {module_name}: {e}")
+            logger.warning(f"Failed to check internal usage for {definition.name} in {module_name}: {e}")
             return False
     
     def _generate_suggestion(self, definition: SymbolDefinition) -> str:

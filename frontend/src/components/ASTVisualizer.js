@@ -1038,10 +1038,12 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       
       if (cyRef.current) {
         try {
+          // Remove all event listeners before destroy to prevent memory leaks
+          cyRef.current.removeAllListeners();
           cyRef.current.destroy();
         } catch (e) {
-          // Log error but don't crash - destroy may fail if already destroyed
-          logger.debug('Cytoscape cleanup warning', { message: e.message });
+          // Log warning but don't crash - destroy may fail if already destroyed
+          logger.warn('Cytoscape cleanup error', { message: e.message });
         }
         cyRef.current = null;
       }

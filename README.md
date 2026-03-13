@@ -1,10 +1,10 @@
 # PyVizAST
 
-[![Version](https://img.shields.io/badge/Version-0.7.0--beta2-orange.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Version](https://img.shields.io/badge/Version-0.7.0--rc1-purple.svg)](https://github.com/ChidcGithub/PyVizAST)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
-[![Status](https://img.shields.io/badge/Status-beta-yellow.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Status](https://img.shields.io/badge/Status-rc-green.svg)](https://github.com/ChidcGithub/PyVizAST)
 
 A Python AST Visualizer & Static Analyzer that transforms code into interactive graphs. Detect complexity, performance bottlenecks, and code smells with actionable refactoring suggestions.
 
@@ -198,6 +198,31 @@ Contributions are welcome. Please submit pull requests to the main repository.
 <details>
 
 <summary>Version History</summary>
+
+<details>
+<summary>v0.7.0-rc1 (2026-03-13)</summary>
+
+**Code Quality & Bug Fixes**
+
+**Logging Improvements:**
+- Upgraded debug logs to warning level for error conditions in project analyzer
+- `scanner.py`: File read failures now logged at warning level
+- `unused_exports.py`: Module analysis failures now logged at warning level
+- `cycle_detector.py`: Improved SCC cycle extraction with better error handling
+
+**Frontend Improvements:**
+- `ASTVisualizer.js`: Added `removeAllListeners()` before destroy to prevent memory leaks
+- Changed debug logs to warning logs for Cytoscape cleanup errors
+- `useResizeObserver.js`: Changed console.debug to console.warn for better error visibility
+
+**Files Modified:**
+- `backend/project_analyzer/cycle_detector.py` - Improved cycle detection logging
+- `backend/project_analyzer/scanner.py` - Upgraded log levels
+- `backend/project_analyzer/unused_exports.py` - Upgraded log levels
+- `frontend/src/components/ASTVisualizer.js` - Memory leak prevention
+- `frontend/src/hooks/useResizeObserver.js` - Improved error handling
+
+</details>
 
 <details>
 <summary>v0.7.0-beta2 (2026-03-12)</summary>

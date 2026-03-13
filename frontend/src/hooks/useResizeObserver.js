@@ -74,8 +74,10 @@ export function useResizeObserver(elementRef, callback, options = {}) {
             }
           } catch (e) {
             // Ignore errors in callback to avoid triggering ResizeObserver loop
+            // but log them for debugging purposes
             if (process.env.NODE_ENV === 'development') {
-              console.debug('ResizeObserver callback error (suppressed):', e);
+              // Use console.warn for visibility in development without breaking the app
+              console.warn('ResizeObserver callback error (suppressed):', e.message || e);
             }
           }
         }, debounce);
@@ -97,8 +99,9 @@ export function useResizeObserver(elementRef, callback, options = {}) {
         }]);
       }
     } catch (e) {
+      // Log creation errors for debugging
       if (process.env.NODE_ENV === 'development') {
-        console.debug('ResizeObserver creation error:', e);
+        console.warn('ResizeObserver creation error:', e.message || e);
       }
     }
 

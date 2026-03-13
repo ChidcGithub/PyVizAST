@@ -165,9 +165,13 @@ class CycleDetector:
         
         # Could not extract a specific cycle - return the SCC as a group
         # This indicates mutual dependencies exist but exact cycle is complex
-        # Log this situation for debugging
-        logger.debug(f"Could not extract specific cycle from SCC of size {len(scc)}, returning as module group")
-        return list(scc)
+        # Log this situation for debugging and mark with special prefix to indicate it's a complex group
+        # rather than a simple cycle (helps avoid false positives in reporting)
+        logger.warning(f"Could not extract specific cycle from SCC of size {len(scc)}, "
+                      f"modules: {list(scc)[:5]}{'...' if len(scc) > 5 else ''}. "
+                      f"This indicates complex mutual dependencies.")
+        # Mark as complex group by adding a special indicator
+        return ['__COMPLEX_GROUP__'] + list(scc)
     
     def _normalize_cycle(self, cycle: List[str]) -> List[str]:
         """

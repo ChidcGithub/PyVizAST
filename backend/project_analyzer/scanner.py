@@ -258,7 +258,7 @@ class ProjectScanner:
             content = file_path.read_text(encoding='utf-8', errors='ignore')
             line_count = content.count('\n') + 1
         except Exception as e:
-            logger.debug(f"Failed to read file {relative_path}: {e}")
+            logger.warning(f"Failed to read file {relative_path}: {e}")
             line_count = 0
         
         # Check if it's a special file
