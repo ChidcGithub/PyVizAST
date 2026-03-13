@@ -173,8 +173,6 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   
   // 节点位置缓存（性能优化）
   const nodePositionsCacheRef = useRef([]);
-  const lastCacheUpdateRef = useRef(0);
-  const CACHE_UPDATE_INTERVAL = 100; // 缓存更新间隔(ms)
   
   // Clear debounce timer
   useEffect(() => {
@@ -430,22 +428,22 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     const snapRadius = SNAP_DISTANCE / zoom;
     
     // 更新节点位置缓存（性能优化）
-    const now = Date.now();
-    if (now - lastCacheUpdateRef.current > CACHE_UPDATE_INTERVAL) {
-      const nodes = cy.nodes();
-      nodePositionsCacheRef.current = [];
-      for (let i = 0; i < nodes.length; i++) {
-        const node = nodes[i];
-        const pos = node.position();
-        nodePositionsCacheRef.current.push({
-          node,
-          x: pos.x,
-          y: pos.y,
-          w: node.width() / 2,
-          h: node.height() / 2,
-        });
-      }
-      lastCacheUpdateRef.current = now;
+    // 注意：每次都要更新屏幕坐标，因为视口可能变化
+    const nodes = cy.nodes();
+    nodePositionsCacheRef.current = [];
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      const pos = node.position();
+      const renderedPos = node.renderedPosition();
+      nodePositionsCacheRef.current.push({
+        node,
+        x: pos.x,
+        y: pos.y,
+        w: node.width() / 2,
+        h: node.height() / 2,
+        screenX: renderedPos.x,
+        screenY: renderedPos.y,
+      });
     }
     
     // 使用缓存查找最近节点
@@ -465,8 +463,8 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
         nearestDist = Math.sqrt(distSq);
         nearestNode = item.node;
         nearestScreenPos = {
-          x: item.x * zoom + pan.x,
-          y: item.y * zoom + pan.y
+          x: item.screenX, // 使用缓存的屏幕坐标
+          y: item.screenY,
         };
       }
     }
