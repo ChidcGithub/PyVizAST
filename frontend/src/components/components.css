@@ -1111,6 +1111,82 @@
   color: var(--text-secondary);
 }
 
+/* WebGL Error Display */
+.webgl-error {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  animation: fadeIn var(--transition-fast) forwards;
+}
+
+.webgl-error-content {
+  text-align: center;
+  padding: 40px;
+  max-width: 500px;
+}
+
+.webgl-error-content svg {
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+
+.webgl-error-content h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.webgl-error-content p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+
+.webgl-error-content .webgl-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 16px;
+}
+
+.webgl-troubleshoot {
+  margin-top: 24px;
+  text-align: left;
+}
+
+.webgl-troubleshoot details {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+}
+
+.webgl-troubleshoot summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.webgl-troubleshoot ul {
+  margin-top: 12px;
+  padding-left: 20px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.webgl-troubleshoot li {
+  margin-bottom: 6px;
+}
+
 /* Toolbar Divider */
 .toolbar-divider {
   width: 1px;

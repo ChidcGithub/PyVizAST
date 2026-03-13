@@ -9,6 +9,57 @@ import { GestureAction } from '../utils/GestureService';
 const MAX_NODES_3D = 200;
 const NODE_SPACING = 3;
 
+/**
+ * Check if WebGL is supported and available
+ * @returns {{ supported: boolean, reason: string|null }}
+ */
+function checkWebGLSupport() {
+  try {
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return { supported: false, reason: 'Not in browser environment' };
+    }
+    
+    // Create a test canvas
+    const testCanvas = document.createElement('canvas');
+    
+    // Try to get WebGL context
+    const gl = testCanvas.getContext('webgl') || testCanvas.getContext('experimental-webgl');
+    
+    if (!gl) {
+      // Try WebGL2
+      const gl2 = testCanvas.getContext('webgl2');
+      if (!gl2) {
+        return { supported: false, reason: 'WebGL is not supported by your browser or GPU' };
+      }
+    }
+    
+    // Check for WebGL extensions
+    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+    if (debugInfo) {
+      const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+      // Check for software renderers that might have issues
+      if (renderer && (
+        renderer.includes('SwiftShader') || 
+        renderer.includes('llvmpipe') ||
+        renderer.includes('Software')
+      )) {
+        logger.warn('WebGL running in software mode, performance may be limited', { renderer });
+      }
+    }
+    
+    // Clean up
+    const ext = gl.getExtension('WEBGL_lose_context');
+    if (ext) {
+      ext.loseContext();
+    }
+    
+    return { supported: true, reason: null };
+  } catch (e) {
+    return { supported: false, reason: `WebGL check failed: ${e.message}` };
+  }
+}
+
 // Layout types
 const LAYOUT_TYPES = {
   HIERARCHICAL: 'hierarchical',
@@ -983,6 +1034,20 @@ const ASTVisualizer3D = forwardRef(function ASTVisualizer3D({ graph, theme, onGo
   const particleIdRef = useRef(0);
   const sceneRef = useRef(null); // Ref to access Scene methods
   
+  // WebGL support state
+  const [webglSupported, setWebglSupported] = useState(true);
+  const [webglError, setWebglError] = useState(null);
+  
+  // Check WebGL support on mount
+  useEffect(() => {
+    const { supported, reason } = checkWebGLSupport();
+    setWebglSupported(supported);
+    if (!supported) {
+      setWebglError(reason);
+      logger.warn('WebGL not available for 3D visualization', { reason });
+    }
+  }, []);
+  
   // Gesture control state
   const gestureStateRef = useRef({
     isPanning: false,
@@ -1585,7 +1650,33 @@ const ASTVisualizer3D = forwardRef(function ASTVisualizer3D({ graph, theme, onGo
           </div>
         )}
         
-        {!isLayoutReady ? (
+        {!webglSupported ? (
+          <div className="webgl-error">
+            <div className="webgl-error-content">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <h3>3D Visualization Unavailable</h3>
+              <p>{webglError || 'WebGL is not supported by your browser or GPU.'}</p>
+              <p className="webgl-hint">
+                Try using the 2D view instead, or check if hardware acceleration is enabled in your browser settings.
+              </p>
+              <div className="webgl-troubleshoot">
+                <details>
+                  <summary>Troubleshooting Tips</summary>
+                  <ul>
+                    <li>Update your GPU drivers</li>
+                    <li>Enable hardware acceleration in browser settings</li>
+                    <li>Try a different browser (Chrome, Firefox, Edge)</li>
+                    <li>Close other tabs that may use WebGL</li>
+                  </ul>
+                </details>
+              </div>
+            </div>
+          </div>
+        ) : !isLayoutReady ? (
           <div className="rendering-overlay">
             <div className="rendering-spinner"></div>
             <span>Computing 3D layout...</span>
@@ -1593,8 +1684,27 @@ const ASTVisualizer3D = forwardRef(function ASTVisualizer3D({ graph, theme, onGo
         ) : (
           <Canvas
             camera={{ position: [20, 20, 20], fov: 50 }}
-            gl={{ antialias: true, alpha: true }}
+            gl={{ 
+              antialias: true, 
+              alpha: true,
+              powerPreference: 'high-performance',
+              failIfMajorPerformanceCaveat: false,
+            }}
             style={{ background: theme === 'dark' ? '#0a0a0a' : '#ffffff' }}
+            onCreated={({ gl }) => {
+              // Handle WebGL context loss
+              gl.domElement.addEventListener('webglcontextlost', (e) => {
+                e.preventDefault();
+                logger.error('WebGL context lost', { event: e });
+                setWebglSupported(false);
+                setWebglError('WebGL context was lost. Please refresh the page.');
+              });
+            }}
+            onError={(error) => {
+              logger.error('Canvas error', { error });
+              setWebglSupported(false);
+              setWebglError(error.message || 'Failed to initialize WebGL');
+            }}
           >
             <Suspense fallback={null}>
               <Scene
