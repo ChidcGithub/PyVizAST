@@ -1,6 +1,6 @@
 # PyVizAST
 
-[![Version](https://img.shields.io/badge/Version-0.7.0--rc1-purple.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Version](https://img.shields.io/badge/Version-0.7.0--rc1-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
