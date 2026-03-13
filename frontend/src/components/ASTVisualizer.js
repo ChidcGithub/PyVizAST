@@ -364,10 +364,11 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     // Snap detection
     const snapped = nearestNode && nearestDistance < SNAP_RADIUS;
     
-    // Update snap icon position via transform
+    // Update snap icon position via transform (position + centering)
     if (snapped && nearestNodeScreenPos && cursorSnapIconRef.current) {
-      cursorSnapIconRef.current.style.transform = 
-        `translate(${nearestNodeScreenPos.x}px, ${nearestNodeScreenPos.y}px) translate(-50%, -50%)`;
+      const x = nearestNodeScreenPos.x;
+      const y = nearestNodeScreenPos.y;
+      cursorSnapIconRef.current.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
     }
     
     // Update snapped state only when changed
