@@ -5,7 +5,7 @@ AST Relationship Builder - Build code relationships from AST
 @link: github.com/chidcGithub
 """
 import logging
-from typing import Dict, List, Optional, Set, Any
+from typing import Dict, List, Optional, Set
 
 from ..models.schemas import ASTNode, ASTEdge, NodeType, VariableInfo, CodeRelationship
 

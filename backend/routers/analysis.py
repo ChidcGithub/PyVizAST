@@ -6,13 +6,12 @@ Code analysis API routes
 """
 import ast
 import logging
-from typing import Dict, List, Any
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from ..models.schemas import (
-    CodeInput, AnalysisResult, ComplexityMetrics, CodeIssue, SeverityLevel
+    CodeInput, AnalysisResult, ComplexityMetrics, SeverityLevel
 )
 from ..exceptions import CodeParsingError, CodeTooLargeError, AnalysisError
 from ..ast_parser import ASTParser, NodeMapper

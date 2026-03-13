@@ -3,6 +3,7 @@ Security Scanner - Security vulnerability scanning
 Detects SQL injection, unsafe deserialization, hardcoded secrets, etc.
 """
 import ast
+import os
 import re
 from typing import List, Dict, Optional
 from ..models.schemas import CodeIssue, SeverityLevel
@@ -376,7 +377,7 @@ class SecurityScanner:
                         id=self._generate_issue_id("legacy_command"),
                         type="security",
                         severity=SeverityLevel.ERROR,
-                        message=f"Legacy module 'commands' is insecure and removed in Python 3",
+                        message="Legacy module 'commands' is insecure and removed in Python 3",
                         lineno=node.lineno,
                         suggestion="Use subprocess.run() with shell=False"
                     ))

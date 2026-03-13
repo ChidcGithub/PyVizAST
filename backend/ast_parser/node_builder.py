@@ -5,7 +5,7 @@ AST Node Builder - Create AST nodes from Python AST
 @link: github.com/chidcGithub
 """
 import ast
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Optional, Any
 
 from ..models.schemas import ASTNode, NodeType
 from .node_styles import NODE_STYLES
