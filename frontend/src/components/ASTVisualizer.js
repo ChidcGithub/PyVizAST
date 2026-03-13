@@ -427,23 +427,25 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     const modelY = (targetY - pan.y) / zoom;
     const snapRadius = SNAP_DISTANCE / zoom;
     
-    // 更新节点位置缓存（性能优化）
-    // 注意：每次都要更新屏幕坐标，因为视口可能变化
+    // 更新节点位置缓存
     const nodes = cy.nodes();
     nodePositionsCacheRef.current = [];
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
       const pos = node.position();
       const renderedPos = node.renderedPosition();
-      nodePositionsCacheRef.current.push({
-        node,
-        x: pos.x,
-        y: pos.y,
-        w: node.width() / 2,
-        h: node.height() / 2,
-        screenX: renderedPos.x,
-        screenY: renderedPos.y,
-      });
+      // 确保 renderedPosition 有效
+      if (renderedPos && typeof renderedPos.x === 'number' && typeof renderedPos.y === 'number') {
+        nodePositionsCacheRef.current.push({
+          node,
+          x: pos.x,
+          y: pos.y,
+          w: node.width() / 2,
+          h: node.height() / 2,
+          screenX: renderedPos.x,
+          screenY: renderedPos.y,
+        });
+      }
     }
     
     // 使用缓存查找最近节点
