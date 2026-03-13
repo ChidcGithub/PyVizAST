@@ -640,56 +640,59 @@
   height: 100%;
   pointer-events: none;
   z-index: 150;
+  overflow: hidden;
 }
 
+/* 指向光标点 - 黑白色调，简洁高效 */
 .pointing-cursor-dot {
   position: absolute;
-  width: 16px;
-  height: 16px;
-  background: #4ade80;
+  width: 12px;
+  height: 12px;
+  background: #000;
+  border: 2px solid #fff;
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  box-shadow: 
-    0 0 20px rgba(74, 222, 128, 0.8),
-    0 0 40px rgba(74, 222, 128, 0.4);
-  animation: pointingPulse 1s ease-in-out infinite;
+  will-change: left, top;
+  pointer-events: none;
+  z-index: 151;
 }
 
-@keyframes pointingPulse {
-  0%, 100% {
-    transform: translate(-50%, -50%) scale(1);
-    box-shadow: 
-      0 0 20px rgba(74, 222, 128, 0.8),
-      0 0 40px rgba(74, 222, 128, 0.4);
-  }
-  50% {
-    transform: translate(-50%, -50%) scale(1.2);
-    box-shadow: 
-      0 0 30px rgba(74, 222, 128, 1),
-      0 0 60px rgba(74, 222, 128, 0.5);
-  }
+/* 指向光标外环 - 用于指示悬停状态 */
+.pointing-cursor-ring {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border: 2px solid rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  will-change: left, top;
+  pointer-events: none;
+  z-index: 150;
+  opacity: 0.8;
 }
 
+/* 进度圆环 - SVG 样式 */
 .pointing-progress-ring {
   position: absolute;
   pointer-events: none;
   width: 50px;
   height: 50px;
-  transform: translate(0, 0);
+  will-change: left, top;
 }
 
 .progress-ring-bg {
-  stroke: rgba(74, 222, 128, 0.2);
+  stroke: rgba(0, 0, 0, 0.1);
+  fill: none;
 }
 
 .progress-ring-fill {
-  stroke: #4ade80;
+  stroke: #000;
   stroke-linecap: round;
-  transition: stroke-dasharray 0.1s linear;
-  filter: drop-shadow(0 0 4px rgba(74, 222, 128, 0.8));
+  fill: none;
+  will-change: stroke-dasharray;
 }
 
-/* Hover progress indicator */
+/* Hover progress indicator - 黑白色调 */
 .hover-progress-indicator {
   position: absolute;
   bottom: 60px;
@@ -700,30 +703,61 @@
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  background: rgba(26, 26, 26, 0.9);
-  backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.95);
   border-radius: 8px;
-  border: 1px solid rgba(74, 222, 128, 0.3);
+  border: 1px solid rgba(0, 0, 0, 0.15);
   z-index: 160;
   min-width: 150px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .hover-progress-bar {
   height: 4px;
-  background: linear-gradient(90deg, #4ade80, #22c55e);
+  background: #000;
   border-radius: 2px;
-  transition: width 0.1s linear;
-  box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+  will-change: width;
 }
 
 .hover-progress-text {
   font-size: 12px;
-  color: #e0e0e0;
+  color: #333;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 200px;
+}
+
+/* ========== 暗色模式 ========== */
+.dark .pointing-cursor-dot {
+  background: #fff;
+  border-color: #000;
+}
+
+.dark .pointing-cursor-ring {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.dark .progress-ring-bg {
+  stroke: rgba(255, 255, 255, 0.1);
+}
+
+.dark .progress-ring-fill {
+  stroke: #fff;
+}
+
+.dark .hover-progress-indicator {
+  background: rgba(30, 30, 30, 0.95);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dark .hover-progress-bar {
+  background: #fff;
+}
+
+.dark .hover-progress-text {
+  color: #e0e0e0;
 }
 
 /* ========== Node Detail Panel - 详情面板 ========== */

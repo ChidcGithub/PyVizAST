@@ -141,6 +141,13 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   const hoverStartTimeRef = useRef(null);
   const HOVER_SELECT_TIME = 2000; // 2 seconds to select
   
+  // Performance optimization: refs for direct DOM updates
+  const cursorDotRef = useRef(null);
+  const cursorRingRef = useRef(null);
+  const cursorProgressRingRef = useRef(null);
+  const lastPositionUpdateRef = useRef(0);
+  const POSITION_UPDATE_THROTTLE = 16; // ~60fps
+  
   // Clear debounce timer
   useEffect(() => {
     return () => {
@@ -260,6 +267,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   const currentHoveredNodeIdRef = useRef(null);
   
   // Pointing cursor handler - converts pointing direction to graph coordinates
+  // Performance optimized: direct DOM updates for position, throttled state updates
   const handlePointingDirection = useCallback((pointingData) => {
     if (!cyRef.current || !gestureEnabled || !containerRef.current) return;
     
@@ -274,45 +282,65 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     const containerRect = container.getBoundingClientRect();
     
     // Calculate pointing position in graph coordinates
-    // pointingData.origin is normalized (0-1) from video feed
-    // We need to map it to the graph container
-    // Note: X is inverted because video is mirrored
     const graphX = containerRect.width * (1 - pointingData.origin.x);
     const graphY = containerRect.height * pointingData.origin.y;
     
-    // Update pointing position for rendering
-    setPointingPosition({ x: graphX, y: graphY });
+    // Direct DOM update for cursor position (avoids React re-render)
+    const now = performance.now();
+    if (now - lastPositionUpdateRef.current >= POSITION_UPDATE_THROTTLE) {
+      lastPositionUpdateRef.current = now;
+      
+      // Update cursor dot position via DOM
+      if (cursorDotRef.current) {
+        cursorDotRef.current.style.left = `${graphX}px`;
+        cursorDotRef.current.style.top = `${graphY}px`;
+      }
+      // Update cursor ring position via DOM
+      if (cursorRingRef.current) {
+        cursorRingRef.current.style.left = `${graphX}px`;
+        cursorRingRef.current.style.top = `${graphY}px`;
+      }
+      // Update progress ring position via DOM
+      if (cursorProgressRingRef.current) {
+        cursorProgressRingRef.current.style.left = `${graphX}px`;
+        cursorProgressRingRef.current.style.top = `${graphY}px`;
+      }
+    }
+    
+    // Initialize cursor if not visible
+    if (!pointingPosition) {
+      setPointingPosition({ x: graphX, y: graphY });
+    }
     
     // Find node at pointing position
-    const renderedPosition = cy.pan(); // Current pan offset
+    const renderedPosition = cy.pan();
     const zoom = cy.zoom();
-    
-    // Convert screen position to model position
     const modelX = (graphX - renderedPosition.x) / zoom;
     const modelY = (graphY - renderedPosition.y) / zoom;
     
-    // Find the nearest node
+    // Find the nearest node (optimized - early exit)
     let nearestNode = null;
     let nearestDistance = Infinity;
     
-    cy.nodes().forEach(node => {
+    const nodes = cy.nodes();
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
       const nodePos = node.position();
       const nodeWidth = node.width() / 2;
       const nodeHeight = node.height() / 2;
       
-      // Calculate distance from pointing position to node center
       const dx = modelX - nodePos.x;
       const dy = modelY - nodePos.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
       
-      // Check if pointing is within node bounds (with some tolerance)
-      if (Math.abs(dx) < nodeWidth * 1.5 && Math.abs(dy) < nodeHeight * 1.5) {
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          nearestNode = node;
-        }
+      // Quick bounds check before distance calculation
+      if (Math.abs(dx) > nodeWidth * 1.5 || Math.abs(dy) > nodeHeight * 1.5) continue;
+      
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestNode = node;
       }
-    });
+    }
     
     // Handle hover state changes
     if (nearestNode) {
@@ -320,7 +348,6 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       const isNewNode = currentHoveredNodeIdRef.current !== nodeId;
       
       if (isNewNode) {
-        // New node hovered - reset timer
         currentHoveredNodeIdRef.current = nodeId;
         setHoveredNode({
           id: nodeId,
@@ -330,57 +357,58 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
         setHoverProgress(0);
         hoverStartTimeRef.current = Date.now();
         
-        // Clear existing timer
         if (hoverTimerRef.current) {
           cancelAnimationFrame(hoverTimerRef.current);
           hoverTimerRef.current = null;
         }
         
-        // Start progress animation
+        // Start progress animation (throttled to 30fps for performance)
+        let lastProgressUpdate = 0;
+        const PROGRESS_UPDATE_INTERVAL = 33; // ~30fps
+        
         const updateProgress = () => {
-          const elapsed = Date.now() - hoverStartTimeRef.current;
-          const progress = Math.min(100, (elapsed / HOVER_SELECT_TIME) * 100);
-          setHoverProgress(progress);
-          
-          if (progress < 100) {
-            hoverTimerRef.current = requestAnimationFrame(updateProgress);
-          } else {
-            // Select the node after hover time - use ref to get current node ID
-            const currentNodeId = currentHoveredNodeIdRef.current;
-            if (currentNodeId) {
-              const nodeToSelect = cy.getElementById(currentNodeId);
-              if (nodeToSelect) {
-                nodeToSelect.select();
-                setSelectedNode({
-                  id: nodeToSelect.data().id,
-                  type: nodeToSelect.data().type,
-                  name: nodeToSelect.data().name,
-                  label: nodeToSelect.data().label,
-                  lineno: nodeToSelect.data().lineno,
-                  docstring: nodeToSelect.data().docstring,
-                  sourceCode: nodeToSelect.data().source_code,
-                  icon: nodeToSelect.data().icon,
-                  description: nodeToSelect.data().description,
-                  explanation: nodeToSelect.data().explanation,
-                  attributes: nodeToSelect.data().attributes,
-                });
-              }
-            }
+          const now = performance.now();
+          if (now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL) {
+            lastProgressUpdate = now;
+            const elapsed = Date.now() - hoverStartTimeRef.current;
+            const progress = Math.min(100, (elapsed / HOVER_SELECT_TIME) * 100);
+            setHoverProgress(progress);
             
-            // Reset hover state after selection
-            currentHoveredNodeIdRef.current = null;
-            setHoveredNode(null);
-            setHoverProgress(0);
-            setPointingPosition(null);
-            hoverTimerRef.current = null;
+            if (progress >= 100) {
+              const currentNodeId = currentHoveredNodeIdRef.current;
+              if (currentNodeId) {
+                const nodeToSelect = cy.getElementById(currentNodeId);
+                if (nodeToSelect) {
+                  nodeToSelect.select();
+                  setSelectedNode({
+                    id: nodeToSelect.data().id,
+                    type: nodeToSelect.data().type,
+                    name: nodeToSelect.data().name,
+                    label: nodeToSelect.data().label,
+                    lineno: nodeToSelect.data().lineno,
+                    docstring: nodeToSelect.data().docstring,
+                    sourceCode: nodeToSelect.data().source_code,
+                    icon: nodeToSelect.data().icon,
+                    description: nodeToSelect.data().description,
+                    explanation: nodeToSelect.data().explanation,
+                    attributes: nodeToSelect.data().attributes,
+                  });
+                }
+              }
+              currentHoveredNodeIdRef.current = null;
+              setHoveredNode(null);
+              setHoverProgress(0);
+              setPointingPosition(null);
+              hoverTimerRef.current = null;
+              return;
+            }
           }
+          hoverTimerRef.current = requestAnimationFrame(updateProgress);
         };
         
         hoverTimerRef.current = requestAnimationFrame(updateProgress);
       }
-      // If same node, the animation continues running (hoverTimerRef.current is set)
     } else {
-      // No node hovered - reset state
       currentHoveredNodeIdRef.current = null;
       if (hoveredNode) {
         setHoveredNode(null);
@@ -391,7 +419,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
         }
       }
     }
-  }, [gestureEnabled, hoveredNode]);
+  }, [gestureEnabled, hoveredNode, pointingPosition]);
   
   // Clear pointing cursor with a small delay to avoid flickering during gesture instability
   const clearPointingCursor = useCallback(() => {
@@ -1394,22 +1422,35 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
         )}
         <div className="cytoscape-container" ref={containerRef}></div>
         
-        {/* Pointing cursor overlay */}
+        {/* Pointing cursor overlay - optimized for performance */}
         {pointingPosition && gestureEnabled && (
           <div className="pointing-cursor-overlay">
+            {/* Outer ring - indicates hoverable area */}
+            {hoveredNode && (
+              <div 
+                ref={cursorRingRef}
+                className="pointing-cursor-ring"
+                style={{
+                  left: pointingPosition.x,
+                  top: pointingPosition.y,
+                }}
+              />
+            )}
+            {/* Center dot */}
             <div 
+              ref={cursorDotRef}
               className="pointing-cursor-dot"
               style={{
                 left: pointingPosition.x,
                 top: pointingPosition.y,
               }}
             />
-            {/* Progress ring around cursor when hovering a node */}
+            {/* Progress ring - only render when hovering a node with progress */}
             {hoveredNode && hoverProgress > 0 && (
               <svg 
+                ref={cursorProgressRingRef}
                 className="pointing-progress-ring"
                 style={{
-                  position: 'absolute',
                   left: pointingPosition.x,
                   top: pointingPosition.y,
                   transform: 'translate(-50%, -50%)',
@@ -1423,7 +1464,6 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
                   cx="25"
                   cy="25"
                   r="20"
-                  fill="none"
                   strokeWidth="3"
                 />
                 <circle
@@ -1431,7 +1471,6 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
                   cx="25"
                   cy="25"
                   r="20"
-                  fill="none"
                   strokeWidth="3"
                   strokeDasharray={`${hoverProgress * 1.256} 125.6`}
                   transform="rotate(-90 25 25)"
