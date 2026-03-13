@@ -256,6 +256,9 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     }
   }, [gestureEnabled]);
   
+  // Ref to track the current hovering node ID (avoids closure stale state issues)
+  const currentHoveredNodeIdRef = useRef(null);
+  
   // Pointing cursor handler - converts pointing direction to graph coordinates
   const handlePointingDirection = useCallback((pointingData) => {
     if (!cyRef.current || !gestureEnabled || !containerRef.current) return;
@@ -308,9 +311,11 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     // Handle hover state changes
     if (nearestNode) {
       const nodeId = nearestNode.data().id;
+      const isNewNode = currentHoveredNodeIdRef.current !== nodeId;
       
-      if (hoveredNode?.id !== nodeId) {
+      if (isNewNode) {
         // New node hovered - reset timer
+        currentHoveredNodeIdRef.current = nodeId;
         setHoveredNode({
           id: nodeId,
           type: nearestNode.data().type,
@@ -322,6 +327,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
         // Clear existing timer
         if (hoverTimerRef.current) {
           cancelAnimationFrame(hoverTimerRef.current);
+          hoverTimerRef.current = null;
         }
         
         // Start progress animation
@@ -333,33 +339,43 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
           if (progress < 100) {
             hoverTimerRef.current = requestAnimationFrame(updateProgress);
           } else {
-            // Select the node after 2 seconds
-            nearestNode.select();
-            setSelectedNode({
-              id: nearestNode.data().id,
-              type: nearestNode.data().type,
-              name: nearestNode.data().name,
-              label: nearestNode.data().label,
-              lineno: nearestNode.data().lineno,
-              docstring: nearestNode.data().docstring,
-              sourceCode: nearestNode.data().source_code,
-              icon: nearestNode.data().icon,
-              description: nearestNode.data().description,
-              explanation: nearestNode.data().explanation,
-              attributes: nearestNode.data().attributes,
-            });
+            // Select the node after hover time - use ref to get current node ID
+            const currentNodeId = currentHoveredNodeIdRef.current;
+            if (currentNodeId) {
+              const nodeToSelect = cy.getElementById(currentNodeId);
+              if (nodeToSelect) {
+                nodeToSelect.select();
+                setSelectedNode({
+                  id: nodeToSelect.data().id,
+                  type: nodeToSelect.data().type,
+                  name: nodeToSelect.data().name,
+                  label: nodeToSelect.data().label,
+                  lineno: nodeToSelect.data().lineno,
+                  docstring: nodeToSelect.data().docstring,
+                  sourceCode: nodeToSelect.data().source_code,
+                  icon: nodeToSelect.data().icon,
+                  description: nodeToSelect.data().description,
+                  explanation: nodeToSelect.data().explanation,
+                  attributes: nodeToSelect.data().attributes,
+                });
+              }
+            }
             
             // Reset hover state after selection
+            currentHoveredNodeIdRef.current = null;
             setHoveredNode(null);
             setHoverProgress(0);
             setPointingPosition(null);
+            hoverTimerRef.current = null;
           }
         };
         
         hoverTimerRef.current = requestAnimationFrame(updateProgress);
       }
+      // If same node, the animation continues running (hoverTimerRef.current is set)
     } else {
       // No node hovered - reset state
+      currentHoveredNodeIdRef.current = null;
       if (hoveredNode) {
         setHoveredNode(null);
         setHoverProgress(0);
