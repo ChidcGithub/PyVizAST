@@ -425,6 +425,17 @@ class GestureService {
     // If no stable gesture, use NONE
     const effectiveGesture = stableGesture || GestureType.NONE;
     
+    // Always send pointing direction if hand is detected with pointing gesture
+    // This should be independent of stability filter and cooldown for smooth tracking
+    if (rawGesture === GestureType.POINTING_UP && this.onPointingDirectionCallback) {
+      this.onPointingDirectionCallback({
+        origin: handData.indexTip,
+        direction: handData.pointingDirection,
+        gesture: rawGesture, // Use raw gesture for immediate feedback
+        isStable: stableGesture !== null, // Indicate stability status
+      });
+    }
+    
     // C. Check cooldown - still process position during cooldown
     if (this.isInCooldown) {
       const timeSinceLastChange = now - this.lastGestureChangeTime;
@@ -433,6 +444,9 @@ class GestureService {
         if (this.onHandPositionCallback) {
           this.onHandPositionCallback(handData.center, handData.landmarks);
         }
+        // Don't return early - still update gesture callback for other actions
+        // But skip the gesture action processing below
+        this.currentGesture = this.lastStableGesture;
         return;
       }
       this.isInCooldown = false;
@@ -455,6 +469,9 @@ class GestureService {
     // Map gesture to action
     const action = this.gestureToAction(effectiveGesture, this.gestureHoldTime);
     
+    // Check if raw gesture is Pointing_Up (for continuous pointing tracking)
+    const isPointing = rawGesture === GestureType.POINTING_UP;
+    
     if (this.onGestureCallback) {
       this.onGestureCallback({
         gesture: effectiveGesture,
@@ -464,15 +481,7 @@ class GestureService {
         confidence: stableGesture ? 1.0 : 0.5, // Indicate stability
         pointingDirection: handData.pointingDirection,
         indexTip: handData.indexTip,
-      });
-    }
-    
-    // Call pointing direction callback for Pointing_Up gesture
-    if (effectiveGesture === GestureType.POINTING_UP && this.onPointingDirectionCallback) {
-      this.onPointingDirectionCallback({
-        origin: handData.indexTip,
-        direction: handData.pointingDirection,
-        gesture: effectiveGesture,
+        isPointing, // Add flag to indicate pointing state (independent of stability)
       });
     }
   }

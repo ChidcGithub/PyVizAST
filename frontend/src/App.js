@@ -508,8 +508,9 @@ function App() {
     if (visualizerRef.current && visualizerRef.current.handleGesture) {
       visualizerRef.current.handleGesture(gestureData);
     }
-    // Clear pointing cursor when gesture is not Pointing_Up
-    if (gestureData.gesture !== GestureType.POINTING_UP && visualizerRef.current && visualizerRef.current.clearPointingCursor) {
+    // Clear pointing cursor when not pointing (check isPointing flag for immediate feedback)
+    // isPointing is true when raw gesture is Pointing_Up, even if stability filter hasn't confirmed
+    if (!gestureData.isPointing && visualizerRef.current && visualizerRef.current.clearPointingCursor) {
       visualizerRef.current.clearPointingCursor();
     }
   }, []);
