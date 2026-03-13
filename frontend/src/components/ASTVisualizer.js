@@ -451,7 +451,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     
     // 使用缓存查找最近节点
     let nearestNode = null;
-    let nearestDist = Infinity;
+    let nearestDistSq = Infinity; // 使用距离平方，避免重复开方
     let nearestScreenPos = null;
     
     const cache = nodePositionsCacheRef.current;
@@ -462,15 +462,19 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       const distSq = dx * dx + dy * dy;
       const maxDist = Math.max(item.w, item.h) + snapRadius;
       
-      if (distSq < maxDist * maxDist && distSq < nearestDist) {
-        nearestDist = Math.sqrt(distSq);
+      // 统一使用距离平方比较
+      if (distSq < maxDist * maxDist && distSq < nearestDistSq) {
+        nearestDistSq = distSq;
         nearestNode = item.node;
         nearestScreenPos = {
-          x: item.screenX, // 使用缓存的屏幕坐标
+          x: item.screenX,
           y: item.screenY,
         };
       }
     }
+    
+    // 计算实际距离用于吸附判断
+    const nearestDist = nearestDistSq < Infinity ? Math.sqrt(nearestDistSq) : Infinity;
     
     // 更新吸附状态（平滑动画目标）
     const isSnapped = nearestNode && nearestDist < snapRadius;
