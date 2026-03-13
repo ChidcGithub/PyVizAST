@@ -143,7 +143,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   
   // Snap-to-node feature
   const [isSnapped, setIsSnapped] = useState(false); // Whether cursor is snapped to a node
-  const SNAP_DISTANCE = 60; // Distance threshold for snapping (in screen pixels)
+  const SNAP_DISTANCE = 40; // Distance threshold for snapping (in screen pixels)
   
   // Performance optimization: refs for direct DOM updates
   const cursorDotRef = useRef(null);
@@ -328,22 +328,28 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       }
     }
     
-    // Snap-to-node feature: snap cursor to node center if within snap distance
+    // Soft snap-to-node feature: partial attraction for better follow-hand feel
     let finalX = graphX;
     let finalY = graphY;
     let snapped = false;
     
     if (nearestNode && nearestDistance < SNAP_RADIUS) {
-      // Snap to node center
       const nodePos = nearestNode.position();
-      finalX = nodePos.x * zoom + renderedPosition.x;
-      finalY = nodePos.y * zoom + renderedPosition.y;
+      const nodeScreenX = nodePos.x * zoom + renderedPosition.x;
+      const nodeScreenY = nodePos.y * zoom + renderedPosition.y;
+      
+      // Soft snap: blend cursor position with node center based on distance
+      // Closer to node = stronger snap, but never fully locked
+      const snapStrength = 0.25 * (1 - nearestDistance / SNAP_RADIUS); // Max 25% attraction
+      
+      finalX = graphX + (nodeScreenX - graphX) * snapStrength;
+      finalY = graphY + (nodeScreenY - graphY) * snapStrength;
       snapped = true;
       
-      // Update snap icon position
+      // Update snap icon position at node center
       if (cursorSnapIconRef.current) {
-        cursorSnapIconRef.current.style.left = `${finalX}px`;
-        cursorSnapIconRef.current.style.top = `${finalY}px`;
+        cursorSnapIconRef.current.style.left = `${nodeScreenX}px`;
+        cursorSnapIconRef.current.style.top = `${nodeScreenY}px`;
       }
     }
     
