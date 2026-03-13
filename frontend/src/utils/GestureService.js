@@ -110,6 +110,7 @@ class GestureService {
       );
       
       // Create GestureRecognizer with higher confidence thresholds
+      // Note: GPU delegate is preferred, but some ops may fall back to CPU (XNNPACK)
       this.gestureRecognizer = await GestureRecognizer.createFromOptions(vision, {
         baseOptions: {
           modelAssetPath: 'https://storage.googleapis.com/mediapipe-tasks/gesture_recognizer/gesture_recognizer.task',
@@ -123,7 +124,13 @@ class GestureService {
       });
       
       this.isInitialized = true;
-      this.notifyStatus('ready', 'Gesture recognition ready');
+      // Note: MediaPipe may log warnings about CPU-only ops - this is normal behavior
+      // The framework automatically uses XNNPACK (optimized CPU) for unsupported GPU ops
+      logger.info('Gesture recognizer initialized', { 
+        delegate: 'GPU (with CPU fallback for unsupported ops)',
+        note: 'XNNPACK CPU acceleration is used for ops not supported on GPU'
+      });
+      this.notifyStatus('ready', 'Gesture recognition ready (GPU/CPU hybrid)');
       return true;
     } catch (error) {
       logger.error('Failed to initialize GestureRecognizer', { error: error.message, stack: error.stack });
