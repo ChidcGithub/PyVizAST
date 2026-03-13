@@ -141,10 +141,15 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   const hoverStartTimeRef = useRef(null);
   const HOVER_SELECT_TIME = 2000; // 2 seconds to select
   
+  // Snap-to-node feature
+  const [isSnapped, setIsSnapped] = useState(false); // Whether cursor is snapped to a node
+  const SNAP_DISTANCE = 60; // Distance threshold for snapping (in screen pixels)
+  
   // Performance optimization: refs for direct DOM updates
   const cursorDotRef = useRef(null);
   const cursorRingRef = useRef(null);
   const cursorProgressRingRef = useRef(null);
+  const cursorSnapIconRef = useRef(null); // Palm icon when snapped
   const lastPositionUpdateRef = useRef(0);
   const POSITION_UPDATE_THROTTLE = 16; // ~60fps
   
@@ -285,28 +290,6 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     const graphX = containerRect.width * (1 - pointingData.origin.x);
     const graphY = containerRect.height * pointingData.origin.y;
     
-    // Direct DOM update for cursor position (avoids React re-render)
-    const now = performance.now();
-    if (now - lastPositionUpdateRef.current >= POSITION_UPDATE_THROTTLE) {
-      lastPositionUpdateRef.current = now;
-      
-      // Update cursor dot position via DOM
-      if (cursorDotRef.current) {
-        cursorDotRef.current.style.left = `${graphX}px`;
-        cursorDotRef.current.style.top = `${graphY}px`;
-      }
-      // Update cursor ring position via DOM
-      if (cursorRingRef.current) {
-        cursorRingRef.current.style.left = `${graphX}px`;
-        cursorRingRef.current.style.top = `${graphY}px`;
-      }
-      // Update progress ring position via DOM
-      if (cursorProgressRingRef.current) {
-        cursorProgressRingRef.current.style.left = `${graphX}px`;
-        cursorProgressRingRef.current.style.top = `${graphY}px`;
-      }
-    }
-    
     // Initialize cursor if not visible
     if (!pointingPosition) {
       setPointingPosition({ x: graphX, y: graphY });
@@ -319,8 +302,10 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     const modelY = (graphY - renderedPosition.y) / zoom;
     
     // Find the nearest node (optimized - early exit)
+    // Use larger search radius for snap-to-node feature
     let nearestNode = null;
     let nearestDistance = Infinity;
+    const SNAP_RADIUS = SNAP_DISTANCE / zoom; // Convert screen distance to model distance
     
     const nodes = cy.nodes();
     for (let i = 0; i < nodes.length; i++) {
@@ -332,8 +317,9 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       const dx = modelX - nodePos.x;
       const dy = modelY - nodePos.y;
       
-      // Quick bounds check before distance calculation
-      if (Math.abs(dx) > nodeWidth * 1.5 || Math.abs(dy) > nodeHeight * 1.5) continue;
+      // Use larger bounds check for snap feature
+      const maxDim = Math.max(nodeWidth, nodeHeight);
+      if (Math.abs(dx) > maxDim + SNAP_RADIUS || Math.abs(dy) > maxDim + SNAP_RADIUS) continue;
       
       const distance = Math.sqrt(dx * dx + dy * dy);
       if (distance < nearestDistance) {
@@ -342,8 +328,54 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       }
     }
     
+    // Snap-to-node feature: snap cursor to node center if within snap distance
+    let finalX = graphX;
+    let finalY = graphY;
+    let snapped = false;
+    
+    if (nearestNode && nearestDistance < SNAP_RADIUS) {
+      // Snap to node center
+      const nodePos = nearestNode.position();
+      finalX = nodePos.x * zoom + renderedPosition.x;
+      finalY = nodePos.y * zoom + renderedPosition.y;
+      snapped = true;
+      
+      // Update snap icon position
+      if (cursorSnapIconRef.current) {
+        cursorSnapIconRef.current.style.left = `${finalX}px`;
+        cursorSnapIconRef.current.style.top = `${finalY}px`;
+      }
+    }
+    
+    // Update snapped state
+    if (snapped !== isSnapped) {
+      setIsSnapped(snapped);
+    }
+    
+    // Direct DOM update for cursor position (avoids React re-render)
+    const now = performance.now();
+    if (now - lastPositionUpdateRef.current >= POSITION_UPDATE_THROTTLE) {
+      lastPositionUpdateRef.current = now;
+      
+      // Update cursor dot position via DOM
+      if (cursorDotRef.current) {
+        cursorDotRef.current.style.left = `${finalX}px`;
+        cursorDotRef.current.style.top = `${finalY}px`;
+      }
+      // Update cursor ring position via DOM
+      if (cursorRingRef.current) {
+        cursorRingRef.current.style.left = `${finalX}px`;
+        cursorRingRef.current.style.top = `${finalY}px`;
+      }
+      // Update progress ring position via DOM
+      if (cursorProgressRingRef.current) {
+        cursorProgressRingRef.current.style.left = `${finalX}px`;
+        cursorProgressRingRef.current.style.top = `${finalY}px`;
+      }
+    }
+    
     // Handle hover state changes
-    if (nearestNode) {
+    if (nearestNode && snapped) {
       const nodeId = nearestNode.data().id;
       const isNewNode = currentHoveredNodeIdRef.current !== nodeId;
       
@@ -410,6 +442,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       }
     } else {
       currentHoveredNodeIdRef.current = null;
+      setIsSnapped(false);
       if (hoveredNode) {
         setHoveredNode(null);
         setHoverProgress(0);
@@ -419,7 +452,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
         }
       }
     }
-  }, [gestureEnabled, hoveredNode, pointingPosition]);
+  }, [gestureEnabled, hoveredNode, pointingPosition, isSnapped]);
   
   // Clear pointing cursor with a small delay to avoid flickering during gesture instability
   const clearPointingCursor = useCallback(() => {
@@ -431,6 +464,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
         setPointingPosition(null);
         setHoveredNode(null);
         setHoverProgress(0);
+        setIsSnapped(false);
         if (hoverTimerRef.current) {
           cancelAnimationFrame(hoverTimerRef.current);
           hoverTimerRef.current = null;
@@ -1439,12 +1473,30 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
             {/* Center dot */}
             <div 
               ref={cursorDotRef}
-              className="pointing-cursor-dot"
+              className={`pointing-cursor-dot ${isSnapped ? 'snapped' : ''}`}
               style={{
                 left: pointingPosition.x,
                 top: pointingPosition.y,
               }}
             />
+            {/* Snap indicator - palm icon when snapped to a node */}
+            {isSnapped && (
+              <div 
+                ref={cursorSnapIconRef}
+                className="pointing-snap-icon"
+                style={{
+                  left: pointingPosition.x,
+                  top: pointingPosition.y,
+                }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/>
+                  <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/>
+                  <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
+                  <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
+                </svg>
+              </div>
+            )}
             {/* Progress ring - only render when hovering a node with progress */}
             {hoveredNode && hoverProgress > 0 && (
               <svg 

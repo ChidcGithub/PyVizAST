@@ -655,6 +655,48 @@
   will-change: left, top;
   pointer-events: none;
   z-index: 151;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+/* 吸附状态 - 光标变小并淡出 */
+.pointing-cursor-dot.snapped {
+  transform: translate(-50%, -50%) scale(0.5);
+  opacity: 0.5;
+}
+
+/* 吸附手掌图标 */
+.pointing-snap-icon {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  color: #000;
+  background: #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  will-change: left, top;
+  pointer-events: none;
+  z-index: 152;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  animation: snapPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes snapPulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.pointing-snap-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* 指向光标外环 - 用于指示悬停状态 */
@@ -736,6 +778,27 @@
 
 .dark .pointing-cursor-ring {
   border-color: rgba(255, 255, 255, 0.5);
+}
+
+.dark .pointing-snap-icon {
+  color: #fff;
+  background: #333;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes snapPulseDark {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  }
+}
+
+.dark .pointing-snap-icon {
+  animation: snapPulseDark 1.5s ease-in-out infinite;
 }
 
 .dark .progress-ring-bg {
