@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 
 // App version
-const APP_VERSION = '0.7.0';
+const APP_VERSION = '0.7.1';
 
 // Social Card Generator - creates beautiful black/white themed image cards
 function SocialCardGenerator({ 
