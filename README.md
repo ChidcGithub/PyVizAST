@@ -207,11 +207,6 @@ GNU General Public License v3.0
 
 Contributions are welcome. Please submit pull requests to the main repository.
 
-## Known Issues
-
-- **Social Card Export**: The social card generator may be unstable in certain browsers. 3D visualization capture requires the 3D view to be fully rendered before capturing.
-- **Gesture Control**: Gesture recognition may be unstable in certain lighting conditions.
-
 ---
 
 <details>
