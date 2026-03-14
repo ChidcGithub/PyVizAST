@@ -11,13 +11,104 @@ cytoscape.use(dagre);
 cytoscape.use(fcose);
 
 /**
+ * Get Cytoscape styles based on theme
+ * @param {boolean} isDark - Whether to use dark theme
+ * @returns {Array} Cytoscape style array
+ */
+function getCytoscapeStyles(isDark) {
+  return [
+    // Regular module nodes - rectangle
+    {
+      selector: 'node[type="file"]',
+      style: {
+        'shape': 'roundrectangle',
+        'background-color': isDark ? '#1f2937' : '#ffffff',
+        'label': 'data(label)',
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'font-size': '11px',
+        'font-family': 'Inter, sans-serif',
+        'color': isDark ? '#e5e7eb' : '#374151',
+        'width': 80,
+        'height': 40,
+        'text-wrap': 'wrap',
+        'text-max-width': 70,
+        'border-width': 2,
+        'border-color': isDark ? '#4b5563' : '#374151',
+        'corner-radius': 4,
+      },
+    },
+    // Circular dependency nodes - diamond
+    {
+      selector: 'node[type="circular"]',
+      style: {
+        'shape': 'diamond',
+        'background-color': isDark ? '#7f1d1d' : '#fecaca',
+        'label': 'data(label)',
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'font-size': '11px',
+        'font-family': 'Inter, sans-serif',
+        'color': isDark ? '#fca5a5' : '#991b1b',
+        'width': 70,
+        'height': 70,
+        'text-wrap': 'wrap',
+        'text-max-width': 60,
+        'border-width': 2,
+        'border-color': '#dc2626',
+      },
+    },
+    // Selected state
+    {
+      selector: 'node:selected',
+      style: {
+        'border-width': 3,
+        'border-color': isDark ? '#60a5fa' : '#2563eb',
+      },
+    },
+    // Regular import edges - solid line
+    {
+      selector: 'edge[type="import"]',
+      style: {
+        'width': 1.5,
+        'line-color': isDark ? '#6b7280' : '#9ca3af',
+        'target-arrow-color': isDark ? '#6b7280' : '#9ca3af',
+        'target-arrow-shape': 'triangle',
+        'curve-style': 'bezier',
+        'arrow-scale': 0.6,
+        'line-style': 'solid',
+      },
+    },
+    // Circular dependency edges - dashed line
+    {
+      selector: 'edge[type="circular"]',
+      style: {
+        'width': 2,
+        'line-color': '#dc2626',
+        'target-arrow-color': '#dc2626',
+        'target-arrow-shape': 'triangle',
+        'curve-style': 'bezier',
+        'arrow-scale': 0.7,
+        'line-style': 'dashed',
+      },
+    },
+  ];
+}
+
+/**
  * Project Dependency Visualization Component
  * Uses Cytoscape.js to display project file dependency graphs
  */
 function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
   const containerRef = useRef(null);
   const cyRef = useRef(null);
+  const themeRef = useRef(theme);
   const [selectedNode, setSelectedNode] = useState(null);
+
+  // Keep themeRef in sync with theme prop
+  useEffect(() => {
+    themeRef.current = theme;
+  }, [theme]);
 
   // Process dependency data into graph data
   const graphData = useMemo(() => {
@@ -108,7 +199,7 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
         container: container,
         elements: [...graphData.nodes, ...graphData.edges],
         
-        style: getCytoscapeStyles(theme),
+        style: getCytoscapeStyles(themeRef.current === 'dark'),
         
         layout: {
           name: 'fcose',
@@ -144,95 +235,14 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
       logger.error('Cytoscape initialization error', { error: error.message });
       return false;
     }
-  }, [graphData]); // Remove theme dependency to avoid rebuilding on theme change
-
-  // Get Cytoscape styles based on theme
-  const getCytoscapeStyles = useCallback((isDark) => {
-    return [
-      // Regular module nodes - rectangle
-      {
-        selector: 'node[type="file"]',
-        style: {
-          'shape': 'roundrectangle',
-          'background-color': isDark ? '#1f2937' : '#ffffff',
-          'label': 'data(label)',
-          'text-valign': 'center',
-          'text-halign': 'center',
-          'font-size': '11px',
-          'font-family': 'Inter, sans-serif',
-          'color': isDark ? '#e5e7eb' : '#374151',
-          'width': 80,
-          'height': 40,
-          'text-wrap': 'wrap',
-          'text-max-width': 70,
-          'border-width': 2,
-          'border-color': isDark ? '#4b5563' : '#374151',
-          'corner-radius': 4,
-        },
-      },
-      // Circular dependency nodes - diamond
-      {
-        selector: 'node[type="circular"]',
-        style: {
-          'shape': 'diamond',
-          'background-color': isDark ? '#7f1d1d' : '#fecaca',
-          'label': 'data(label)',
-          'text-valign': 'center',
-          'text-halign': 'center',
-          'font-size': '11px',
-          'font-family': 'Inter, sans-serif',
-          'color': isDark ? '#fca5a5' : '#991b1b',
-          'width': 70,
-          'height': 70,
-          'text-wrap': 'wrap',
-          'text-max-width': 60,
-          'border-width': 2,
-          'border-color': '#dc2626',
-        },
-      },
-      // Selected state
-      {
-        selector: 'node:selected',
-        style: {
-          'border-width': 3,
-          'border-color': isDark ? '#60a5fa' : '#2563eb',
-        },
-      },
-      // Regular import edges - solid line
-      {
-        selector: 'edge[type="import"]',
-        style: {
-          'width': 1.5,
-          'line-color': isDark ? '#6b7280' : '#9ca3af',
-          'target-arrow-color': isDark ? '#6b7280' : '#9ca3af',
-          'target-arrow-shape': 'triangle',
-          'curve-style': 'bezier',
-          'arrow-scale': 0.6,
-          'line-style': 'solid',
-        },
-      },
-      // Circular dependency edges - dashed line
-      {
-        selector: 'edge[type="circular"]',
-        style: {
-          'width': 2,
-          'line-color': '#dc2626',
-          'target-arrow-color': '#dc2626',
-          'target-arrow-shape': 'triangle',
-          'curve-style': 'bezier',
-          'arrow-scale': 0.7,
-          'line-style': 'dashed',
-        },
-      },
-    ];
-  }, []);
+  }, [graphData]);
 
   // Update styles when theme changes (without rebuilding the entire graph)
   useEffect(() => {
     if (cyRef.current) {
       cyRef.current.style(getCytoscapeStyles(theme === 'dark'));
     }
-  }, [theme, getCytoscapeStyles]);
+  }, [theme]);
 
   // Delayed initialization to ensure container dimensions are correct
   useEffect(() => {
