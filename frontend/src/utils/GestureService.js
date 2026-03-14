@@ -41,10 +41,24 @@ export const GestureAction = {
   PINCH: 'pinch',
 };
 
-// Stability constants
-const STABLE_FRAMES_REQUIRED = 5; // A. Require 5 consecutive frames
-const COOLDOWN_MS = 300; // C. 300ms cooldown between gesture changes
-const CONFIDENCE_THRESHOLD = 0.7; // B. Higher confidence threshold
+/**
+ * Gesture stability configuration
+ * These values can be adjusted to fine-tune gesture recognition behavior
+ */
+export const GestureConfig = {
+  // A. Stability filter: Number of consecutive frames with same gesture required
+  STABLE_FRAMES_REQUIRED: 5,
+  // B. Confidence threshold: Minimum confidence for gesture acceptance
+  CONFIDENCE_THRESHOLD: 0.7,
+  // C. Cooldown period: Milliseconds between gesture changes
+  COOLDOWN_MS: 300,
+  // Smoothing factor for hand position (0-1, higher = smoother but more lag)
+  SMOOTHING_FACTOR: 0.3,
+  // Pinch zoom sensitivity multiplier
+  PINCH_SENSITIVITY: 5,
+  // Pan sensitivity multiplier (converts normalized coordinates to pixels)
+  PAN_SENSITIVITY: 500,
+};
 
 class GestureService {
   constructor() {
@@ -74,7 +88,7 @@ class GestureService {
     
     // A. Gesture stability - history buffer
     this.gestureHistory = [];
-    this.maxHistoryLength = STABLE_FRAMES_REQUIRED;
+    this.maxHistoryLength = GestureConfig.STABLE_FRAMES_REQUIRED;
     
     // C. Gesture cooldown
     this.lastGestureChangeTime = 0;
@@ -91,7 +105,7 @@ class GestureService {
     };
     
     // Smoothing
-    this.smoothingFactor = 0.3;
+    this.smoothingFactor = GestureConfig.SMOOTHING_FACTOR;
     this.smoothedPosition = null;
   }
 
@@ -118,9 +132,9 @@ class GestureService {
         },
         runningMode: 'VIDEO',
         numHands: 2,
-        minHandDetectionConfidence: CONFIDENCE_THRESHOLD,
-        minHandPresenceConfidence: CONFIDENCE_THRESHOLD,
-        minTrackingConfidence: CONFIDENCE_THRESHOLD,
+        minHandDetectionConfidence: GestureConfig.CONFIDENCE_THRESHOLD,
+        minHandPresenceConfidence: GestureConfig.CONFIDENCE_THRESHOLD,
+        minTrackingConfidence: GestureConfig.CONFIDENCE_THRESHOLD,
       });
       
       this.isInitialized = true;
@@ -306,7 +320,7 @@ class GestureService {
       if (!gesture || !handLandmarks || !hand) continue;
       
       // B. Check confidence threshold
-      if (gesture.score < CONFIDENCE_THRESHOLD) continue;
+      if (gesture.score < GestureConfig.CONFIDENCE_THRESHOLD) continue;
       
       // Get palm center position (using wrist and middle finger base)
       const wrist = handLandmarks[0];
@@ -439,7 +453,7 @@ class GestureService {
     // C. Check cooldown - still process position during cooldown
     if (this.isInCooldown) {
       const timeSinceLastChange = now - this.lastGestureChangeTime;
-      if (timeSinceLastChange < COOLDOWN_MS) {
+      if (timeSinceLastChange < GestureConfig.COOLDOWN_MS) {
         // Still in cooldown - keep current gesture but continue position tracking
         if (this.onHandPositionCallback) {
           this.onHandPositionCallback(handData.center, handData.landmarks);
@@ -505,21 +519,19 @@ class GestureService {
     const centerY = (left.center.y + right.center.y) / 2;
     const center = { x: centerX, y: centerY };
     
-    // Calculate zoom and pan
-    // eslint-disable-next-line no-unused-vars
+    // Calculate zoom and pan - default to zero
     let pinchScale = 0;
-    // eslint-disable-next-line no-unused-vars
     let panDelta = { x: 0, y: 0 };
     
     if (this.previousHandDistance !== null && this.previousHandCenter !== null) {
       // Zoom - based on distance change
       const distanceDelta = distance - this.previousHandDistance;
-      pinchScale = distanceDelta * 5; // Scale factor
+      pinchScale = distanceDelta * GestureConfig.PINCH_SENSITIVITY;
       
       // Pan - based on center point movement
       panDelta = {
-        x: (centerX - this.previousHandCenter.x) * 500, // Convert to pixels
-        y: (centerY - this.previousHandCenter.y) * 500,
+        x: (centerX - this.previousHandCenter.x) * GestureConfig.PAN_SENSITIVITY,
+        y: (centerY - this.previousHandCenter.y) * GestureConfig.PAN_SENSITIVITY,
       };
     }
     
@@ -528,7 +540,7 @@ class GestureService {
     this.previousHandCenter = center;
     this.currentGesture = 'PINCH';
     
-    // Call callbacks
+    // Call callbacks - variables are used here
     if (this.onTwoHandsCallback) {
       this.onTwoHandsCallback({
         pinchScale,

@@ -337,9 +337,30 @@ class PerformanceAnalyzer:
     def _detect_expensive_operations_in_loops(self, tree: ast.AST):
         """Detect expensive operations inside loops"""
         
+        # Expensive operations that should be avoided in loops
         expensive_calls = {
-            'open', 'read', 'write', 'connect', 'request',
-            'query', 'execute', 'fetch', 'commit'
+            # I/O operations
+            'open', 'read', 'write', 'close', 'flush',
+            # Network operations
+            'connect', 'request', 'send', 'recv', 'urlopen',
+            # Database operations
+            'query', 'execute', 'fetch', 'commit', 'rollback', 'cursor',
+            # File system operations
+            'listdir', 'walk', 'glob', 'stat', 'exists', 'isfile', 'isdir', 'mkdir', 'rmdir', 'remove',
+            # Serialization
+            'dumps', 'loads', 'dump', 'load',
+            # Heavy computations
+            'sort', 'sorted', 'reverse', 'reversed',
+            # Regex compilation
+            'compile', 'match', 'search', 'findall', 'sub',
+            # Sleep (blocks execution)
+            'sleep',
+            # Image processing
+            'imread', 'imwrite', 'resize', 'save', 'show',
+            # Cryptographic operations
+            'encrypt', 'decrypt', 'hash', 'sign', 'verify',
+            # HTTP requests
+            'get', 'post', 'put', 'delete', 'patch', 'head', 'options',
         }
         
         class ExpensiveOpVisitor(ast.NodeVisitor):

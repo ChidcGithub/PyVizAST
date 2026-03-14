@@ -245,29 +245,71 @@ class CodeSmellDetector:
         visitor.visit(tree)
     
     def _detect_unused_variables(self, tree: ast.AST):
-        """Detect unused variables"""
-        assigned_vars = set()
-        used_vars = set()
+        """Detect unused variables - Enhanced version with unpacking support"""
+        assigned_vars = set()  # (var_name, lineno)
+        used_vars = set()      # var_name
+        
+        # Helper function to extract variable names from assignment targets
+        def extract_var_names(target, lineno):
+            """Extract variable names from assignment target, handling unpacking"""
+            names = []
+            if isinstance(target, ast.Name):
+                names.append((target.id, lineno))
+            elif isinstance(target, ast.Tuple) or isinstance(target, ast.List):
+                # Handle tuple/list unpacking: a, b = func() or [a, b] = func()
+                for elt in target.elts:
+                    names.extend(extract_var_names(elt, lineno))
+            elif isinstance(target, ast.Starred):
+                # Handle starred unpacking: a, *rest = func()
+                names.extend(extract_var_names(target.value, lineno))
+            return names
         
         for node in ast.walk(tree):
+            # Handle regular assignments
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    assigned_vars.update(extract_var_names(target, node.lineno))
+            
+            # Handle annotated assignments: x: int = 5
+            elif isinstance(node, ast.AnnAssign):
+                if isinstance(node.target, ast.Name):
+                    assigned_vars.add((node.target.id, node.lineno))
+            
+            # Handle augmented assignments: x += 1 (counts as both assign and use)
+            elif isinstance(node, ast.AugAssign):
+                if isinstance(node.target, ast.Name):
+                    used_vars.add(node.target.id)
+            
+            # Handle for loop variables: for i in range(10):
+            elif isinstance(node, ast.For):
+                assigned_vars.update(extract_var_names(node.target, node.lineno))
+            
+            # Handle with statement variables: with open() as f:
+            elif isinstance(node, ast.withitem):
+                if node.optional_vars:
+                    assigned_vars.update(extract_var_names(node.optional_vars, node.lineno if hasattr(node, 'lineno') else 0))
+            
+            # Handle variable usage
             if isinstance(node, ast.Name):
-                if isinstance(node.ctx, ast.Store):
-                    assigned_vars.add((node.id, node.lineno))
-                elif isinstance(node.ctx, ast.Load):
+                if isinstance(node.ctx, ast.Load):
                     used_vars.add(node.id)
         
         # Find defined but unused variables
         for var_name, lineno in assigned_vars:
-            if var_name not in used_vars and not var_name.startswith('_'):
-                # Exclude some special cases
-                if var_name not in ('_', 'self', 'cls'):
-                    self.issues.append(CodeIssue(
-                        id=self._generate_issue_id("unused_var"),
-                        type="code_smell",
-                        severity=SeverityLevel.INFO,
-                        message=f"Variable '{var_name}' may be unused",
-                        lineno=lineno
-                    ))
+            # Skip special cases
+            if var_name.startswith('_'):  # Convention for intentionally unused
+                continue
+            if var_name in ('self', 'cls', 'args', 'kwargs'):  # Special parameters
+                continue
+            
+            if var_name not in used_vars:
+                self.issues.append(CodeIssue(
+                    id=self._generate_issue_id("unused_var"),
+                    type="code_smell",
+                    severity=SeverityLevel.INFO,
+                    message=f"Variable '{var_name}' may be unused",
+                    lineno=lineno
+                ))
     
     def _detect_poor_names(self, tree: ast.AST):
         """Detect poor naming"""

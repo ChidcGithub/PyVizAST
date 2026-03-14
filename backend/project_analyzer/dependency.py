@@ -25,43 +25,198 @@ class ModuleInfo:
 class DependencyAnalyzer:
     """Dependency Analyzer"""
     
-    # Standard library modules (partial list)
+    # Standard library modules (comprehensive list)
     STDLIB_MODULES = {
+        # Core modules
         'os', 'sys', 're', 'json', 'io', 'math', 'random', 'datetime',
         'collections', 'itertools', 'functools', 'typing', 'pathlib',
         'subprocess', 'threading', 'multiprocessing', 'asyncio',
         'logging', 'argparse', 'configparser', 'tempfile', 'shutil',
-        'pickle', 'sqlite3', 'http', 'urllib', 'email', 'html', 'xml',
-        'unittest', 'doctest', 'pdb', 'profile', 'time', 'copy',
-        'abc', 'contextlib', 'dataclasses', 'enum', 'operator',
-        'string', 'textwrap', 'unicodedata', 'struct', 'codecs',
-        'csv', 'hashlib', 'hmac', 'secrets', 'base64', 'binascii',
-        'gzip', 'bz2', 'lzma', 'zipfile', 'tarfile', 'socket',
-        'ssl', 'select', 'selectors', 'signal', 'mmap', 'ctypes',
-        'warnings', 'traceback', 'exceptions', 'gc', 'inspect',
-        'dis', 'ast', 'tokenize', 'keyword', 'token', 'symbol',
-        'platform', 'errno', 'stat', 'fileinput', 'glob', 'fnmatch',
-        'linecache', 'shutil', 'macpath', 'ntpath', 'posixpath',
+        
+        # Data handling
+        'pickle', 'shelve', 'dbm', 'sqlite3', 'csv', 'fileinput',
+        
+        # Network
+        'http', 'urllib', 'http.client', 'urllib.request', 'urllib.parse',
+        'socket', 'ssl', 'select', 'selectors', 'signal', 'asyncore', 'asynchat',
+        'email', 'html', 'xml', 'xml.etree', 'xml.dom', 'xml.sax',
+        
+        # Internet protocols
+        'ftplib', 'poplib', 'imaplib', 'smtplib', 'telnetlib', 'nntplib',
+        
+        # Testing
+        'unittest', 'doctest', 'pdb', 'profile', 'cProfile', 'timeit', 'trace',
+        
+        # Utils
+        'time', 'copy', 'reprlib', 'pprint', 'textwrap', 'unicodedata',
+        'string', 'stringprep', 'difflib', 'heapq', 'bisect', 'array',
+        
+        # Types and objects
+        'abc', 'contextlib', 'dataclasses', 'enum', 'types', 'weakref',
+        'operator', 'operator', 'functools',
+        
+        # Structured data
+        'struct', 'codecs', 'codeop',
+        
+        # Security
+        'hashlib', 'hmac', 'secrets', 'base64', 'binascii', 'quopri', 'uu',
+        
+        # Compression
+        'gzip', 'bz2', 'lzma', 'zipfile', 'tarfile', 'zlib',
+        
+        # File formats
+        'plistlib', 'netrc', 'xdrlib',
+        
+        # Internationalization
+        'gettext', 'locale',
+        
+        # Program framework
+        'cmd', 'shlex', 'turtle',
+        
+        # GUI (Tkinter)
+        'tkinter', 'tkinter.ttk', 'tkinter.scrolledtext',
+        
+        # Development tools
+        'pdb', 'profile', 'pstats', 'timeit', 'trace', 'tracemalloc',
+        
+        # Debugging
+        'faulthandler', 'syslog', 'traceback', 'gc', 'inspect', 'dis',
+        'symtable', 'tokenize', 'keyword', 'token', 'symbol', 'ast',
+        
+        # Import system
         'importlib', 'pkgutil', 'modulefinder', 'runpy', 'zipimport',
-        'types', 'weakref', 'builtins', '__future__',
+        'imp',  # Deprecated but still used
+        
+        # Platform specific
+        'platform', 'errno', 'stat', 'filecmp', 'glob', 'fnmatch',
+        'linecache', 'macpath', 'ntpath', 'posixpath', 'os.path',
+        
+        # Unix specific
+        'posix', 'pwd', 'grp', 'termios', 'tty', 'pty', 'fcntl', 'pipes',
+        'resource', 'syslog', 'mmap',
+        
+        # Windows specific
+        'msilib', 'msvcrt', 'winreg', 'winsound',
+        
+        # Misc
+        'builtins', '__future__', 'warnings', 'atexit', 'sched', 'queue',
+        'dummy_threading', '_thread',
+        
+        # Python runtime
+        'code', 'codeop', 'compileall', 'py_compile',
+        
+        # Data types
+        'decimal', 'fractions', 'numbers', 'statistics',
+        
+        # Cryptographic
+        'curses', 'curses.ascii', 'curses.panel', 'curses.textpad',
+        
+        # Multimedia
+        'audioop', 'aifc', 'wave', 'chunk', 'colorsys', 'imghdr', 'sndhdr',
+        'ossaudiodev',
+        
+        # Misc
+        'formatter', 'optparse', 'gettext',
     }
     
-    # Common third-party libraries
+    # Common third-party libraries (comprehensive list)
     THIRD_PARTY_MODULES = {
-        'numpy', 'pandas', 'matplotlib', 'scipy', 'sklearn', 'tensorflow',
-        'torch', 'keras', 'requests', 'flask', 'django', 'fastapi',
-        'pydantic', 'sqlalchemy', 'alembic', 'celery', 'redis',
-        'pytest', 'selenium', 'beautifulsoup4', 'lxml', 'pillow',
-        'cv2', 'opencv', 'pyyaml', 'toml', 'dotenv', 'click',
-        'tqdm', 'rich', 'colorama', 'boto3', 'azure', 'google',
-        'sentry', 'prometheus', 'celery', 'kombu', 'pika',
-        'aiohttp', 'httpx', 'uvicorn', 'gunicorn', 'werkzeug',
-        'jinja2', 'mako', 'chameleon', 'markupsafe', 'wtforms',
-        'cython', 'numba', 'pypy', 'gevent', 'eventlet',
-        'twisted', 'tornado', 'aiofiles', 'aioredis', 'aiomysql',
-        'psycopg2', 'pymysql', 'mysql', 'pymongo', 'elasticsearch',
-        'cassandra', 'kafka', 'zmq', 'grpc', 'thrift', 'avro',
-        'protobuf', 'msgpack', 'snappy', 'zstd', 'lz4',
+        # Data science
+        'numpy', 'pandas', 'matplotlib', 'seaborn', 'plotly', 'bokeh',
+        'scipy', 'sklearn', 'scikit-learn', 'statsmodels', 'sympy',
+        
+        # Machine learning
+        'tensorflow', 'torch', 'keras', 'caffe', 'theano', 'chainer',
+        'mxnet', 'paddle', 'jax', 'flax', 'transformers', 'huggingface',
+        
+        # Deep learning tools
+        'tensorboard', 'wandb', 'mlflow', 'optuna', 'hyperopt',
+        
+        # Web frameworks
+        'flask', 'django', 'fastapi', 'tornado', 'pyramid', 'bottle',
+        'aiohttp', 'sanic', 'starlette', 'quart', 'falcon',
+        
+        # Web servers
+        'uvicorn', 'gunicorn', 'werkzeug', 'waitress', 'cheroot',
+        
+        # API
+        'pydantic', 'marshmallow', 'attrs', 'cerberus', 'voluptuous',
+        
+        # Database
+        'sqlalchemy', 'alembic', 'peewee', 'tortoise', 'databases',
+        'psycopg2', 'pymysql', 'mysqlclient', 'pyodbc',
+        'pymongo', 'motor', 'redis', 'aioredis', 'arango',
+        'elasticsearch', 'cassandra', 'neo4j', 'dynamodb',
+        
+        # Async
+        'celery', 'kombu', 'pika', 'aiokafka', 'confluent_kafka',
+        
+        # HTTP clients
+        'requests', 'httpx', 'urllib3', 'aiohttp', 'http.client',
+        
+        # Testing
+        'pytest', 'nose', 'unittest2', 'mock', 'faker', 'factory',
+        'hypothesis', 'coverage', 'tox', 'nox',
+        
+        # Code quality
+        'pylint', 'flake8', 'mypy', 'black', 'isort', 'autopep8',
+        'bandit', 'pydocstyle', 'radon',
+        
+        # Web scraping
+        'selenium', 'beautifulsoup4', 'bs4', 'lxml', 'scrapy', 'parsel',
+        'playwright', 'requests-html',
+        
+        # Image processing
+        'pillow', 'PIL', 'cv2', 'opencv', 'opencv-python', 'imageio',
+        'scikit-image', 'imgaug', 'albumentations',
+        
+        # NLP
+        'nltk', 'spacy', 'gensim', 'textblob', 'pattern',
+        
+        # Configuration
+        'pyyaml', 'yaml', 'toml', 'configparser', 'dotenv', 'python-dotenv',
+        'hydra', 'confuse',
+        
+        # CLI
+        'click', 'typer', 'argparse', 'docopt', 'fire', 'rich',
+        
+        # Progress and output
+        'tqdm', 'rich', 'colorama', 'termcolor', 'blessed',
+        
+        # Cloud
+        'boto3', 'botocore', 'azure', 'google-cloud', 'gcloud',
+        'kubernetes', 'docker', 'fabric', 'paramiko',
+        
+        # Monitoring
+        'sentry', 'sentry-sdk', 'prometheus', 'prometheus_client',
+        'datadog', 'newrelic', 'opentelemetry',
+        
+        # Serialization
+        'protobuf', 'msgpack', 'thrift', 'avro', 'capnproto',
+        
+        # Compression
+        'snappy', 'zstd', 'lz4', 'blosc',
+        
+        # Security
+        'cryptography', 'pycryptodome', 'passlib', 'bcrypt', 'pyjwt',
+        
+        # Task queue
+        'rq', 'dramatiq', 'huey',
+        
+        # Email
+        'mailgun', 'sendgrid', 'mailjet',
+        
+        # Other common
+        'pytz', 'dateutil', 'arrow', 'pendulum',
+        'jinja2', 'mako', 'chameleon', 'markupsafe',
+        'wtforms', 'flask-wtf',
+        'wtforms', 'flask-login', 'flask-migrate',
+        'cython', 'numba', 'pypy',
+        'gevent', 'eventlet', 'twisted',
+        'aiofiles', 'aiomultiprocess',
+        'pyinstaller', 'cx_freeze', 'nuitka',
+        'loguru', 'structlog',
+        'tenacity', 'retry', 'backoff',
     }
     
     def __init__(self, project_root: str):

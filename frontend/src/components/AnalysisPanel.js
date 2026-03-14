@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import PatchPanel from './PatchPanel';
 import logger from '../utils/logger';
+import { useToast } from './ToastContext';
 
 function AnalysisPanel({ result, activeTab, code, onApplyPatch, onNavigateToChallenges }) {
   if (!result) return null;
@@ -268,7 +269,7 @@ function LearnPanel({ result }) {
 function ChallengesPanel({ onNavigateToChallenges }) {
   const [challenges, setChallenges] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const toast = useToast();
 
   React.useEffect(() => {
     const fetchChallenges = async () => {
@@ -278,10 +279,9 @@ function ChallengesPanel({ onNavigateToChallenges }) {
         const { getChallenges } = await import('../api');
         const data = await getChallenges();
         setChallenges(data || []);
-        setError(null);
       } catch (err) {
         logger.error('Failed to fetch challenges', { error: err.message });
-        setError('Failed to load challenges. Please check your connection.');
+        toast.error('Failed to load challenges. Please check your connection.');
         // Fallback to empty array
         setChallenges([]);
       } finally {
@@ -290,7 +290,7 @@ function ChallengesPanel({ onNavigateToChallenges }) {
     };
 
     fetchChallenges();
-  }, []);
+  }, [toast]);
 
   const handleStartChallenge = () => {
     if (onNavigateToChallenges) {
@@ -310,11 +310,6 @@ function ChallengesPanel({ onNavigateToChallenges }) {
           <div className="loading-state">
             <div className="loader-spinner"></div>
             <p>Loading challenges...</p>
-          </div>
-        ) : error ? (
-          <div className="error-state">
-            <AlertCircle size={24} className="error-icon" />
-            <p>{error}</p>
           </div>
         ) : challenges.length === 0 ? (
           <div className="empty-state">

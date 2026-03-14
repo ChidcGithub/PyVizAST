@@ -13,8 +13,8 @@ const decrypt = (encrypted) => {
 };
 
 // Version info
-const APP_VERSION = '0.7.0-rc3';
-const APP_BUILD = '2102';
+const APP_VERSION = '0.7.0';
+const APP_BUILD = '2454';
 
 // Get actual encrypted values (these are pre-encrypted)
 const AUTHOR_DATA = {
@@ -469,6 +469,7 @@ function Header({
   analysisMode = 'file', // 'file' or 'project'
   onAnalysisModeChange,
   onShare,
+  onSocialCard,
   onExport,
   canExport = false,
   gestureEnabled = false,
@@ -477,6 +478,7 @@ function Header({
   const [clickCount, setClickCount] = useState(0);
   const [showEasterEgg, setShowEasterEgg] = useState(false);
   const [lastClickTime, setLastClickTime] = useState(0);
+  const [showShareDropdown, setShowShareDropdown] = useState(false);
 
   const handleLogoClick = useCallback(() => {
     const now = Date.now();
@@ -572,22 +574,68 @@ function Header({
       </div>
       
       <div className="header-right">
-        {/* Share button */}
-        {onShare && (
-          <button 
-            className="btn btn-ghost share-btn"
-            onClick={onShare}
-            title="Share code via URL"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="18" cy="5" r="3" />
-              <circle cx="6" cy="12" r="3" />
-              <circle cx="18" cy="19" r="3" />
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-            </svg>
-            <span className="btn-text">Share</span>
-          </button>
+        {/* Share dropdown */}
+        {(onShare || onSocialCard) && (
+          <div className="share-dropdown-wrapper">
+            <button 
+              className="btn btn-ghost share-btn"
+              onClick={() => setShowShareDropdown(!showShareDropdown)}
+              title="Share options"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+              <span className="btn-text">Share</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: '4px' }}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            
+            {showShareDropdown && (
+              <>
+                <div className="dropdown-backdrop" onClick={() => setShowShareDropdown(false)} />
+                <div className="share-dropdown-menu">
+                  {onShare && (
+                    <button 
+                      className="dropdown-item"
+                      onClick={() => {
+                        onShare();
+                        setShowShareDropdown(false);
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                      </svg>
+                      <span>Share Code</span>
+                      <span className="dropdown-hint">Copy shareable link</span>
+                    </button>
+                  )}
+                  {onSocialCard && (
+                    <button 
+                      className="dropdown-item"
+                      onClick={() => {
+                        onSocialCard();
+                        setShowShareDropdown(false);
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <polyline points="21 15 16 10 5 21" />
+                      </svg>
+                      <span>Social Card</span>
+                      <span className="dropdown-hint">Generate image card</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         )}
         
         {/* Export button */}

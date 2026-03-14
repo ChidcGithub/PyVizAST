@@ -1,6 +1,6 @@
 /* ProjectAnalysisView.css - Premium Refined Design */
 
-/* ========== 上传面板 ========== */
+/* ========== Upload Panel ========== */
 .project-upload-panel {
   height: 100%;
   display: flex;
@@ -23,7 +23,7 @@
   animation: fadeInScale 0.5s ease-out;
 }
 
-/* 微质感 */
+/* Subtle texture */
 .upload-area-compact::before {
   content: '';
   position: absolute;
@@ -95,7 +95,7 @@
   transform: none;
 }
 
-/* ========== 文件面板 ========== */
+/* ========== File Panel ========== */
 .project-file-panel {
   height: 100%;
   display: flex;
@@ -213,7 +213,7 @@
   color: var(--error);
 }
 
-/* ========== 文件树 ========== */
+/* ========== File Tree ========== */
 .file-tree {
   flex: 1;
   display: flex;
@@ -322,7 +322,7 @@
   color: var(--text-secondary);
 }
 
-/* 小型加载动画 */
+/* Small loading animation */
 .loader-spinner.small {
   width: 14px;
   height: 14px;
@@ -332,7 +332,7 @@
   animation: spin 0.7s linear infinite;
 }
 
-/* ========== 右侧结果面板样式 ========== */
+/* ========== Right Result Panel Styles ========== */
 
 .project-result-panel {
   height: 100%;
@@ -341,7 +341,7 @@
   background: var(--bg-primary);
 }
 
-/* 健康评分卡片 - 黄金视角 */
+/* Health score card - Premium Focus */
 .project-result-panel .health-score-card {
   display: flex;
   align-items: center;
@@ -447,7 +447,7 @@
 .project-result-panel .health-score-circle.grade-f { border-color: var(--error); }
 .project-result-panel .health-score-circle.grade-f .health-score-value { color: var(--error); }
 
-/* 统计卡片 - KPI 设计 */
+/* Stats card - KPI Design */
 .project-result-panel .stats-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -496,7 +496,7 @@
   font-weight: 600;
 }
 
-/* 问题统计 - 状态颜色 */
+/* Issue statistics - Status colors */
 .project-result-panel .issues-summary {
   padding: 16px;
   background: var(--bg-secondary);
@@ -558,7 +558,7 @@
   border: 1px solid rgba(74, 222, 128, 0.15);
 }
 
-/* 文件列表（紧凑） */
+/* File list (compact) */
 .project-result-panel .files-section {
   padding: 16px;
   background: var(--bg-secondary);
@@ -630,7 +630,7 @@
   color: var(--warning);
 }
 
-/* 全局问题 */
+/* Global issues */
 .project-result-panel .global-issues-section {
   padding: 16px;
   background: var(--bg-secondary);
@@ -709,7 +709,7 @@
   color: var(--text-secondary);
 }
 
-/* 依赖分析 */
+/* Dependency analysis */
 .project-result-panel .dependencies-section {
   padding: 16px;
   background: var(--bg-secondary);
@@ -808,7 +808,7 @@
   gap: 6px;
 }
 
-/* ========== 响应式 ========== */
+/* ========== Responsive ========== */
 @media (max-width: 768px) {
   .project-result-panel {
     padding: 18px;
@@ -825,14 +825,14 @@
   }
 }
 
-/* 文件树头部操作区 */
+/* File tree header action area */
 .file-tree-header-actions {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-/* 小型保存按钮 */
+/* Small save button */
 .save-btn.small {
   padding: 5px 12px;
   font-size: 10px;
@@ -840,7 +840,7 @@
   font-weight: 600;
 }
 
-/* 编辑中状态 */
+/* Editing state */
 .file-tree-item.editing {
   background: var(--bg-hover);
   border-left-color: var(--text-primary);
@@ -856,7 +856,7 @@
   border: 1px solid var(--border-default);
 }
 
-/* ========== 编辑模式面板样式 ========== */
+/* ========== Edit Mode Panel Styles ========== */
 
 .edit-mode-panel {
   background: var(--bg-secondary);
@@ -959,14 +959,14 @@
   line-height: 1.7;
 }
 
-/* 面板头部操作区 */
+/* Panel header action area */
 .panel-header-actions {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-/* 保存按钮（头部） */
+/* Save button (header) */
 .save-btn-header {
   display: flex;
   align-items: center;

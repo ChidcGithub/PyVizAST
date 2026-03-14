@@ -324,32 +324,43 @@ class PatchGenerator:
         added_inits: Set[str] = set()
         added_joins: Set[str] = set()
         
-        # Process from back to front to preserve line numbers during insertion
-        for var_name, info in sorted(string_vars_info.items(), 
-                                     key=lambda x: x[1]['first_line'], 
-                                     reverse=True):
+        # Track total line offset caused by insertions
+        # This is crucial for maintaining correct line numbers across multiple transformations
+        total_offset = 0
+        
+        # Sort by first_line descending to process from back to front
+        sorted_vars = sorted(string_vars_info.items(), 
+                            key=lambda x: x[1]['first_line'], 
+                            reverse=True)
+        processed_vars: Set[str] = set()
+        
+        for var_name, info in sorted_vars:
             parts_name = info['parts_name']
             loop_indent = info['loop_indent']
-            first_line = info['first_line']
+            # Adjust first_line by total_offset (offset from previously inserted lines)
+            adjusted_first_line = info['first_line'] + total_offset
             
             # Find the loop start line for initialization placement
-            loop_start_line = first_line
-            for j in range(first_line, -1, -1):
-                stripped = lines[j].strip()
-                if stripped.startswith('for ') or stripped.startswith('while '):
-                    if get_indent(lines[j]) == loop_indent:
-                        loop_start_line = j
-                        break
+            # Use original lines for loop detection, but adjust the line number
+            loop_start_line = adjusted_first_line
+            for j in range(adjusted_first_line, -1, -1):
+                if j < len(result_lines):
+                    stripped = result_lines[j].strip()
+                    if stripped.startswith('for ') or stripped.startswith('while '):
+                        if get_indent(result_lines[j]) == loop_indent:
+                            loop_start_line = j
+                            break
             
-            # Transform += lines to append
-            for idx, line_idx in enumerate(sorted(info['lines'], reverse=True)):
-                line = result_lines[line_idx]
-                match = re.match(r'^(\s*)(\w+)\s*\+=\s*(.+)$', line)
-                if match:
-                    indent, _, value = match.groups()
-                    value = value.strip()
-                    # The value is already a valid Python expression, just wrap in append
-                    result_lines[line_idx] = f'{indent}{parts_name}.append({value})'
+            # Transform += lines to append (use adjusted line numbers)
+            for line_idx in sorted(info['lines'], reverse=True):
+                adjusted_line_idx = line_idx + total_offset
+                if adjusted_line_idx < len(result_lines):
+                    line = result_lines[adjusted_line_idx]
+                    match = re.match(r'^(\s*)(\w+)\s*\+=\s*(.+)$', line)
+                    if match:
+                        indent, _, value = match.groups()
+                        value = value.strip()
+                        result_lines[adjusted_line_idx] = f'{indent}{parts_name}.append({value})'
             
             # Add initialization after loop start
             if var_name not in added_inits:
@@ -357,44 +368,50 @@ class PatchGenerator:
                 init_indent = loop_indent + 4  # One level inside loop
                 result_lines.insert(init_line, ' ' * init_indent + f'{parts_name} = []')
                 added_inits.add(var_name)
-                # Adjust line indices after insertion
-                for other_name, other_info in string_vars_info.items():
-                    if other_name != var_name:
-                        other_info['first_line'] += 1
-                        other_info['lines'] = [line_num + 1 for line_num in other_info['lines']]
+                total_offset += 1  # Track the inserted line
             
-            # Find where to add join statement
-            # Look for return, print, or end of function
+            # Find where to add join statement (use adjusted line numbers)
+            adjusted_lines = [line_idx + total_offset for line_idx in info['lines']]
             join_added = False
-            for j in range(info['lines'][-1] + 1, len(result_lines)):
-                stripped = result_lines[j].strip()
-                join_indent = loop_indent + 4
-                
-                # Add join before return/print that uses the variable
-                if f'return {var_name}' in result_lines[j] or f'print({var_name}' in result_lines[j]:
-                    result_lines.insert(j, ' ' * join_indent + f"{var_name} = ''.join({parts_name})")
-                    join_added = True
-                    added_joins.add(var_name)
-                    break
-                
-                # Check for end of scope (dedent to loop level or less)
-                if stripped and not stripped.startswith('#'):
-                    if get_indent(result_lines[j]) <= loop_indent:
-                        # End of loop scope, add join before this line
+            
+            if adjusted_lines:
+                for j in range(adjusted_lines[-1] + 1, len(result_lines)):
+                    if j >= len(result_lines):
+                        break
+                    stripped = result_lines[j].strip()
+                    join_indent = loop_indent + 4
+                    
+                    # Add join before return/print that uses the variable
+                    if f'return {var_name}' in result_lines[j] or f'print({var_name}' in result_lines[j]:
                         result_lines.insert(j, ' ' * join_indent + f"{var_name} = ''.join({parts_name})")
                         join_added = True
                         added_joins.add(var_name)
+                        total_offset += 1  # Track the inserted line
                         break
+                    
+                    # Check for end of scope (dedent to loop level or less)
+                    if stripped and not stripped.startswith('#'):
+                        if get_indent(result_lines[j]) <= loop_indent:
+                            result_lines.insert(j, ' ' * join_indent + f"{var_name} = ''.join({parts_name})")
+                            join_added = True
+                            added_joins.add(var_name)
+                            total_offset += 1  # Track the inserted line
+                            break
             
             # If no suitable location found, add at end of loop body
             if not join_added and var_name not in added_joins:
-                # Find last line of the loop
-                last_concat_line = max(info['lines'])
-                for j in range(last_concat_line + 1, len(result_lines)):
-                    if get_indent(result_lines[j]) <= loop_indent and result_lines[j].strip():
-                        join_indent = loop_indent + 4
-                        result_lines.insert(j, ' ' * join_indent + f"{var_name} = ''.join({parts_name})")
-                        break
+                if adjusted_lines:
+                    last_concat_line = max(adjusted_lines)
+                    for j in range(last_concat_line + 1, len(result_lines)):
+                        if j >= len(result_lines):
+                            break
+                        if get_indent(result_lines[j]) <= loop_indent and result_lines[j].strip():
+                            join_indent = loop_indent + 4
+                            result_lines.insert(j, ' ' * join_indent + f"{var_name} = ''.join({parts_name})")
+                            total_offset += 1  # Track the inserted line
+                            break
+            
+            processed_vars.add(var_name)
         
         result = '\n'.join(result_lines)
         return result if result != code else None

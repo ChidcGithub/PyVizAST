@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, forwardRef, useImperativeHandle, useEffect } from 'react';
 import { analyzeProject, generateTaskId, createProgressStream } from '../api';
 import logger from '../utils/logger';
+import { useToast } from './ToastContext';
 import './ProjectAnalysisView.css';
 
 /**
@@ -36,9 +37,9 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
   const [analysisResult, setAnalysisResult] = useState(null);
   
   // UI state
-  const [error, setError] = useState(null);
   const [quickMode, setQuickMode] = useState(false);
   const [selectedFileIndex, setSelectedFileIndex] = useState(null);
+  const toast = useToast();
 
   const fileInputRef = useRef(null);
   const abortControllerRef = useRef(null);
@@ -63,7 +64,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
   useImperativeHandle(ref, () => ({
     analyze: async () => {
       if (!uploadedFile) {
-        setError('Please upload a project file first');
+        toast.error('Please upload a project file first');
         return;
       }
       await performAnalysis();
@@ -82,7 +83,6 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
     if (!uploadedFile) return;
 
     setIsAnalyzing(true);
-    setError(null);
     
     // Generate task ID for progress tracking
     const taskId = generateTaskId();
@@ -119,6 +119,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
       );
       
       setAnalysisResult(result);
+      toast.success(`Project analysis completed! ${result.files?.length || 0} files analyzed.`);
       
       // Extract scan info from analysis result
       if (result.scan_result) {
@@ -137,7 +138,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
       if (err.name === 'AbortError' || err.name === 'CanceledError') {
         return;
       }
-      setError(err.message || 'Analysis failed');
+      toast.error(err.message || 'Analysis failed');
     } finally {
       setIsAnalyzing(false);
       // Close progress stream
@@ -153,7 +154,7 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
         onAnalysisStateChange(false);
       }
     }
-  }, [uploadedFile, quickMode, onAnalysisStateChange, onResultChange, onProgressChange]);
+  }, [uploadedFile, quickMode, onAnalysisStateChange, onResultChange, onProgressChange, toast]);
 
   // Handle file selection
   const handleFileSelect = useCallback(async (event) => {
@@ -161,12 +162,11 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
     if (!file) return;
 
     if (!file.name.toLowerCase().endsWith('.zip')) {
-      setError('Please upload a .zip format project archive');
+      toast.error('Please upload a .zip format project archive');
       return;
     }
 
     // Clear previous state
-    setError(null);
     setScanResult(null);
     setAnalysisResult(null);
     setSelectedFileIndex(null);
@@ -179,14 +179,13 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
     if (onFileSelect) {
       onFileSelect(null, null);
     }
-  }, [onResultChange, onFileSelect]);
+  }, [onResultChange, onFileSelect, toast]);
 
   // Clear file
   const handleClearFile = useCallback(() => {
     setUploadedFile(null);
     setScanResult(null);
     setAnalysisResult(null);
-    setError(null);
     setSelectedFileIndex(null);
     
     if (onResultChange) {
@@ -221,9 +220,9 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       setIsAnalyzing(false);
-      setError('Analysis cancelled');
+      toast.warning('Analysis cancelled');
     }
-  }, []);
+  }, [toast]);
 
   // Handle file click (single click to select, click again to edit)
   const handleFileClick = useCallback((index, path) => {
@@ -280,17 +279,6 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
             Select File
           </button>
         </div>
-
-        {error && (
-          <div className="error-message-compact">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-            {error}
-          </div>
-        )}
       </div>
     );
   }
@@ -361,15 +349,6 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
       )}
 
       {/* Error message */}
-      {error && (
-        <div className="error-message-compact">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          {error}
-        </div>
       )}
 
       {/* File list */}

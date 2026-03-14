@@ -192,12 +192,13 @@ class ComplexityAnalyzer:
                 if self.current_function:
                     func_name = None
                     is_self_call = False
+                    is_class_call = False  # ClassName.method(self) pattern
                     
                     if isinstance(node.func, ast.Name):
                         # Direct function call: func()
                         func_name = node.func.id
                     elif isinstance(node.func, ast.Attribute):
-                        # Method call: self.func() or obj.func()
+                        # Method call: self.func(), obj.func(), or ClassName.method()
                         if isinstance(node.func.value, ast.Name):
                             if node.func.value.id == 'self':
                                 # self.method() - potential method recursion
@@ -207,12 +208,24 @@ class ComplexityAnalyzer:
                                 # cls.method() - class method recursion
                                 is_self_call = True
                                 func_name = node.func.attr
+                            elif node.func.value.id == self.current_class:
+                                # ClassName.method(self) - static method call within the same class
+                                # This is also a form of recursion if method name matches
+                                is_class_call = True
+                                func_name = node.func.attr
                     
                     # Add complexity for recursive calls
-                    # For self.method(), only count if we're inside a class and method name matches
                     if func_name == self.current_function:
                         if is_self_call:
                             # self.current_method() inside the same method = definite recursion
+                            # Note: current_class must be set for self.method() to be valid
+                            # In module-level functions, 'self' doesn't exist, so this check
+                            # correctly ignores invalid AST patterns
+                            if self.current_class is not None:
+                                self.complexity += 1
+                        elif is_class_call:
+                            # ClassName.method(self) call within the same class
+                            # This is recursion if we're inside that method
                             if self.current_class is not None:
                                 self.complexity += 1
                         else:

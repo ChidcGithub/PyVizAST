@@ -2,7 +2,7 @@ import axios from 'axios';
 import logger from './utils/logger';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-const API_TIMEOUT = 30000; // 30 seconds timeout
+const API_TIMEOUT = 60000; // 60 seconds timeout (increased for large file analysis)
 const MAX_RETRIES = 2; // Maximum retry attempts
 const RETRY_DELAY = 1000; // Retry delay (milliseconds)
 

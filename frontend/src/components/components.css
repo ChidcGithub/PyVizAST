@@ -1,6 +1,6 @@
 /* Component Styles - Premium Refined Design */
 
-/* ========== Header - 黄金视角顶部 ========== */
+/* ========== Header - Premium Header ========== */
 .header {
   display: flex;
   align-items: center;
@@ -11,7 +11,7 @@
   border-bottom: 1px solid var(--border-subtle);
   position: relative;
   z-index: 100;
-  /* 微质感：顶部光带 */
+  /* Subtle texture: top light band */
   box-shadow: 
     inset 0 1px 0 rgba(255, 255, 255, 0.03),
     0 2px 8px rgba(0, 0, 0, 0.25);
@@ -105,7 +105,7 @@
   letter-spacing: -0.03em;
 }
 
-/* 模式切换按钮 - 增强立体感 */
+/* Mode switch button - enhanced 3D effect */
 .mode-switch {
   display: flex;
   gap: 2px;
@@ -208,7 +208,7 @@
   color: var(--text-primary);
 }
 
-/* Enhanced theme toggle - 更精致的开关 */
+/* Enhanced theme toggle - refined switch */
 .theme-toggle-wrapper {
   display: flex;
   align-items: center;
@@ -277,7 +277,7 @@
   animation: spin 0.6s linear infinite;
 }
 
-/* ========== Sidebar - 信息层级优化 ========== */
+/* ========== Sidebar - Information Hierarchy Optimization ========== */
 .sidebar {
   width: 235px;
   background: var(--bg-secondary);
@@ -424,7 +424,7 @@
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   transition: all var(--transition-smooth);
-  /* 微质感 */
+  /* Subtle texture */
   box-shadow: var(--shadow-inset);
 }
 
@@ -452,7 +452,7 @@
   font-weight: 600;
 }
 
-/* ========== Code Editor - 编辑器优化 ========== */
+/* ========== Code Editor - Editor Optimization ========== */
 .code-editor {
   display: flex;
   flex-direction: column;
@@ -547,7 +547,7 @@
   background: var(--bg-secondary);
 }
 
-/* ========== AST Visualizer - 可视化区域 ========== */
+/* ========== AST Visualizer - Visualization Area ========== */
 .ast-visualizer {
   display: flex;
   flex-direction: column;
@@ -632,11 +632,11 @@
 }
 
 /* ========================================
-   Virtual Cursor - 虚拟光标系统
-   使用 CSS 变量支持主题切换
+   Virtual Cursor System
+   CSS variables for theme support
    ======================================== */
 
-/* CSS 变量定义 */
+/* CSS variable definitions */
 :root {
   --cursor-bg: #ffffff;
   --cursor-border: #000000;
@@ -663,7 +663,7 @@
   --pulse-color: rgba(255, 255, 255, 0.35);
 }
 
-/* 光标容器 */
+/* Cursor container */
 .pointing-cursor-overlay {
   position: absolute;
   top: 0;
@@ -675,7 +675,7 @@
   overflow: hidden;
 }
 
-/* 主光标点 - 使用 transform 定位 (GPU加速) */
+/* Main cursor dot - positioned using transform (GPU accelerated) */
 .cursor-dot {
   position: absolute;
   top: 0;
@@ -700,7 +700,7 @@
     0 0 16px var(--cursor-shadow);
 }
 
-/* 光标环 - 悬停检测范围 */
+/* Cursor ring - hover detection range */
 .cursor-ring {
   position: absolute;
   top: 0;
@@ -713,7 +713,7 @@
   transition: opacity 0.2s ease;
 }
 
-/* 进度环 */
+/* Progress ring */
 .cursor-progress {
   position: absolute;
   top: 0;
@@ -743,7 +743,7 @@
   filter: drop-shadow(0 1px 3px var(--cursor-shadow));
 }
 
-/* 吸附指示器 - 2D版本 (使用left/top定位，支持动画) */
+/* Snap indicator - 2D version (using left/top positioning, supports animation) */
 .cursor-snap {
   position: absolute;
   width: 28px;
@@ -772,7 +772,7 @@
   border-radius: 50%;
 }
 
-/* 吸附指示器 - 3D版本 (使用transform定位，无动画覆盖) */
+/* Snap indicator - 3D version (using transform positioning, no animation override) */
 .cursor-snap-3d {
   position: absolute;
   top: 0;
@@ -811,13 +811,13 @@
   border-radius: 50%;
 }
 
-/* 动画只控制缩放 */
+/* Animation only controls scaling */
 @keyframes snapScale {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.1); }
 }
 
-/* ========== Node Detail Panel - 详情面板 ========== */
+/* ========== Node Detail Panel - Detail Panel ========== */
 .node-detail-panel {
   position: absolute;
   top: 16px;
@@ -1637,7 +1637,7 @@
     0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* ========== Search Panel - 搜索面板 ========== */
+/* ========== Search Panel - Search Panel ========== */
 .search-panel {
   position: absolute;
   top: 12px;
@@ -1656,7 +1656,7 @@
   transition: all var(--transition-fast);
 }
 
-/* 悬停搜索结果时面板变透明 */
+/* Panel becomes transparent when hovering search results */
 .search-panel:has(.search-result-item:hover) {
   background: rgba(8, 8, 10, 0.25);
   border-color: rgba(255, 255, 255, 0.03);
@@ -1785,7 +1785,7 @@
   transition: all var(--transition-fast);
 }
 
-/* 悬停搜索结果时其他变透明 */
+/* Other items become transparent when hovering a search result */
 .search-results-list:hover .search-result-item {
   opacity: 0.2;
 }
@@ -1985,7 +1985,7 @@
   box-shadow: 0 0 4px rgba(255, 255, 255, 0.05);
 }
 
-/* 图例形状样式 */
+/* Legend shape styles */
 .viz-legend-shape {
   width: 16px;
   height: 16px;
@@ -2007,7 +2007,7 @@
   height: 12px;
 }
 
-/* 图例线条样式 */
+/* Legend line styles */
 .viz-legend-line {
   width: 24px;
   height: 2px;
@@ -2106,7 +2106,7 @@
   word-break: break-all;
 }
 
-/* ========== 项目编辑模式样式 ========== */
+/* ========== Project Edit Mode Styles ========== */
 
 .project-edit-mode {
   display: flex;

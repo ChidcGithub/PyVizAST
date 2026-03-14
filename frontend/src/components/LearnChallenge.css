@@ -18,7 +18,7 @@
   color: #1a1a1a;
 }
 
-/* Header - 黄金视角 */
+/* Header - Premium Focus */
 .learn-header {
   display: flex;
   justify-content: space-between;
@@ -226,7 +226,7 @@
   line-height: 1.7;
 }
 
-/* Explanation Content - 卡片式布局 */
+/* Explanation Content - Card Layout */
 .explanation-content {
   padding: 16px;
 }
@@ -448,7 +448,7 @@
   border-color: rgba(0, 0, 0, 0.1);
 }
 
-/* Challenge Cards - 精致卡片 */
+/* Challenge Cards - Refined Cards */
 .challenge-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -641,7 +641,7 @@
   gap: 16px;
 }
 
-/* Challenge Section - 卡片布局 */
+/* Challenge Section - Card Layout */
 .challenge-section {
   background: var(--bg-secondary);
   border: 1px solid var(--border-subtle);
@@ -847,7 +847,7 @@
   transform: none;
 }
 
-/* Challenge Result - 结果展示 */
+/* Challenge Result - Result Display */
 .challenge-result-container {
   padding: 24px;
   max-width: 720px;

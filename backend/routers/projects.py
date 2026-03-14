@@ -458,4 +458,11 @@ async def analyze_project(
         )
     
     finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
+        # Clean up temporary directory - always executed, even on exceptions
+        try:
+            if temp_dir and Path(temp_dir).exists():
+                shutil.rmtree(temp_dir)
+                logger.debug(f"Cleaned up temporary directory: {temp_dir}")
+        except Exception as cleanup_error:
+            # Log cleanup failure but don't raise - the analysis result is more important
+            logger.warning(f"Failed to clean up temporary directory {temp_dir}: {cleanup_error}")

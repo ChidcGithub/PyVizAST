@@ -13,7 +13,7 @@
 
 # PyVizAST
 
-[![Version](https://img.shields.io/badge/Version-0.7.0-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Version](https://img.shields.io/badge/Version-0.7.1-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
@@ -207,11 +207,56 @@ GNU General Public License v3.0
 
 Contributions are welcome. Please submit pull requests to the main repository.
 
+## Known Issues
+
+- **Social Card Export**: The social card generator may be unstable in certain browsers. 3D visualization capture requires the 3D view to be fully rendered before capturing.
+- **Gesture Control**: Gesture recognition may be unstable in certain lighting conditions.
+
 ---
 
 <details>
 
 <summary>Version History</summary>
+
+<details>
+<summary>v0.7.1 (2026-03-14)</summary>
+
+**Social Card Generator & UI Improvements**
+
+**New Features:**
+- **Social Card Generator**: Generate shareable image cards from the Share dropdown
+  - Brand card with AST visualization, logo, and feature highlights
+  - 2D Preview card with captured AST visualization
+  - 3D Preview card with captured 3D AST visualization
+  - Black/white theme adaptation
+  - PNG download (1200x630px standard social share size)
+
+**Toast System Improvements:**
+- Toast position moved to top-right of screen
+- Simplified vertical stacking (removed complex stacking logic)
+- Increased maximum toast limit from 5 to 15
+- Increased border-radius from 16px to 24px for rounder corners
+
+**UI Enhancements:**
+- Share button now shows dropdown menu with "Share Code" and "Social Card" options
+- Visualizer components expose `captureScreenshot` method for card generation
+- Improved card preview modal with style selector
+
+**Known Issues:**
+- Social Card export may be unstable in certain browsers/conditions
+- 3D visualization capture requires the 3D view to be fully rendered
+
+**Files Modified:**
+- `frontend/src/components/SocialCardGenerator.js` - New social card generator component
+- `frontend/src/components/Header.js` - Share dropdown menu
+- `frontend/src/components/Toast.js` - Simplified toast system
+- `frontend/src/components/ToastContext.js` - Increased toast limit
+- `frontend/src/App.js` - Screenshot capture handlers
+- `frontend/src/App.css` - Social card styles, toast improvements
+- `frontend/src/components/ASTVisualizer.js` - Screenshot capture method
+- `frontend/src/components/ASTVisualizer3D.js` - Screenshot capture method
+
+</details>
 
 <details>
 <summary>v0.7.0 (2026-03-14)</summary>

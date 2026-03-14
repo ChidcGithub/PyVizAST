@@ -3,6 +3,7 @@ import CodeEditor from './CodeEditor';
 import ASTVisualizer from './ASTVisualizer';
 import { analyzeCode, explainNode } from '../api';
 import logger from '../utils/logger';
+import { useToast } from './ToastContext';
 
 /**
  * Node type icons for visual representation
@@ -105,46 +106,45 @@ function LearnView({ theme }) {
   const [explanation, setExplanation] = useState(null);
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [error, setError] = useState(null);
+  const toast = useToast();
 
   // Analyze code
   const handleAnalyze = useCallback(async () => {
     if (!code.trim()) {
-      setError('Please enter Python code');
+      toast.error('Please enter Python code');
       return;
     }
 
     setAnalyzing(true);
-    setError(null);
     setSelectedNode(null);
     setExplanation(null);
 
     try {
       const result = await analyzeCode(code);
       setAstGraph(result.ast_graph);
+      toast.success('AST visualization ready! Click nodes to learn more.');
     } catch (err) {
-      setError(err.message || 'Analysis failed');
+      toast.error(err.message || 'Analysis failed');
     } finally {
       setAnalyzing(false);
     }
-  }, [code]);
+  }, [code, toast]);
 
   // Handle node click for explanation
   const handleNodeClick = useCallback(async (node) => {
     setSelectedNode(node);
     setLoading(true);
-    setError(null);
 
     try {
       const result = await explainNode(node.id, code);
       setExplanation(result);
     } catch (err) {
-      setError('Failed to get explanation');
+      toast.error('Failed to get explanation');
       logger.error('Failed to get node explanation', { nodeId: node.id, error: err.message });
     } finally {
       setLoading(false);
     }
-  }, [code]);
+  }, [code, toast]);
 
   // Handle code change
   const handleCodeChange = useCallback((newCode) => {
@@ -294,18 +294,6 @@ function LearnView({ theme }) {
           </div>
         </div>
       </div>
-
-      {/* Error Toast */}
-      {error && (
-        <div className="learn-error">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          {error}
-        </div>
-      )}
     </div>
   );
 }

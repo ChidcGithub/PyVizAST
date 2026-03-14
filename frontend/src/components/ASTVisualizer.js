@@ -134,44 +134,44 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   const searchDebounceRef = useRef(null);
   
   // ========================================
-  // Virtual Cursor System - 虚拟光标系统
+  // Virtual Cursor System
   // ========================================
-  const HOVER_SELECT_TIME = 2000; // 2秒悬停选择
-  const SNAP_DISTANCE = 50; // 吸附距离阈值
-  const CURSOR_SMOOTH = 0.35; // 光标平滑因子
-  const SNAP_SMOOTH = 0.2; // 吸附平滑因子（更平滑）
+  const HOVER_SELECT_TIME = 2000; // 2 seconds hover to select
+  const SNAP_DISTANCE = 50; // Snap distance threshold
+  const CURSOR_SMOOTH = 0.35; // Cursor smoothing factor
+  const SNAP_SMOOTH = 0.2; // Snap smoothing factor (smoother)
   
-  // 光标状态 - 使用单一 ref 管理
+  // Cursor state - managed in a single ref
   const cursorStateRef = useRef({
     visible: false,
-    // 光标位置
+    // Cursor position
     x: 0,
     y: 0,
     targetX: 0,
     targetY: 0,
-    // 吸附位置（平滑动画）
+    // Snap position (smooth animation)
     snapX: 0,
     snapY: 0,
     snapTargetX: 0,
     snapTargetY: 0,
     snapped: false,
-    // 悬停状态
+    // Hover state
     hoveredNodeId: null,
     progress: 0,
     hoverStartTime: 0,
   });
   
-  // 光标 DOM refs
+  // Cursor DOM refs
   const cursorDotRef = useRef(null);
   const cursorRingRef = useRef(null);
   const cursorProgressRef = useRef(null);
   const cursorSnapRef = useRef(null);
   const containerRectCacheRef = useRef(null);
   
-  // 动画帧 ID
+  // Animation frame ID
   const cursorAnimFrameRef = useRef(null);
   
-  // 节点位置缓存（性能优化）
+  // Node position cache (performance optimization)
   const nodePositionsCacheRef = useRef([]);
   
   // Clear debounce timer
@@ -241,6 +241,10 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
             // Find node at position
             const nodesAtPoint = cy.elements('node').filter(node => {
               const pos = node.renderedPosition();
+              // Check if renderedPosition is valid (node may not be rendered yet)
+              if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') {
+                return false;
+              }
               const nodeWidth = node.width() / 2;
               const nodeHeight = node.height() / 2;
               const renderedX = containerRect.left + pos.x;
@@ -298,7 +302,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     }
   }, [gestureEnabled]);
   
-  // 光标动画循环 - 平滑插值
+  // Cursor animation loop - smooth interpolation
   const runCursorAnimation = useCallback(() => {
     const state = cursorStateRef.current;
     if (!state.visible) {
@@ -306,22 +310,22 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       return;
     }
     
-    // 光标位置平滑插值
+    // Cursor position smooth interpolation
     state.x += (state.targetX - state.x) * CURSOR_SMOOTH;
     state.y += (state.targetY - state.y) * CURSOR_SMOOTH;
     
-    // 吸附位置平滑插值
+    // Snap position smooth interpolation
     if (state.snapped) {
       state.snapX += (state.snapTargetX - state.snapX) * SNAP_SMOOTH;
       state.snapY += (state.snapTargetY - state.snapY) * SNAP_SMOOTH;
     }
     
-    // 更新进度
+    // Update progress
     if (state.hoveredNodeId && state.hoverStartTime > 0) {
       const elapsed = Date.now() - state.hoverStartTime;
       state.progress = Math.min(100, (elapsed / HOVER_SELECT_TIME) * 100);
       
-      // 进度完成，选择节点
+      // Progress complete, select node
       if (state.progress >= 100 && cyRef.current) {
         const node = cyRef.current.getElementById(state.hoveredNodeId);
         if (node) {
@@ -341,7 +345,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
             attributes: data.attributes,
           });
         }
-        // 重置状态
+        // Reset state
         state.hoveredNodeId = null;
         state.progress = 0;
         state.visible = false;
@@ -350,23 +354,23 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       }
     }
     
-    // 更新 DOM - 使用 transform 实现 GPU 加速
+    // Update DOM - use transform for GPU acceleration
     const dot = cursorDotRef.current;
     const ring = cursorRingRef.current;
     const progress = cursorProgressRef.current;
     const snap = cursorSnapRef.current;
     
-    // 光标点
+    // Cursor dot
     if (dot) {
       dot.style.transform = `translate(${state.x}px, ${state.y}px) translate(-50%, -50%)`;
       dot.classList.toggle('snapped', state.snapped);
     }
-    // 光标环
+    // Cursor ring
     if (ring) {
       ring.style.transform = `translate(${state.x}px, ${state.y}px) translate(-50%, -50%)`;
       ring.style.opacity = state.hoveredNodeId ? '0.8' : '0';
     }
-    // 进度环
+    // Progress ring
     if (progress) {
       progress.style.transform = `translate(${state.x}px, ${state.y}px) translate(-50%, -50%)`;
       progress.style.opacity = state.progress > 0 ? '1' : '0';
@@ -377,7 +381,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
         progressCircle.setAttribute('stroke-dasharray', `${dash} ${circumference}`);
       }
     }
-    // 吸附指示器 - 平滑动画（使用 left/top，不与 CSS 动画冲突）
+    // Snap indicator - smooth animation (using left/top, no conflict with CSS animation)
     if (snap) {
       if (state.snapped) {
         snap.style.left = `${state.snapX}px`;
@@ -388,11 +392,11 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       }
     }
     
-    // 继续动画
+    // Continue animation
     cursorAnimFrameRef.current = requestAnimationFrame(runCursorAnimation);
   }, []);
   
-  // 指向手势处理
+  // Pointing gesture handler
   const handlePointingDirection = useCallback((pointingData) => {
     if (!cyRef.current || !gestureEnabled || !containerRef.current) return;
     
@@ -400,42 +404,42 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     const container = containerRef.current;
     const state = cursorStateRef.current;
     
-    // 缓存容器尺寸
+    // Cache container dimensions
     if (!containerRectCacheRef.current) {
       containerRectCacheRef.current = container.getBoundingClientRect();
     }
     const rect = containerRectCacheRef.current;
     
-    // 计算目标位置
+    // Calculate target position
     const targetX = rect.width * (1 - pointingData.origin.x);
     const targetY = rect.height * pointingData.origin.y;
     
-    // 初始化或更新目标
+    // Initialize or update target
     if (!state.visible) {
       state.visible = true;
       state.x = targetX;
       state.y = targetY;
-      // 显示光标元素
+      // Show cursor elements
       if (cursorDotRef.current) cursorDotRef.current.style.opacity = '1';
     }
     state.targetX = targetX;
     state.targetY = targetY;
     
-    // 获取视口参数
+    // Get viewport parameters
     const pan = cy.pan();
     const zoom = cy.zoom();
     const modelX = (targetX - pan.x) / zoom;
     const modelY = (targetY - pan.y) / zoom;
     const snapRadius = SNAP_DISTANCE / zoom;
     
-    // 更新节点位置缓存
+    // Update node position cache
     const nodes = cy.nodes();
     nodePositionsCacheRef.current = [];
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
       const pos = node.position();
       const renderedPos = node.renderedPosition();
-      // 确保 renderedPosition 有效
+      // Ensure renderedPosition is valid
       if (renderedPos && typeof renderedPos.x === 'number' && typeof renderedPos.y === 'number') {
         nodePositionsCacheRef.current.push({
           node,
@@ -449,9 +453,9 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       }
     }
     
-    // 使用缓存查找最近节点
+    // Use cache to find nearest node
     let nearestNode = null;
-    let nearestDistSq = Infinity; // 使用距离平方，避免重复开方
+    let nearestDistSq = Infinity; // Use squared distance to avoid repeated sqrt
     let nearestScreenPos = null;
     
     const cache = nodePositionsCacheRef.current;
@@ -462,7 +466,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       const distSq = dx * dx + dy * dy;
       const maxDist = Math.max(item.w, item.h) + snapRadius;
       
-      // 统一使用距离平方比较
+      // Use squared distance for comparison
       if (distSq < maxDist * maxDist && distSq < nearestDistSq) {
         nearestDistSq = distSq;
         nearestNode = item.node;
@@ -473,26 +477,26 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       }
     }
     
-    // 计算实际距离用于吸附判断
+    // Calculate actual distance for snap judgment
     const nearestDist = nearestDistSq < Infinity ? Math.sqrt(nearestDistSq) : Infinity;
     
-    // 更新吸附状态（平滑动画目标）
+    // Update snap state (smooth animation target)
     const isSnapped = nearestNode && nearestDist < snapRadius;
     const wasSnapped = state.snapped;
     state.snapped = isSnapped;
     
     if (isSnapped && nearestScreenPos) {
-      // 设置吸附目标位置（会被平滑插值）
+      // Set snap target position (will be smoothly interpolated)
       state.snapTargetX = nearestScreenPos.x;
       state.snapTargetY = nearestScreenPos.y;
-      // 首次吸附时，直接设置位置避免延迟
+      // On first snap, directly set position to avoid delay
       if (!wasSnapped) {
         state.snapX = nearestScreenPos.x;
         state.snapY = nearestScreenPos.y;
       }
     }
     
-    // 更新悬停状态
+    // Update hover state
     if (isSnapped && nearestNode) {
       const nodeId = nearestNode.data().id;
       if (state.hoveredNodeId !== nodeId) {
@@ -506,13 +510,13 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       state.hoverStartTime = 0;
     }
     
-    // 启动动画循环
+    // Start animation loop
     if (!cursorAnimFrameRef.current) {
       cursorAnimFrameRef.current = requestAnimationFrame(runCursorAnimation);
     }
   }, [gestureEnabled, runCursorAnimation]);
   
-  // 清除光标
+  // Clear cursor
   const clearPointingCursor = useCallback(() => {
     const state = cursorStateRef.current;
     state.visible = false;
@@ -526,7 +530,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
       cursorAnimFrameRef.current = null;
     }
     
-    // 隐藏 DOM 元素
+    // Hide DOM elements
     if (cursorDotRef.current) cursorDotRef.current.style.opacity = '0';
     if (cursorRingRef.current) cursorRingRef.current.style.opacity = '0';
     if (cursorProgressRef.current) cursorProgressRef.current.style.opacity = '0';
@@ -552,7 +556,18 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
     zoomOut: () => cyRef.current?.zoom(cyRef.current.zoom() / 1.4),
     fit: () => cyRef.current?.fit(undefined, 50),
     getZoom: () => cyRef.current?.zoom(),
-  }), [handleGesture, handleTwoHands, handlePointingDirection, clearPointingCursor]);
+    captureScreenshot: () => {
+      if (cyRef.current) {
+        return cyRef.current.png({ 
+          output: 'base64uri',
+          bg: theme === 'dark' ? '#0a0a0a' : '#ffffff',
+          full: true,
+          scale: 2
+        });
+      }
+      return null;
+    },
+  }), [handleGesture, handleTwoHands, handlePointingDirection, clearPointingCursor, theme]);
   
   // Clear debounce timer
   
@@ -1031,6 +1046,12 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
             // Calculate edge length for delay
             const sourcePos = node.renderedPosition();
             const targetPos = targetNode.renderedPosition();
+            // Skip if positions are not valid (nodes may not be rendered yet)
+            if (!sourcePos || !targetPos || 
+                typeof sourcePos.x !== 'number' || typeof sourcePos.y !== 'number' ||
+                typeof targetPos.x !== 'number' || typeof targetPos.y !== 'number') {
+              return;
+            }
             const dx = targetPos.x - sourcePos.x;
             const dy = targetPos.y - sourcePos.y;
             const edgeLength = Math.sqrt(dx * dx + dy * dy);
@@ -1075,6 +1096,13 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
           // Get current positions at animation time
           const sourcePos = sourceNode.renderedPosition();
           const targetPos = targetNode.renderedPosition();
+          
+          // Skip if positions are not valid (nodes may not be rendered yet)
+          if (!sourcePos || !targetPos || 
+              typeof sourcePos.x !== 'number' || typeof sourcePos.y !== 'number' ||
+              typeof targetPos.x !== 'number' || typeof targetPos.y !== 'number') {
+            return;
+          }
           
           // Calculate edge length
           const dx = targetPos.x - sourcePos.x;
@@ -1510,19 +1538,19 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
         )}
         <div className="cytoscape-container" ref={containerRef}></div>
         
-        {/* Virtual Cursor - 虚拟光标 */}
+        {/* Virtual Cursor */}
         {gestureEnabled && (
           <div className="pointing-cursor-overlay">
-            {/* 光标点 */}
+            {/* Cursor dot */}
             <div ref={cursorDotRef} className="cursor-dot" style={{ opacity: 0 }} />
-            {/* 光标环 */}
+            {/* Cursor ring */}
             <div ref={cursorRingRef} className="cursor-ring" style={{ opacity: 0 }} />
-            {/* 进度环 */}
+            {/* Progress ring */}
             <svg ref={cursorProgressRef} className="cursor-progress" width="52" height="52" style={{ opacity: 0 }}>
               <circle className="progress-bg" />
               <circle className="progress-fill" transform="rotate(-90 26 26)" />
             </svg>
-            {/* 吸附指示器 */}
+            {/* Snap indicator */}
             <div ref={cursorSnapRef} className="cursor-snap" style={{ opacity: 0 }} />
           </div>
         )}

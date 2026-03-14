@@ -9,6 +9,9 @@ import ProjectVisualization from './components/ProjectVisualization';
 import LearnView from './components/LearnView';
 import ChallengeView from './components/ChallengeView';
 import GestureControl from './components/GestureControl';
+import SocialCardGenerator from './components/SocialCardGenerator';
+import { ToastProvider, useToast } from './components/ToastContext';
+import ToastContainer from './components/Toast';
 import { analyzeCode, checkServerHealth, getApiBaseUrl } from './api';
 import { setupGlobalErrorHandlers } from './utils/logger';
 import './App.css';
@@ -240,7 +243,6 @@ function App() {
   const [code, setCode] = useState(SAMPLE_CODE);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('ast');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [theme, setTheme] = useState('dark');
@@ -257,9 +259,10 @@ function App() {
   const [shareUrl, setShareUrl] = useState(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [showSocialCard, setShowSocialCard] = useState(false);
   
-  // Toast notification state
-  const [toast, setToast] = useState(null);
+  // Toast notification
+  const toast = useToast();
   
   // Project analysis state
   const [projectResult, setProjectResult] = useState(null);
@@ -301,9 +304,16 @@ function App() {
         setCode(decoded);
         // Clear the hash to avoid re-loading on refresh
         window.history.replaceState(null, '', window.location.pathname);
+      } else {
+        // Show error message to user when decoding fails
+        toast.error('Failed to load shared code. The link may be corrupted or expired.', {
+          title: 'Share Link Error',
+          duration: 8000,
+        });
+        console.error('Failed to decode shared code from URL');
       }
     }
-  }, []);
+  }, [toast]);
   
   // Save theme preference
   useEffect(() => {
@@ -396,13 +406,13 @@ function App() {
     }
 
     if (!code.trim()) {
-      setError('Please enter Python code');
+      toast.error('Please enter Python code');
       return;
     }
 
     // Check server connection
     if (!serverStatus.connected) {
-      setError(`Unable to connect to server (${getApiBaseUrl()}). Please ensure the backend is running: python run.py backend`);
+      toast.error(`Unable to connect to server (${getApiBaseUrl()}). Please ensure the backend is running: python run.py backend`);
       return;
     }
 
@@ -415,11 +425,11 @@ function App() {
     abortControllerRef.current = new AbortController();
 
     setIsLoading(true);
-    setError(null);
 
     try {
       const result = await analyzeCode(code, {}, abortControllerRef.current.signal);
       setAnalysisResult(result);
+      toast.success('Analysis completed successfully!');
     } catch (err) {
       // If request was cancelled, don't show error
       if (err.name === 'AbortError' || err.name === 'CanceledError') {
@@ -427,14 +437,14 @@ function App() {
       }
       // Provide more detailed error information
       if (err.message?.includes('Network Error') || err.message?.includes('Unable to connect')) {
-        setError(`Unable to connect to server (${getApiBaseUrl()}). Please ensure the backend is running: python run.py backend`);
+        toast.error(`Unable to connect to server (${getApiBaseUrl()}). Please ensure the backend is running: python run.py backend`);
       } else {
-        setError(err.message || 'Analysis failed, please check code syntax');
+        toast.error(err.message || 'Analysis failed, please check code syntax');
       }
     } finally {
       setIsLoading(false);
     }
-  }, [code, serverStatus.connected, analysisMode]);
+  }, [code, serverStatus.connected, analysisMode, toast]);
 
   // Project analysis result callback
   const handleProjectResultChange = useCallback((result) => {
@@ -472,7 +482,6 @@ function App() {
   // Switch analysis mode
   const handleAnalysisModeChange = useCallback((mode) => {
     setAnalysisMode(mode);
-    setError(null);
     // Clear previous results when switching modes
     if (mode === 'file') {
       setProjectResult(null);
@@ -484,7 +493,6 @@ function App() {
   const handleCodeChange = useCallback((newCode) => {
     setCode(newCode);
     setAnalysisResult(null);
-    setError(null);
   }, []);
   
   /**
@@ -543,12 +551,6 @@ function App() {
     }
   }, []);
 
-  // Toast notification helper
-  const showToast = useCallback((message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  }, []);
-
   // Share functionality
   const handleShare = useCallback(() => {
     const compressed = compressCode(code);
@@ -557,20 +559,20 @@ function App() {
       setShareUrl(url);
       setShowShareDialog(true);
     } else {
-      showToast('Failed to create share link. The code may be too large or contain unsupported characters.', 'error');
+      toast.error('Failed to create share link. The code may be too large or contain unsupported characters.');
     }
-  }, [code, showToast]);
+  }, [code, toast]);
 
   const handleCopyShareUrl = useCallback(async () => {
     if (shareUrl) {
       try {
         await navigator.clipboard.writeText(shareUrl);
-        showToast('Link copied to clipboard!', 'success');
+        toast.success('Link copied to clipboard!');
       } catch (err) {
-        showToast('Failed to copy link. Please copy manually.', 'error');
+        toast.error('Failed to copy link. Please copy manually.');
       }
     }
-  }, [shareUrl, showToast]);
+  }, [shareUrl, toast]);
 
   // Export functionality
   const handleExport = useCallback((format) => {
@@ -596,30 +598,41 @@ function App() {
     setShowExportDialog(false);
   }, [analysisResult, code]);
 
+  // Social Card functionality
+  const handleOpenSocialCard = useCallback(() => {
+    setShowSocialCard(true);
+  }, []);
+
+  // Capture 2D visualization screenshot
+  const handleCapture2D = useCallback(() => {
+    if (visualizerRef.current && visualizerRef.current.captureScreenshot) {
+      return visualizerRef.current.captureScreenshot();
+    }
+    return null;
+  }, []);
+
+  // Capture 3D visualization screenshot (switch to 3D mode first if needed)
+  const handleCapture3D = useCallback(async () => {
+    // If not in 3D mode, we need to wait for the 3D view to render
+    const was2D = viewMode === '2d';
+    if (was2D) {
+      setViewMode('3d');
+      // Wait for 3D to render
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    if (visualizerRef.current && visualizerRef.current.captureScreenshot) {
+      return visualizerRef.current.captureScreenshot();
+    }
+    return null;
+  }, [viewMode]);
+
   return (
     <div className={`app ${theme}`}>
       {(isLoading || isProjectAnalyzing) && <LoadingOverlay progress={progress} />}
       
-      {/* Toast Notification */}
-      {toast && (
-        <div className={`toast-notification toast-${toast.type}`}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            {toast.type === 'success' ? (
-              <>
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </>
-            ) : (
-              <>
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </>
-            )}
-          </svg>
-          <span>{toast.message}</span>
-        </div>
-      )}
+      {/* Toast Container */}
+      <ToastContainer />
       
       <Header 
         onAnalyze={handleAnalyze}
@@ -630,6 +643,7 @@ function App() {
         analysisMode={analysisMode}
         onAnalysisModeChange={handleAnalysisModeChange}
         onShare={handleShare}
+        onSocialCard={handleOpenSocialCard}
         onExport={() => setShowExportDialog(true)}
         canExport={!!analysisResult}
         gestureEnabled={gestureEnabled}
@@ -693,6 +707,17 @@ function App() {
           </div>
         </div>
       )}
+      
+      {/* Social Card Generator */}
+      <SocialCardGenerator
+        isOpen={showSocialCard}
+        onClose={() => setShowSocialCard(false)}
+        theme={theme}
+        hasAnalysis={!!analysisResult}
+        viewMode={viewMode}
+        onCapture2D={handleCapture2D}
+        onCapture3D={handleCapture3D}
+      />
       
       <div className="app-body">
         <Sidebar 
@@ -791,25 +816,6 @@ function App() {
                         <strong>Unable to connect to backend server</strong>
                         <p>API URL: {getApiBaseUrl()}</p>
                         <p className="status-hint">Please run in terminal: <code>python run.py backend</code></p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {error && (
-                    <div className="error-message error-detailed">
-                      <div className="error-icon">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <circle cx="12" cy="12" r="10" />
-                          <line x1="12" y1="8" x2="12" y2="12" />
-                          <line x1="12" y1="16" x2="12.01" y2="16" />
-                        </svg>
-                      </div>
-                      <div className="error-content">
-                        <div className="error-title">Analysis Error</div>
-                        <div className="error-text">{error}</div>
-                        <div className="error-hint">
-                          Tip: Check your Python code syntax, or try with a simpler example.
-                        </div>
                       </div>
                     </div>
                   )}
@@ -929,17 +935,6 @@ function App() {
               </div>
             )}
             
-            {error && (
-              <div className="error-message">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8" x2="12" y2="12" />
-                  <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-                {error}
-              </div>
-            )}
-            
             <ErrorBoundary>
               {analysisResult ? (
                 activeTab === 'ast' ? (
@@ -1012,4 +1007,13 @@ function App() {
   );
 }
 
-export default App;
+// Wrap App with ToastProvider
+function AppWithProvider() {
+  return (
+    <ToastProvider>
+      <App />
+    </ToastProvider>
+  );
+}
+
+export default AppWithProvider;

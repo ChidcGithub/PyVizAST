@@ -80,6 +80,12 @@ class ASTParser:
                 raise ValueError("Code too large to parse (out of memory). Try simplifying the code or use simplified mode.")
             except RecursionError:
                 raise ValueError("Code structure too deeply nested to parse.")
+            except (ValueError, TypeError) as e:
+                # Handle encoding issues, invalid characters, or type errors
+                raise ValueError(f"Invalid code format: {e}")
+            except Exception as e:
+                # Catch-all for any other unexpected errors during parsing
+                raise ValueError(f"Failed to parse code: {type(e).__name__}: {e}")
         
         if source_lines is None:
             source_lines = code.splitlines()

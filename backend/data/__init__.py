@@ -1,4 +1,4 @@
 """
-PyVizAST 数据模块
-包含挑战数据等静态资源
+PyVizAST Data Module
+Contains static resources such as challenge data
 """

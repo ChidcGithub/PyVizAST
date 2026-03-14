@@ -4,7 +4,7 @@
   height: 100%;
   overflow-y: auto;
   background: var(--bg-primary);
-  /* 微妙纹理背景 */
+  /* Subtle texture background */
   background-image: 
     radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.018) 0%, transparent 50%),
     radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.012) 0%, transparent 50%);
@@ -15,13 +15,13 @@
   max-width: 100%;
 }
 
-/* Section - 信息层级优化 */
+/* Section - Information Hierarchy Optimization */
 .section {
   margin-bottom: 36px;
   position: relative;
 }
 
-/* 黄金视角：标题区强调 */
+/* Premium focus: title area emphasis */
 .section-title {
   font-size: 10px;
   font-weight: 700;
@@ -55,7 +55,7 @@
   line-height: 1.8;
 }
 
-/* ========== Metrics Grid - KPI Card 设计 ========== */
+/* ========== Metrics Grid - KPI Card Design ========== */
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -72,14 +72,14 @@
   transition: all var(--transition-smooth);
   position: relative;
   overflow: hidden;
-  /* 微质感：细腻投影 */
+  /* Subtle texture: fine shadow */
   box-shadow: 
     0 1px 3px rgba(0, 0, 0, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.03);
   animation: cardEntrance 0.5s ease-out backwards;
 }
 
-/* 顶部光带效果 */
+/* Top light band effect */
 .metric-card::before {
   content: '';
   position: absolute;
@@ -95,7 +95,7 @@
     transparent 100%);
 }
 
-/* 底部渐变 - 增强立体感 */
+/* Bottom gradient - enhanced 3D effect */
 .metric-card::after {
   content: '';
   position: absolute;
@@ -116,7 +116,7 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-/* 状态指示器 - 左侧色带 */
+/* Status indicator - left color band */
 .metric-card.good {
   border-left: 3px solid var(--success);
   background: linear-gradient(135deg, rgba(74, 222, 128, 0.04) 0%, var(--bg-secondary) 100%);
@@ -132,7 +132,7 @@
   background: linear-gradient(135deg, rgba(248, 113, 113, 0.04) 0%, var(--bg-secondary) 100%);
 }
 
-/* 主指标数值 - 巨大加粗 */
+/* Main metric value - large bold */
 .metric-value {
   font-size: 36px;
   font-weight: 800;
@@ -147,7 +147,7 @@
 .metric-card.warning .metric-value { color: var(--warning); }
 .metric-card.danger .metric-value { color: var(--error); }
 
-/* 指标标题 - 辅助信息弱化 */
+/* Metric title - secondary info subdued */
 .metric-title {
   font-size: 11px;
   font-weight: 600;
@@ -163,7 +163,7 @@
   letter-spacing: 0.02em;
 }
 
-/* ========== Detail List - 斑马条优化 ========== */
+/* ========== Detail List - Zebra Stripe Optimization ========== */
 .detail-list {
   display: flex;
   flex-direction: column;
@@ -182,7 +182,7 @@
   transition: all var(--transition-fast);
 }
 
-/* 斑马条效果 */
+/* Zebra stripe effect */
 .detail-item:nth-child(even) {
   background: var(--bg-tertiary);
 }
@@ -203,7 +203,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ========== Issue List - 异常值高亮 ========== */
+/* ========== Issue List - Anomaly Highlighting ========== */
 .issue-list {
   display: flex;
   flex-direction: column;
@@ -229,7 +229,7 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-/* 状态边框 - 颜色预警 */
+/* Status border - color warning */
 .issue-item.critical,
 .issue-item.error {
   border-left: 3px solid var(--error);
@@ -288,7 +288,7 @@
   border-radius: 50%;
 }
 
-/* ========== Hotspot List - 性能热点 ========== */
+/* ========== Hotspot List - Performance Hotspots ========== */
 .hotspot-list {
   display: flex;
   flex-direction: column;
@@ -370,7 +370,7 @@
   font-family: var(--font-mono);
 }
 
-/* ========== Security Summary - 三列布局 ========== */
+/* ========== Security Summary - Three Column Layout ========== */
 .security-summary {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -413,7 +413,7 @@
 .summary-item.error .count { color: var(--error); }
 .summary-item.warning .count { color: var(--warning); }
 
-/* ========== Suggestions - 卡片式布局 ========== */
+/* ========== Suggestions - Card Layout ========== */
 .suggestions-list {
   display: flex;
   flex-direction: column;
@@ -574,7 +574,7 @@
   line-height: 1.8;
 }
 
-/* ========== Learn Tips - 教程卡片 ========== */
+/* ========== Learn Tips - Tutorial Cards ========== */
 .learn-tips {
   display: grid;
   gap: 10px;
@@ -627,7 +627,7 @@
   color: var(--text-secondary);
 }
 
-/* ========== Challenges - 挑战卡片 ========== */
+/* ========== Challenges - Challenge Cards ========== */
 .challenges-list {
   display: flex;
   flex-direction: column;

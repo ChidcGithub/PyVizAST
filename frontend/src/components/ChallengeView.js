@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import CodeEditor from './CodeEditor';
 import { getChallenges, getChallenge, submitChallenge, getChallengeCategories } from '../api';
 import logger from '../utils/logger';
+import { useToast } from './ToastContext';
 
 /**
  * Difficulty badge classes
@@ -56,10 +57,10 @@ function ChallengeView({ theme }) {
   const [selectedIssues, setSelectedIssues] = useState([]);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [view, setView] = useState('list'); // 'list', 'detail', 'result'
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterDifficulty, setFilterDifficulty] = useState('all');
+  const toast = useToast();
 
   // Fetch challenges and categories on mount
   useEffect(() => {
@@ -73,19 +74,18 @@ function ChallengeView({ theme }) {
         setChallenges(challengesData);
         setCategories(categoriesData);
       } catch (err) {
-        setError('Failed to load challenges');
+        toast.error('Failed to load challenges');
         logger.error('Failed to load challenges', { error: err.message });
       } finally {
         setLoading(false);
       }
     };
     fetchData();
-  }, []);
+  }, [toast]);
 
   // Load challenge detail
   const loadChallenge = useCallback(async (challengeId) => {
     setLoading(true);
-    setError(null);
     try {
       const data = await getChallenge(challengeId);
       setSelectedChallenge(data);
@@ -93,12 +93,12 @@ function ChallengeView({ theme }) {
       setResult(null);
       setView('detail');
     } catch (err) {
-      setError('Failed to load challenge');
+      toast.error('Failed to load challenge');
       logger.error('Failed to load challenge detail', { challengeId, error: err.message });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   // Toggle issue selection
   const toggleIssue = useCallback((issueId) => {
@@ -112,18 +112,17 @@ function ChallengeView({ theme }) {
   // Submit challenge
   const handleSubmit = useCallback(async () => {
     if (!selectedChallenge || selectedIssues.length === 0) {
-      setError('Please select at least one issue');
+      toast.error('Please select at least one issue');
       return;
     }
 
     setLoading(true);
-    setError(null);
     try {
       const data = await submitChallenge(selectedChallenge.id, selectedIssues);
       setResult(data);
       setView('result');
     } catch (err) {
-      setError('Failed to submit challenge');
+      toast.error('Failed to submit challenge');
       logger.error('Failed to submit challenge', { 
         challengeId: selectedChallenge.id, 
         error: err.message 
@@ -131,7 +130,7 @@ function ChallengeView({ theme }) {
     } finally {
       setLoading(false);
     }
-  }, [selectedChallenge, selectedIssues]);
+  }, [selectedChallenge, selectedIssues, toast]);
 
   // Filter challenges
   const filteredChallenges = challenges.filter(c => {
@@ -297,8 +296,6 @@ function ChallengeView({ theme }) {
             </div>
           )}
 
-          {error && <div className="challenge-error">{error}</div>}
-
           <div className="challenge-actions">
             <button 
               className="submit-button"
@@ -403,10 +400,6 @@ function ChallengeView({ theme }) {
           <div className="loader-spinner"></div>
           <p>Loading challenges...</p>
         </div>
-      )}
-
-      {error && view === 'list' && (
-        <div className="challenge-error-full">{error}</div>
       )}
 
       {!loading && view === 'list' && renderList()}

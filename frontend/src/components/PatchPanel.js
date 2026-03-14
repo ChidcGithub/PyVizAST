@@ -4,7 +4,6 @@ import {
   Check,
   ChevronRight,
   ChevronDown,
-  AlertCircle,
   CheckCircle,
   Loader,
   Code,
@@ -14,6 +13,7 @@ import {
 } from 'lucide-react';
 import { generatePatches } from '../api';
 import logger from '../utils/logger';
+import { useToast } from './ToastContext';
 
 // Backend API base URL
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -186,11 +186,11 @@ function applyPatchFallback(originalCode, patchContent) {
 function PatchPanel({ code, onApplyPatch }) {
   const [patches, setPatches] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [expandedPatch, setExpandedPatch] = useState(null);
   const [appliedPatches, setAppliedPatches] = useState(new Set());
   const [copiedPatch, setCopiedPatch] = useState(null);
   const [applying, setApplying] = useState(false);
+  const toast = useToast();
 
   // Fetch patch list
   useEffect(() => {
@@ -201,13 +201,12 @@ function PatchPanel({ code, onApplyPatch }) {
 
     const fetchPatches = async () => {
       setLoading(true);
-      setError(null);
       
       try {
         const result = await generatePatches(code);
         setPatches(result.patches || []);
       } catch (err) {
-        setError(err.message || 'Failed to fetch patches');
+        toast.error(err.message || 'Failed to fetch patches');
         setPatches([]);
       } finally {
         setLoading(false);
@@ -217,7 +216,7 @@ function PatchPanel({ code, onApplyPatch }) {
     // Delay fetch to avoid frequent requests
     const timer = setTimeout(fetchPatches, 300);
     return () => clearTimeout(timer);
-  }, [code]);
+  }, [code, toast]);
 
   // Toggle patch expansion state
   const togglePatch = useCallback((patchId) => {
@@ -234,17 +233,18 @@ function PatchPanel({ code, onApplyPatch }) {
         if (fixedCode) {
           onApplyPatch(fixedCode);
           setAppliedPatches(prev => new Set([...prev, patch.suggestion_id]));
+          toast.success('Patch applied successfully!');
         } else {
-          setError('Patch application failed. Please check if the patch format is correct');
+          toast.error('Patch application failed. Please check if the patch format is correct');
         }
       } catch (err) {
         logger.error('Failed to apply patch', { error: err.message, patchId: patch.suggestion_id });
-        setError(err.message || 'Patch application failed');
+        toast.error(err.message || 'Patch application failed');
       } finally {
         setApplying(false);
       }
     }
-  }, [code, onApplyPatch, applying]);
+  }, [code, onApplyPatch, applying, toast]);
 
   // Copy patch
   const handleCopy = useCallback(async (patchId, patchContent) => {
@@ -295,15 +295,6 @@ function PatchPanel({ code, onApplyPatch }) {
       <div className="patch-panel loading">
         <Loader className="spinner" size={24} />
         <span>Analyzing fixable issues...</span>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="patch-panel error">
-        <AlertCircle size={20} />
-        <span>{error}</span>
       </div>
     );
   }
