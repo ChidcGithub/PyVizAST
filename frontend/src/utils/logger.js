@@ -15,6 +15,9 @@ let logBuffer = [];
 let flushTimer = null;
 let isInitialized = false;
 
+// Maximum buffer size to prevent memory leaks
+const MAX_BUFFER_SIZE = 100;
+
 // Check if running in browser environment
 const isBrowser = () => {
   return typeof window !== 'undefined' && typeof navigator !== 'undefined';
@@ -43,7 +46,13 @@ const flushLogs = async () => {
   } catch (error) {
     // If send fails, put logs back in buffer
     console.error('Failed to send logs to server:', error);
-    logBuffer = [...logsToSend, ...logBuffer];
+    // Only put back if buffer is not full (prevent memory leak)
+    const remainingSpace = MAX_BUFFER_SIZE - logBuffer.length;
+    if (remainingSpace > 0) {
+      const logsToKeep = logsToSend.slice(0, remainingSpace);
+      logBuffer = [...logsToKeep, ...logBuffer];
+    }
+    // If buffer is full, discard oldest logs (FIFO)
   }
 };
 
@@ -95,6 +104,11 @@ const addLog = (level, message, data = {}) => {
     logEntry.url = window.location.href;
   }
 
+  // Check buffer size limit (FIFO - remove oldest if full)
+  if (logBuffer.length >= MAX_BUFFER_SIZE) {
+    logBuffer.shift(); // Remove oldest log
+  }
+  
   logBuffer.push(logEntry);
 
   // Error level sends immediately

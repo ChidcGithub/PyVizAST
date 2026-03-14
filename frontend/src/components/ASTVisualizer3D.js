@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback, Suspense, forwardRef, useImperativeHandle } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback, Suspense, forwardRef, useImperativeHandle, memo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Text, Line, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
@@ -405,9 +405,9 @@ function computeLayout(nodes, edges, layoutType) {
 }
 
 /**
- * 3D Node component
+ * 3D Node component - memoized for performance
  */
-function Node3D({ position, node, isSelected, isFocused, isDimmed, isSignal, onClick, onLongPress, theme }) {
+const Node3D = memo(function Node3D({ position, node, isSelected, isFocused, isDimmed, isSignal, onClick, onLongPress, theme }) {
   const meshRef = useRef();
   const [hovered, setHovered] = useState(false);
   const longPressTimer = useRef(null);
@@ -577,12 +577,12 @@ function Node3D({ position, node, isSelected, isFocused, isDimmed, isSignal, onC
       </Billboard>
     </group>
   );
-}
+});
 
 /**
- * 3D Edge component
+ * 3D Edge component - memoized for performance
  */
-function Edge3D({ start, end, isHighlighted, isDimmed, isSignal, theme }) {
+const Edge3D = memo(function Edge3D({ start, end, isHighlighted, isDimmed, isSignal, theme }) {
   const points = useMemo(() => {
     return [
       new THREE.Vector3(start.x, start.y, start.z),
@@ -608,7 +608,7 @@ function Edge3D({ start, end, isHighlighted, isDimmed, isSignal, theme }) {
       opacity={opacity}
     />
   );
-}
+});
 
 /**
  * Signal particle that travels along edges (optimized)
@@ -774,6 +774,14 @@ const Scene = forwardRef(({ nodes, edges, positions, selectedNode, focusedNode, 
     if (isAnimating.current && controls) {
       const target = targetPosition.current;
       controls.target.lerp(target, 0.08);
+      
+      // Also move camera to follow the target (maintain viewing distance)
+      const cameraOffset = camera.position.clone().sub(controls.target);
+      const desiredPosition = target.clone().add(cameraOffset.normalize().multiplyScalar(
+        Math.max(15, camera.position.distanceTo(controls.target))
+      ));
+      camera.position.lerp(desiredPosition, 0.05);
+      
       if (controls.target.distanceTo(target) < 0.01) {
         isAnimating.current = false;
       }
@@ -929,6 +937,9 @@ const Scene = forwardRef(({ nodes, edges, positions, selectedNode, focusedNode, 
     camera.lookAt(controls.target);
   }, [camera]);
   
+  // Get camera reference for 3D to screen projection
+  const getCamera = useCallback(() => camera, [camera]);
+  
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
     resetCamera,
@@ -936,7 +947,8 @@ const Scene = forwardRef(({ nodes, edges, positions, selectedNode, focusedNode, 
     zoomOut,
     pan,
     rotate,
-  }), [resetCamera, zoomIn, zoomOut, pan, rotate]);
+    getCamera,
+  }), [resetCamera, zoomIn, zoomOut, pan, rotate, getCamera]);
   
   return (
     <>
@@ -1055,6 +1067,35 @@ const ASTVisualizer3D = forwardRef(function ASTVisualizer3D({ graph, theme, onGo
     isRotating: false,
     lastRotationAngle: null,
   });
+  
+  // Pointing cursor state and refs
+  const containerRef = useRef(null);
+  const cursorDotRef = useRef(null);
+  const cursorRingRef = useRef(null);
+  const cursorProgressRef = useRef(null);
+  const cursorSnapRef = useRef(null);
+  const cursorAnimFrameRef = useRef(null);
+  const nodePositionsCacheRef = useRef([]);
+  
+  const cursorStateRef = useRef({
+    visible: false,
+    x: 0,
+    y: 0,
+    targetX: 0,
+    targetY: 0,
+    snapped: false,
+    snapX: 0,
+    snapY: 0,
+    snapTargetX: 0,
+    snapTargetY: 0,
+    hoveredNodeId: null,
+    progress: 0,
+    hoverStartTime: 0,
+  });
+  
+  // Pointing constants
+  const SNAP_DISTANCE = 50;
+  const HOVER_SELECT_TIME = 800;
   
   // Track timers and animation frames for cleanup
   const timersRef = useRef(new Set());
@@ -1186,15 +1227,6 @@ const ASTVisualizer3D = forwardRef(function ASTVisualizer3D({ graph, theme, onGo
       }
     }
   }, [gestureEnabled]);
-  
-  // Expose methods to parent via ref
-  useImperativeHandle(ref, () => ({
-    handleGesture,
-    handleTwoHands,
-    zoomIn: () => sceneRef.current?.zoomIn?.(),
-    zoomOut: () => sceneRef.current?.zoomOut?.(),
-    resetCamera: () => sceneRef.current?.resetCamera?.(),
-  }), [handleGesture, handleTwoHands]);
   
   // Search nodes
   const handleSearch = useCallback((query) => {
@@ -1364,6 +1396,237 @@ const ASTVisualizer3D = forwardRef(function ASTVisualizer3D({ graph, theme, onGo
     setIsLayoutReady(true);
     return result;
   }, [filteredElements, layoutType]);
+  
+  // Cursor animation loop for pointing gesture
+  const runCursorAnimation = useCallback(() => {
+    const state = cursorStateRef.current;
+    if (!state.visible) {
+      cursorAnimFrameRef.current = null;
+      return;
+    }
+    
+    // Smooth interpolation to target
+    state.x += (state.targetX - state.x) * 0.25;
+    state.y += (state.targetY - state.y) * 0.25;
+    
+    // Handle snap animation
+    if (state.snapped) {
+      state.snapX += (state.snapTargetX - state.snapX) * 0.35;
+      state.snapY += (state.snapTargetY - state.snapY) * 0.35;
+    }
+    
+    // Update DOM elements
+    const dot = cursorDotRef.current;
+    const ring = cursorRingRef.current;
+    const progress = cursorProgressRef.current;
+    const snap = cursorSnapRef.current;
+    
+    // Center offsets: element size / 2
+    // dot: 10px -> -5, ring: 44px -> -22, progress: 52px -> -26
+    if (dot) {
+      dot.style.transform = `translate(${state.x - 5}px, ${state.y - 5}px)`;
+    }
+    if (ring) {
+      ring.style.transform = `translate(${state.x - 22}px, ${state.y - 22}px)`;
+    }
+    
+    // Handle hover progress for auto-select
+    if (state.hoveredNodeId && state.hoverStartTime > 0) {
+      const elapsed = Date.now() - state.hoverStartTime;
+      state.progress = Math.min(elapsed / HOVER_SELECT_TIME, 1);
+      
+      if (progress) {
+        progress.style.transform = `translate(${state.x - 26}px, ${state.y - 26}px)`;
+        progress.style.opacity = '0.8';
+        const circumference = 2 * Math.PI * 24;
+        const progressCircle = progress.querySelector('circle');
+        if (progressCircle) {
+          progressCircle.style.strokeDasharray = `${state.progress * circumference} ${circumference}`;
+        }
+      }
+      
+      // Auto-select when progress complete
+      if (state.progress >= 1) {
+        const node = filteredElements.nodes.find(n => n.id === state.hoveredNodeId);
+        if (node) {
+          setSelectedNode(node);
+          setFocusedNode(node);
+          if (onGoToLine && node.lineno) {
+            onGoToLine(node.lineno, node.end_lineno);
+          }
+        }
+        state.hoveredNodeId = null;
+        state.progress = 0;
+        state.hoverStartTime = 0;
+      }
+    } else if (progress) {
+      progress.style.opacity = '0';
+    }
+    
+    // Update snap indicator
+    if (snap) {
+      if (state.snapped) {
+        snap.style.transform = `translate(${state.snapX - 30}px, ${state.snapY - 30}px)`;
+        snap.style.opacity = '0.6';
+      } else {
+        snap.style.opacity = '0';
+      }
+    }
+    
+    // Continue animation
+    cursorAnimFrameRef.current = requestAnimationFrame(runCursorAnimation);
+  }, [filteredElements.nodes, onGoToLine]);
+  
+  // Pointing direction handler for gesture-based node selection
+  const handlePointingDirection = useCallback((pointingData) => {
+    if (!gestureEnabled || !containerRef.current || positions.size === 0) return;
+    
+    const container = containerRef.current;
+    const state = cursorStateRef.current;
+    
+    // Get container dimensions for all calculations
+    const rect = container.getBoundingClientRect();
+    
+    // Calculate target position (mirror X for natural feel)
+    const targetX = rect.width * (1 - pointingData.origin.x);
+    const targetY = rect.height * pointingData.origin.y;
+    
+    // Initialize or update target
+    if (!state.visible) {
+      state.visible = true;
+      state.x = targetX;
+      state.y = targetY;
+      if (cursorDotRef.current) cursorDotRef.current.style.opacity = '1';
+      if (cursorRingRef.current) cursorRingRef.current.style.opacity = '0.8';
+    }
+    state.targetX = targetX;
+    state.targetY = targetY;
+    
+    // Get camera info from scene ref for projecting 3D positions
+    const camera = sceneRef.current?.getCamera?.();
+    if (!camera) return;
+    
+    // Build node positions cache for hit testing
+    nodePositionsCacheRef.current = [];
+    filteredElements.nodes.forEach(node => {
+      const pos = positions.get(node.id);
+      if (pos) {
+        // Project 3D position to NDC coordinates
+        const vector = new THREE.Vector3(pos.x, pos.y, pos.z);
+        vector.project(camera);
+        
+        // NDC to screen coordinates using container dimensions
+        // This matches the cursor overlay coordinate system
+        const screenX = (vector.x * 0.5 + 0.5) * rect.width;
+        const screenY = (-vector.y * 0.5 + 0.5) * rect.height;
+        
+        // Only include nodes in front of camera (z < 1 means in front)
+        if (vector.z < 1) {
+          nodePositionsCacheRef.current.push({
+            node,
+            screenX,
+            screenY,
+            z: vector.z,
+          });
+        }
+      }
+    });
+    
+    // Find nearest node to cursor
+    let nearestNode = null;
+    let nearestDist = Infinity;
+    let nearestScreenPos = null;
+    
+    const snapRadius = SNAP_DISTANCE;
+    const cache = nodePositionsCacheRef.current;
+    
+    for (let i = 0; i < cache.length; i++) {
+      const item = cache[i];
+      const dx = targetX - item.screenX;
+      const dy = targetY - item.screenY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      if (dist < snapRadius && dist < nearestDist) {
+        nearestDist = dist;
+        nearestNode = item.node;
+        nearestScreenPos = { x: item.screenX, y: item.screenY };
+      }
+    }
+    
+    // Update snap state
+    const isSnapped = nearestNode && nearestDist < snapRadius;
+    const wasSnapped = state.snapped;
+    state.snapped = isSnapped;
+    
+    if (isSnapped && nearestScreenPos) {
+      state.snapTargetX = nearestScreenPos.x;
+      state.snapTargetY = nearestScreenPos.y;
+      if (!wasSnapped) {
+        state.snapX = nearestScreenPos.x;
+        state.snapY = nearestScreenPos.y;
+      }
+    }
+    
+    // Update hover state
+    if (isSnapped && nearestNode) {
+      const nodeId = nearestNode.id;
+      if (state.hoveredNodeId !== nodeId) {
+        state.hoveredNodeId = nodeId;
+        state.progress = 0;
+        state.hoverStartTime = Date.now();
+      }
+    } else {
+      state.hoveredNodeId = null;
+      state.progress = 0;
+      state.hoverStartTime = 0;
+    }
+    
+    // Start animation loop
+    if (!cursorAnimFrameRef.current) {
+      cursorAnimFrameRef.current = requestAnimationFrame(runCursorAnimation);
+    }
+  }, [gestureEnabled, positions, filteredElements.nodes, runCursorAnimation]);
+  
+  // Clear pointing cursor
+  const clearPointingCursor = useCallback(() => {
+    const state = cursorStateRef.current;
+    state.visible = false;
+    state.hoveredNodeId = null;
+    state.progress = 0;
+    state.hoverStartTime = 0;
+    state.snapped = false;
+    
+    if (cursorAnimFrameRef.current) {
+      cancelAnimationFrame(cursorAnimFrameRef.current);
+      cursorAnimFrameRef.current = null;
+    }
+    
+    // Hide DOM elements
+    if (cursorDotRef.current) cursorDotRef.current.style.opacity = '0';
+    if (cursorRingRef.current) cursorRingRef.current.style.opacity = '0';
+    if (cursorProgressRef.current) cursorProgressRef.current.style.opacity = '0';
+    if (cursorSnapRef.current) cursorSnapRef.current.style.opacity = '0';
+  }, []);
+  
+  // Cleanup cursor animation on unmount
+  useEffect(() => {
+    return () => {
+      if (cursorAnimFrameRef.current) {
+        cancelAnimationFrame(cursorAnimFrameRef.current);
+      }
+    };
+  }, []);
+  
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    handleGesture,
+    handleTwoHands,
+    handlePointingDirection,
+    clearPointingCursor,
+    zoomIn: () => sceneRef.current?.zoomIn?.(),
+    zoomOut: () => sceneRef.current?.zoomOut?.(),
+    resetCamera: () => sceneRef.current?.resetCamera?.(),
+  }), [handleGesture, handleTwoHands, handlePointingDirection, clearPointingCursor]);
   
   const handleNodeClick = useCallback((node) => {
     setSelectedNode(node);
@@ -1576,7 +1839,7 @@ const ASTVisualizer3D = forwardRef(function ASTVisualizer3D({ graph, theme, onGo
         </div>
       </div>
       
-      <div className="visualizer-3d-content">
+      <div className="visualizer-3d-content" ref={containerRef}>
         {/* Search Panel */}
         {isSearchOpen && (
           <div className="search-panel">
@@ -1971,6 +2234,44 @@ const ASTVisualizer3D = forwardRef(function ASTVisualizer3D({ graph, theme, onGo
             </div>
           </div>
         )}
+        
+        {/* Pointing cursor overlay for gesture control */}
+        <div className="pointing-cursor-overlay">
+          {/* Cursor dot - shows finger position */}
+          <div ref={cursorDotRef} className="cursor-dot" style={{ opacity: 0 }} />
+          
+          {/* Cursor ring - outer ring */}
+          <div ref={cursorRingRef} className="cursor-ring" style={{ opacity: 0 }} />
+          
+          {/* Progress ring - shows selection progress */}
+          <svg ref={cursorProgressRef} className="cursor-progress" width="52" height="52" style={{ opacity: 0 }}>
+            <circle
+              cx="26"
+              cy="26"
+              r="24"
+              fill="none"
+              stroke={theme === 'dark' ? '#ffffff' : '#000000'}
+              strokeWidth="2"
+              strokeDasharray="0 150.8"
+              transform="rotate(-90 26 26)"
+            />
+          </svg>
+          
+          {/* Snap indicator - shows when cursor snaps to node */}
+          <div ref={cursorSnapRef} className="cursor-snap-3d" style={{ opacity: 0 }}>
+            <svg width="60" height="60" viewBox="0 0 60 60">
+              <circle
+                cx="30"
+                cy="30"
+                r="28"
+                fill="none"
+                stroke={theme === 'dark' ? '#ffffff' : '#000000'}
+                strokeWidth="1"
+                strokeDasharray="6 4"
+              />
+            </svg>
+          </div>
+        </div>
       </div>
       
       <div className="visualizer-legend-3d">

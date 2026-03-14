@@ -225,7 +225,14 @@ class SecurityScanner:
         ]
         dynamic_regex = re.compile('|'.join(dynamic_patterns))
         
+        # Maximum line length to prevent regex backtracking attacks
+        MAX_LINE_LENGTH = 2000
+        
         for i, line in enumerate(source_lines, 1):
+            # Skip very long lines to prevent regex performance issues
+            if len(line) > MAX_LINE_LENGTH:
+                continue
+            
             # Skip comment lines
             if comment_pattern.match(line):
                 continue

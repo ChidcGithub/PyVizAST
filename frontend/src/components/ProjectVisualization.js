@@ -85,7 +85,7 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
     return { nodes, edges };
   }, [projectResult]);
 
-  // Initialize Cytoscape
+  // Initialize Cytoscape (without theme dependency to avoid rebuilding on theme change)
   const initCytoscape = useCallback(() => {
     if (!containerRef.current || graphData.nodes.length === 0) return;
     
@@ -102,91 +102,13 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
       cyRef.current.destroy();
       cyRef.current = null;
     }
-
-    const isDark = theme === 'dark';
     
     try {
       const cy = cytoscape({
         container: container,
         elements: [...graphData.nodes, ...graphData.edges],
         
-        style: [
-          // Regular module nodes - rectangle
-          {
-            selector: 'node[type="file"]',
-            style: {
-              'shape': 'roundrectangle',
-              'background-color': isDark ? '#1f2937' : '#ffffff',
-              'label': 'data(label)',
-              'text-valign': 'center',
-              'text-halign': 'center',
-              'font-size': '11px',
-              'font-family': 'Inter, sans-serif',
-              'color': isDark ? '#e5e7eb' : '#374151',
-              'width': 80,
-              'height': 40,
-              'text-wrap': 'wrap',
-              'text-max-width': 70,
-              'border-width': 2,
-              'border-color': isDark ? '#4b5563' : '#374151',
-              'corner-radius': 4,
-            },
-          },
-          // Circular dependency nodes - diamond
-          {
-            selector: 'node[type="circular"]',
-            style: {
-              'shape': 'diamond',
-              'background-color': isDark ? '#7f1d1d' : '#fecaca',
-              'label': 'data(label)',
-              'text-valign': 'center',
-              'text-halign': 'center',
-              'font-size': '11px',
-              'font-family': 'Inter, sans-serif',
-              'color': isDark ? '#fca5a5' : '#991b1b',
-              'width': 70,
-              'height': 70,
-              'text-wrap': 'wrap',
-              'text-max-width': 60,
-              'border-width': 2,
-              'border-color': '#dc2626',
-            },
-          },
-          // Selected state
-          {
-            selector: 'node:selected',
-            style: {
-              'border-width': 3,
-              'border-color': isDark ? '#60a5fa' : '#2563eb',
-            },
-          },
-          // Regular import edges - solid line
-          {
-            selector: 'edge[type="import"]',
-            style: {
-              'width': 1.5,
-              'line-color': isDark ? '#6b7280' : '#9ca3af',
-              'target-arrow-color': isDark ? '#6b7280' : '#9ca3af',
-              'target-arrow-shape': 'triangle',
-              'curve-style': 'bezier',
-              'arrow-scale': 0.6,
-              'line-style': 'solid',
-            },
-          },
-          // Circular dependency edges - dashed line
-          {
-            selector: 'edge[type="circular"]',
-            style: {
-              'width': 2,
-              'line-color': '#dc2626',
-              'target-arrow-color': '#dc2626',
-              'target-arrow-shape': 'triangle',
-              'curve-style': 'bezier',
-              'arrow-scale': 0.7,
-              'line-style': 'dashed',
-            },
-          },
-        ],
+        style: getCytoscapeStyles(theme),
         
         layout: {
           name: 'fcose',
@@ -222,7 +144,95 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
       logger.error('Cytoscape initialization error', { error: error.message });
       return false;
     }
-  }, [graphData, theme]);
+  }, [graphData]); // Remove theme dependency to avoid rebuilding on theme change
+
+  // Get Cytoscape styles based on theme
+  const getCytoscapeStyles = useCallback((isDark) => {
+    return [
+      // Regular module nodes - rectangle
+      {
+        selector: 'node[type="file"]',
+        style: {
+          'shape': 'roundrectangle',
+          'background-color': isDark ? '#1f2937' : '#ffffff',
+          'label': 'data(label)',
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'font-size': '11px',
+          'font-family': 'Inter, sans-serif',
+          'color': isDark ? '#e5e7eb' : '#374151',
+          'width': 80,
+          'height': 40,
+          'text-wrap': 'wrap',
+          'text-max-width': 70,
+          'border-width': 2,
+          'border-color': isDark ? '#4b5563' : '#374151',
+          'corner-radius': 4,
+        },
+      },
+      // Circular dependency nodes - diamond
+      {
+        selector: 'node[type="circular"]',
+        style: {
+          'shape': 'diamond',
+          'background-color': isDark ? '#7f1d1d' : '#fecaca',
+          'label': 'data(label)',
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'font-size': '11px',
+          'font-family': 'Inter, sans-serif',
+          'color': isDark ? '#fca5a5' : '#991b1b',
+          'width': 70,
+          'height': 70,
+          'text-wrap': 'wrap',
+          'text-max-width': 60,
+          'border-width': 2,
+          'border-color': '#dc2626',
+        },
+      },
+      // Selected state
+      {
+        selector: 'node:selected',
+        style: {
+          'border-width': 3,
+          'border-color': isDark ? '#60a5fa' : '#2563eb',
+        },
+      },
+      // Regular import edges - solid line
+      {
+        selector: 'edge[type="import"]',
+        style: {
+          'width': 1.5,
+          'line-color': isDark ? '#6b7280' : '#9ca3af',
+          'target-arrow-color': isDark ? '#6b7280' : '#9ca3af',
+          'target-arrow-shape': 'triangle',
+          'curve-style': 'bezier',
+          'arrow-scale': 0.6,
+          'line-style': 'solid',
+        },
+      },
+      // Circular dependency edges - dashed line
+      {
+        selector: 'edge[type="circular"]',
+        style: {
+          'width': 2,
+          'line-color': '#dc2626',
+          'target-arrow-color': '#dc2626',
+          'target-arrow-shape': 'triangle',
+          'curve-style': 'bezier',
+          'arrow-scale': 0.7,
+          'line-style': 'dashed',
+        },
+      },
+    ];
+  }, []);
+
+  // Update styles when theme changes (without rebuilding the entire graph)
+  useEffect(() => {
+    if (cyRef.current) {
+      cyRef.current.style(getCytoscapeStyles(theme === 'dark'));
+    }
+  }, [theme, getCytoscapeStyles]);
 
   // Delayed initialization to ensure container dimensions are correct
   useEffect(() => {

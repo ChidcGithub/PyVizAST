@@ -11,28 +11,11 @@ from fastapi import APIRouter, HTTPException, status
 
 from ..models.schemas import CodeInput, NodeType
 from ..exceptions import CodeParsingError, CodeTooLargeError
-from ..ast_parser import ASTParser, NodeMapper
+from ..utils import AnalyzerFactory, get_parser
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["ast"])
-
-
-def get_parser(options: dict = None) -> ASTParser:
-    """Get configured parser instance"""
-    options = options or {}
-    max_nodes = options.get('max_nodes', 2000)
-    simplified = options.get('simplified', False)
-    
-    return ASTParser(max_nodes=max_nodes, simplified=simplified)
-
-
-class AnalyzerFactory:
-    """Analyzer factory for node mapper"""
-    
-    @staticmethod
-    def create_node_mapper(theme: str = "default") -> NodeMapper:
-        return NodeMapper(theme=theme)
 
 
 @router.post("/ast")

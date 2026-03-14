@@ -14,9 +14,8 @@ from ..models.schemas import (
     CodeInput, AnalysisResult, ComplexityMetrics, SeverityLevel
 )
 from ..exceptions import CodeParsingError, CodeTooLargeError, AnalysisError
-from ..ast_parser import ASTParser, NodeMapper
-from ..analyzers import ComplexityAnalyzer, PerformanceAnalyzer, CodeSmellDetector, SecurityScanner
-from ..optimizers import SuggestionEngine, PatchGenerator
+from ..ast_parser import ASTParser
+from ..utils import AnalyzerFactory, get_parser
 
 logger = logging.getLogger(__name__)
 
@@ -27,47 +26,6 @@ class PatchApplyRequest(BaseModel):
     """Patch apply request model"""
     code: str
     patch: str
-
-
-def get_parser(options: dict = None) -> ASTParser:
-    """Get configured parser instance"""
-    options = options or {}
-    max_nodes = options.get('max_nodes', 2000)
-    simplified = options.get('simplified', False)
-    
-    return ASTParser(max_nodes=max_nodes, simplified=simplified)
-
-
-class AnalyzerFactory:
-    """Analyzer factory - creates new instances per request to avoid state pollution"""
-    
-    @staticmethod
-    def create_complexity_analyzer() -> ComplexityAnalyzer:
-        return ComplexityAnalyzer()
-    
-    @staticmethod
-    def create_performance_analyzer() -> PerformanceAnalyzer:
-        return PerformanceAnalyzer()
-    
-    @staticmethod
-    def create_code_smell_detector() -> CodeSmellDetector:
-        return CodeSmellDetector()
-    
-    @staticmethod
-    def create_security_scanner() -> SecurityScanner:
-        return SecurityScanner()
-    
-    @staticmethod
-    def create_suggestion_engine() -> SuggestionEngine:
-        return SuggestionEngine()
-    
-    @staticmethod
-    def create_patch_generator() -> PatchGenerator:
-        return PatchGenerator()
-    
-    @staticmethod
-    def create_node_mapper(theme: str = "default") -> NodeMapper:
-        return NodeMapper(theme=theme)
 
 
 @router.post("/analyze", response_model=AnalysisResult)
@@ -154,6 +112,15 @@ async def analyze_code(input_data: CodeInput):
                         f"2) Use a more powerful machine; "
                         f"3) Analyze only part of the code."
                     )
+        
+        # Safety check: ensure tree was successfully parsed
+        if tree is None:
+            raise CodeTooLargeError(
+                f"Code too large ({code_lines} lines, {code_size} bytes), cannot parse after all optimization attempts. "
+                f"Suggestions: 1) Split code into multiple files; "
+                f"2) Use a more powerful machine; "
+                f"3) Analyze only part of the code."
+            )
         
         parser = get_parser({'simplified': auto_simplified, **options})
         ast_graph = parser.parse(code, tree=tree)  # Pass pre-parsed tree to avoid double parsing

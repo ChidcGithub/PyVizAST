@@ -33,17 +33,32 @@ const ComponentLoader = () => (
 // Share URL utilities
 const compressCode = (code) => {
   try {
-    // Use base64 encoding for URL-safe sharing
-    return btoa(encodeURIComponent(code));
+    // Use TextEncoder for proper Unicode support, then base64 encode
+    const encoder = new TextEncoder();
+    const uint8Array = encoder.encode(code);
+    let binaryString = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+      binaryString += String.fromCharCode(uint8Array[i]);
+    }
+    return btoa(binaryString);
   } catch (e) {
+    console.error('Failed to encode code for sharing:', e);
     return null;
   }
 };
 
 const decompressCode = (encoded) => {
   try {
-    return decodeURIComponent(atob(encoded));
+    // Decode base64, then use TextDecoder for Unicode
+    const binaryString = atob(encoded);
+    const uint8Array = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      uint8Array[i] = binaryString.charCodeAt(i);
+    }
+    const decoder = new TextDecoder();
+    return decoder.decode(uint8Array);
   } catch (e) {
+    console.error('Failed to decode shared code:', e);
     return null;
   }
 };
@@ -541,8 +556,10 @@ function App() {
       const url = `${window.location.origin}${window.location.pathname}#code=${compressed}`;
       setShareUrl(url);
       setShowShareDialog(true);
+    } else {
+      showToast('Failed to create share link. The code may be too large or contain unsupported characters.', 'error');
     }
-  }, [code]);
+  }, [code, showToast]);
 
   const handleCopyShareUrl = useCallback(async () => {
     if (shareUrl) {

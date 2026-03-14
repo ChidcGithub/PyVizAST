@@ -69,6 +69,8 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme, readO
   // Performance state for large files
   const [performanceMode, setPerformanceMode] = useState('normal'); // 'normal', 'large', 'very-large'
   const [showPerformanceWarning, setShowPerformanceWarning] = useState(false);
+  // Monaco loading state
+  const [loadError, setLoadError] = useState(null);
 
   // Calculate file size and set performance mode
   const lineCount = useMemo(() => {
@@ -298,19 +300,42 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme, readO
       )}
       
       <div className="editor-container" ref={containerRef}>
-        <Editor
-          height="100%"
-          language="python"
-          value={code}
-          onChange={handleEditorChange}
-          onMount={handleEditorDidMount}
-          theme="vs-dark"
-          loading={
-            <div className="editor-loading">
-              <span>Loading editor...</span>
-            </div>
-          }
-          options={{
+        {loadError ? (
+          <div className="editor-error-fallback">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <h4>Editor Failed to Load</h4>
+            <p>{loadError}</p>
+            <textarea
+              className="fallback-textarea"
+              value={code}
+              onChange={(e) => onChange(e.target.value)}
+              readOnly={readOnly}
+              placeholder="Python code..."
+              spellCheck={false}
+            />
+          </div>
+        ) : (
+          <Editor
+            height="100%"
+            language="python"
+            value={code}
+            onChange={handleEditorChange}
+            onMount={handleEditorDidMount}
+            theme="vs-dark"
+            loading={
+              <div className="editor-loading">
+                <span>Loading editor...</span>
+              </div>
+            }
+            onError={(error) => {
+              console.error('Monaco Editor error:', error);
+              setLoadError(error.message || 'Failed to load code editor');
+            }}
+            options={{
             fontSize: 14,
             fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Consolas', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
             lineHeight: 22,
@@ -352,6 +377,7 @@ const CodeEditor = forwardRef(function CodeEditor({ code, onChange, theme, readO
             renderWhitespace: performanceMode === 'normal' ? 'selection' : 'none',
           }}
         />
+        )}
       </div>
     </div>
   );

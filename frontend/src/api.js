@@ -385,7 +385,11 @@ export const getProgress = async (taskId) => {
  * @param {string} taskId - Task ID
  * @param {function} onProgress - Callback for progress updates
  * @param {function} onError - Callback for errors
- * @returns {EventSource} EventSource instance
+ * @returns {Object} Object with eventSource and close method
+ * @example
+ * const { eventSource, close } = createProgressStream(taskId, onProgress, onError);
+ * // When done, call close() to clean up
+ * close();
  */
 export const createProgressStream = (taskId, onProgress, onError) => {
   const eventSource = new EventSource(`${API_BASE_URL}/api/progress/${taskId}/stream`);
@@ -412,14 +416,27 @@ export const createProgressStream = (taskId, onProgress, onError) => {
     eventSource.close();
   };
   
-  return eventSource;
+  // Return object with close method for easy cleanup
+  return {
+    eventSource,
+    close: () => {
+      if (eventSource.readyState !== EventSource.CLOSED) {
+        eventSource.close();
+      }
+    }
+  };
 };
 
 /**
- * Generate a unique task ID
+ * Generate a unique task ID using crypto.randomUUID if available
  * @returns {string} Unique task ID
  */
 export const generateTaskId = () => {
+  // Use crypto.randomUUID() if available (modern browsers)
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return `task_${crypto.randomUUID()}`;
+  }
+  // Fallback for older browsers
   return `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 };
 

@@ -91,12 +91,19 @@ export function useResizeObserver(elementRef, callback, options = {}) {
       // Execute immediately once
       if (immediate) {
         const rect = element.getBoundingClientRect();
-        callbackRef.current([{
-          target: element,
-          contentRect: rect,
-          borderBoxSize: [{ inlineSize: rect.width, blockSize: rect.height }],
-          contentBoxSize: [{ inlineSize: rect.width, blockSize: rect.height }],
-        }]);
+        try {
+          callbackRef.current([{
+            target: element,
+            contentRect: rect,
+            borderBoxSize: [{ inlineSize: rect.width, blockSize: rect.height }],
+            contentBoxSize: [{ inlineSize: rect.width, blockSize: rect.height }],
+          }]);
+        } catch (e) {
+          // Ignore errors in immediate callback
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('ResizeObserver immediate callback error (suppressed):', e.message || e);
+          }
+        }
       }
     } catch (e) {
       // Log creation errors for debugging

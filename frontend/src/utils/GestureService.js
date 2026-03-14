@@ -605,6 +605,17 @@ class GestureService {
   }
 
   /**
+   * Clear all callbacks - call this when component unmounts
+   */
+  clearCallbacks() {
+    this.onGestureCallback = null;
+    this.onHandPositionCallback = null;
+    this.onTwoHandsCallback = null;
+    this.onStatusChangeCallback = null;
+    this.onPointingDirectionCallback = null;
+  }
+
+  /**
    * Notify status change
    */
   notifyStatus(status, message) {
@@ -630,8 +641,13 @@ class GestureService {
    */
   destroy() {
     this.stop();
+    this.clearCallbacks();
     this.gestureRecognizer = null;
     this.isInitialized = false;
+    this.videoElement = null;
+    this.gestureHistory = [];
+    this.handPositions = { left: null, right: null };
+    this.smoothedPosition = null;
   }
 }
 

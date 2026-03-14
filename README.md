@@ -13,11 +13,11 @@
 
 # PyVizAST
 
-[![Version](https://img.shields.io/badge/Version-0.7.0--rc3-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Version](https://img.shields.io/badge/Version-0.7.0-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
-[![Status](https://img.shields.io/badge/Status-rc-green.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Status](https://img.shields.io/badge/Status-stable-brightgreen.svg)](https://github.com/ChidcGithub/PyVizAST)
 
 A Python AST Visualizer & Static Analyzer that transforms code into interactive graphs. Detect complexity, performance bottlenecks, and code smells with actionable refactoring suggestions.
 
@@ -211,6 +211,57 @@ Contributions are welcome. Please submit pull requests to the main repository.
 <details>
 
 <summary>Version History</summary>
+
+<details>
+<summary>v0.7.0 (2026-03-14)</summary>
+
+**Major Release - Dependencies Upgrade & 3D Gesture Control**
+
+**Dependencies Upgrade:**
+- React 18 → React 19.2.4
+- @react-three/fiber 8 → 9.5.0
+- @react-three/drei 9 → 10.7.7
+- framer-motion 11 → 12.36.0
+- three 0.160 → 0.183.2
+- cytoscape-react 3 → 4.0.0
+- All other dependencies updated to latest versions
+
+**3D Gesture Control:**
+- Implemented pointing gesture for 3D AST visualization
+- Virtual cursor with dot, ring, progress ring, and snap indicator
+- 3D-to-screen coordinate projection using Three.js camera
+- Node snapping with smooth animation
+- Hover progress for auto-selection (800ms dwell time)
+- Camera focus on selected nodes
+
+**Virtual Cursor System:**
+- Unified state management with `cursorStateRef`
+- Smooth position interpolation (0.25 factor for cursor, 0.35 for snap)
+- GPU-accelerated transforms for better performance
+- Theme-aware CSS variables for cursor colors
+- Separate CSS classes for 2D (`cursor-snap`) and 3D (`cursor-snap-3d`)
+
+**Light Mode Fixes:**
+- Fixed `.detail-tag.scope` and `.detail-tag.callable` using white transparency
+- Fixed `.relationship-tag.inheritance/derived/method` theme compatibility
+- Fixed `.highlighted-line` background color
+- Fixed `.warning-dismiss:hover` background
+- Fixed `@keyframes searchPulse` with theme-aware `--pulse-color` variable
+
+**Bug Fixes:**
+- Fixed cursor dot/ring centering (offset calculations: 10px→-5, 44px→-22)
+- Fixed CSS animation conflicting with JS transform positioning
+- Fixed 3D node projection coordinate system issues
+- Fixed container reference binding for correct cursor positioning
+
+**Files Modified:**
+- `frontend/package.json` - Dependencies upgrade
+- `frontend/src/components/ASTVisualizer3D.js` - 3D gesture control implementation
+- `frontend/src/components/components.css` - Cursor styles, light mode fixes
+- `frontend/src/App.js` - Gesture handling
+- `backend/main.py` - Version bump
+
+</details>
 
 <details>
 <summary>v0.7.0-rc3 (2026-03-13)</summary>
