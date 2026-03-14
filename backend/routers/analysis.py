@@ -14,7 +14,6 @@ from ..models.schemas import (
     CodeInput, AnalysisResult, ComplexityMetrics, SeverityLevel
 )
 from ..exceptions import CodeParsingError, CodeTooLargeError, AnalysisError
-from ..ast_parser import ASTParser
 from ..utils import AnalyzerFactory, get_parser
 
 logger = logging.getLogger(__name__)
