@@ -1,7 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-
-// App version
-const APP_VERSION = '0.7.1';
+import { VERSION } from '../config/version';
 
 // Social Card Generator - creates beautiful black/white themed image cards
 function SocialCardGenerator({ 
@@ -353,7 +351,7 @@ function SocialCardGenerator({
     ctx.font = '500 16px "SF Pro Text", -apple-system, sans-serif';
     ctx.fillStyle = colors.textMuted;
     ctx.textAlign = 'right';
-    ctx.fillText(`v${APP_VERSION}`, width - edgePadding - 50, edgePadding + 32);
+    ctx.fillText(`v${VERSION}`, width - edgePadding - 50, edgePadding + 32);
 
     // Center AST visualization
     drawASTGraph(ctx, width / 2, height / 2 - 20, width * 0.6, height * 0.45);
@@ -489,7 +487,7 @@ function SocialCardGenerator({
     ctx.fillText('Python AST Visualizer & Static Analyzer', edgePadding, footerY);
 
     ctx.textAlign = 'right';
-    ctx.fillText(`v${APP_VERSION}`, width - edgePadding, footerY);
+    ctx.fillText(`v${VERSION}`, width - edgePadding, footerY);
   }, [colors, drawLogo, roundRect]);
 
   // Generate card image

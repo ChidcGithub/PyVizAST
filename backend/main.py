@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from .utils.logger import log_exception, init_logging
+from .config import VERSION
 from .exceptions import (
     AnalysisError,
     CodeParsingError,
@@ -58,7 +59,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="PyVizAST API",
     description="Python AST Visualization and Static Analysis API",
-    version="0.7.1",
+    version=VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan

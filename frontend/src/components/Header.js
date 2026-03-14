@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { VERSION, BUILD } from '../config/version';
 
 const DECRYPT_KEY = 42;
 
@@ -11,10 +12,6 @@ const decrypt = (encrypted) => {
     return '';
   }
 };
-
-// Version info
-const APP_VERSION = '0.7.1';
-const APP_BUILD = '2522';
 
 // Get actual encrypted values (these are pre-encrypted)
 const AUTHOR_DATA = {
@@ -769,11 +766,11 @@ function Header({
                   </div>
                   <div className="info-row">
                     <span className="info-label">Version</span>
-                    <span className="info-value">v{APP_VERSION}</span>
+                    <span className="info-value">v{VERSION}</span>
                   </div>
                   <div className="info-row">
                     <span className="info-label">Build</span>
-                    <span className="info-value info-build">{APP_BUILD}</span>
+                    <span className="info-value info-build">{BUILD}</span>
                   </div>
                 </div>
                 <p className="easter-egg-hint">
