@@ -5,10 +5,13 @@ AST Node Builder - Create AST nodes from Python AST
 @link: github.com/chidcGithub
 """
 import ast
+import logging
 from typing import Dict, List, Optional, Any
 
 from ..models.schemas import ASTNode, NodeType
 from .node_styles import NODE_STYLES
+
+logger = logging.getLogger(__name__)
 
 
 class NodeBuilder:
@@ -570,7 +573,8 @@ class NodeBuilder:
         """Get default value as string representation"""
         try:
             return ast.unparse(default) if hasattr(ast, 'unparse') else repr(default)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Failed to unparse default value: {e}")
             return "..."
     
     def _contains_yield(self, node: ast.AST) -> bool:

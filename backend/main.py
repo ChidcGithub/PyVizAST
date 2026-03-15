@@ -159,29 +159,25 @@ async def general_exception_handler(request: Request, exc: Exception):
     """Handle all uncaught exceptions"""
     log_exception(logger, exc, f"Request path: {request.url.path}")
     
-    # Extract error type and message for better user feedback
-    error_type = type(exc).__name__
-    error_message = str(exc) if str(exc) else "Unknown error occurred"
-    
-    # Provide user-friendly messages based on error type
+    # Provide user-friendly messages without exposing internal details
     if isinstance(exc, TypeError):
-        detail = f"Type error during analysis: {error_message}. This may indicate a bug in the code being analyzed."
+        detail = "An internal type error occurred. The code structure may be unexpected."
     elif isinstance(exc, AttributeError):
-        detail = f"Attribute error during analysis: {error_message}. The code structure may be unexpected."
+        detail = "An internal attribute error occurred. The code structure may be unexpected."
     elif isinstance(exc, ValueError):
-        detail = f"Value error during analysis: {error_message}"
+        detail = "An invalid value was encountered during analysis."
     elif isinstance(exc, KeyError):
-        detail = f"Key error during analysis: {error_message}. Some expected data is missing."
+        detail = "Some expected data is missing in the analysis."
     elif isinstance(exc, RecursionError):
         detail = "Code structure is too deeply nested to analyze. Consider simplifying the code."
     elif isinstance(exc, MemoryError):
         detail = "Not enough memory to analyze this code. Try with a smaller file."
     else:
-        detail = f"Analysis error ({error_type}): {error_message}"
+        detail = "An unexpected error occurred during analysis. Please try again."
     
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": detail, "error_type": error_type}
+        content={"detail": detail}
     )
 
 

@@ -1,12 +1,12 @@
 # PyVizAST Backend Dependencies
 # FastAPI framework
-fastapi>=0.135.0
-uvicorn[standard]>=0.41.0
-pydantic>=2.5.0
+fastapi>=0.135.0,<1.0.0
+uvicorn[standard]>=0.41.0,<1.0.0
+pydantic>=2.5.0,<3.0.0
 
 # Optional: Additional analysis libraries
-radon>=6.0.0  # Complex analysis
-astor>=0.8.1  # AST manipulation
+radon>=6.0.0,<7.0.0  # Complex analysis
+astor>=0.8.1,<1.0.0  # AST manipulation
 
 # Development
-python-multipart>=0.0.20
+python-multipart>=0.0.20,<1.0.0

@@ -52,7 +52,9 @@ class ProjectScanner:
     def __init__(self, ignore_dirs: Optional[Set[str]] = None,
                  ignore_patterns: Optional[Set[str]] = None,
                  max_file_size: int = 5 * 1024 * 1024,  # 5MB
-                 max_files: int = 1000):
+                 max_files: int = 1000,
+                 max_zip_size: int = 500 * 1024 * 1024,  # 500MB max uncompressed size
+                 max_zip_ratio: float = 100.0):  # Max compression ratio
         """
         Initialize the scanner
         
@@ -61,11 +63,15 @@ class ProjectScanner:
             ignore_patterns: File patterns to ignore
             max_file_size: Maximum file size in bytes
             max_files: Maximum number of files
+            max_zip_size: Maximum total uncompressed size of ZIP
+            max_zip_ratio: Maximum compression ratio (uncompressed/compressed)
         """
         self.ignore_dirs = ignore_dirs or DEFAULT_IGNORE_DIRS
         self.ignore_patterns = ignore_patterns or DEFAULT_IGNORE_PATTERNS
         self.max_file_size = max_file_size
         self.max_files = max_files
+        self.max_zip_size = max_zip_size
+        self.max_zip_ratio = max_zip_ratio
     
     def scan_zip(self, zip_path: str, project_name: Optional[str] = None) -> Tuple[ProjectScanResult, str]:
         """
@@ -86,6 +92,37 @@ class ProjectScanner:
         try:
             # Extract ZIP file with path traversal protection
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                # Check for zip bomb (compression bomb) before extracting
+                total_uncompressed_size = 0
+                compressed_size = 0
+                
+                for info in zip_ref.infolist():
+                    total_uncompressed_size += info.file_size
+                    compressed_size += info.compress_size
+                    
+                    # Check individual file size
+                    if info.file_size > self.max_file_size:
+                        raise RuntimeError(
+                            f"ZIP contains file exceeding size limit: {info.filename} "
+                            f"({info.file_size} bytes > {self.max_file_size} bytes)"
+                        )
+                
+                # Check total uncompressed size
+                if total_uncompressed_size > self.max_zip_size:
+                    raise RuntimeError(
+                        f"ZIP total uncompressed size ({total_uncompressed_size} bytes) "
+                        f"exceeds limit ({self.max_zip_size} bytes)"
+                    )
+                
+                # Check compression ratio (potential zip bomb indicator)
+                if compressed_size > 0:
+                    ratio = total_uncompressed_size / compressed_size
+                    if ratio > self.max_zip_ratio:
+                        raise RuntimeError(
+                            f"ZIP compression ratio ({ratio:.1f}) exceeds limit ({self.max_zip_ratio}). "
+                            "This may be a compression bomb."
+                        )
+                
                 # Check for path traversal attacks before extracting
                 for member in zip_ref.namelist():
                     # Skip entries that are absolute paths (Unix or Windows style)

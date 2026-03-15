@@ -1,8 +1,12 @@
 {
   "name": "pyvizast-frontend",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "author": "Chidc (github.com/chidcGithub)",
   "private": true,
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.32",
     "@monaco-editor/react": "^4.6.0",

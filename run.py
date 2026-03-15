@@ -16,8 +16,8 @@ import webbrowser
 
 def check_python_version():
     """Check Python version"""
-    if sys.version_info < (3, 8):
-        print("Error: Python 3.8 or higher is required")
+    if sys.version_info < (3, 9):
+        print("Error: Python 3.9 or higher is required")
         sys.exit(1)
     print(f"✓ Python version: {sys.version.split()[0]}")
 
@@ -160,7 +160,7 @@ def main():
         try:
             start_frontend(args.frontend_port)
         except KeyboardInterrupt:
-            pass
+            print("\n\nStopping servers...")
         finally:
             backend_process.terminate()
             
@@ -181,7 +181,7 @@ def main():
             try:
                 start_frontend(args.frontend_port)
             except KeyboardInterrupt:
-                pass
+                print("\n\nStopping servers...")
             finally:
                 backend_process.terminate()
 

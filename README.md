@@ -13,8 +13,8 @@
 
 # PyVizAST
 
-[![Version](https://img.shields.io/badge/Version-0.7.1-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
-[![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg)](https://www.python.org/)
+[![Version](https://img.shields.io/badge/Version-0.7.2-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Python](https://img.shields.io/badge/Python-3.9%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
 [![Status](https://img.shields.io/badge/Status-stable-brightgreen.svg)](https://github.com/ChidcGithub/PyVizAST)
@@ -82,7 +82,7 @@ PyVizAST/
 ## Installation
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.9+
 - Node.js 18+ (optional, for frontend)
 
 ### Quick Start
@@ -212,6 +212,50 @@ Contributions are welcome. Please submit pull requests to the main repository.
 <details>
 
 <summary>Version History</summary>
+
+<details>
+<summary>v0.7.2 (2026-03-15)</summary>
+
+**Bug Fixes & Security Improvements**
+
+**Python Version Requirement:**
+- Updated minimum Python version from 3.8 to 3.9 (required for `ast.unparse()`)
+
+**Security Improvements:**
+- Added ZIP compression bomb detection:
+  - Maximum uncompressed size limit (500MB)
+  - Maximum compression ratio check (100x)
+  - Individual file size limit (5MB)
+- Simplified error messages to avoid exposing internal implementation details
+
+**Code Quality:**
+- Added logging for exceptions in `node_builder.py`
+- Added user feedback for keyboard interrupt in `run.py`
+- Locked dependency versions in `requirements.txt` (fastapi, pydantic, uvicorn, etc.)
+- Added Node.js/npm version requirements in `package.json` (Node.js >= 18, npm >= 9)
+
+**UI Improvements:**
+- Refactored Social Card Generator to black/white minimalist design
+- Simplified card visual effects with clean geometric AST visualization
+- Improved consistency with project's overall monochrome theme
+
+**Verification:**
+- Confirmed all Map.get() calls in `ASTVisualizer3D.js` have proper null checks
+- Confirmed `ModuleInfo` dataclass has correct default values
+
+**Files Modified:**
+- `run.py` - Python version check, keyboard interrupt handling
+- `backend/ast_parser/node_builder.py` - Exception logging
+- `backend/project_analyzer/scanner.py` - ZIP bomb detection
+- `backend/main.py` - Simplified error messages
+- `requirements.txt` - Version constraints
+- `frontend/package.json` - Node.js version requirements, version bump
+- `backend/config.py` - Version bump
+- `frontend/src/components/SocialCardGenerator.js` - Refactored to black/white minimalist design
+- `frontend/src/App.css` - Updated social card styles to match project theme
+- `README.md` - Version badge, Python requirement, changelog
+
+</details>
 
 <details>
 <summary>v0.7.1 (2026-03-14)</summary>

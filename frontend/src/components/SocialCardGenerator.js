@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { VERSION } from '../config/version';
 
-// Social Card Generator - creates beautiful black/white themed image cards
+// Social Card Generator - Clean black/white minimalist design
 function SocialCardGenerator({ 
   isOpen, 
   onClose, 
@@ -17,85 +17,116 @@ function SocialCardGenerator({
   const [generatedImage, setGeneratedImage] = useState(null);
   const [capturedPreview, setCapturedPreview] = useState(null);
 
-  // Card style options - computed based on analysis state
+  // Card style options
   const cardStyles = useMemo(() => [
     { id: 'brand', label: 'Brand', icon: 'logo', disabled: false },
     { id: 'preview2d', label: '2D Preview', icon: '2d', disabled: !hasAnalysis },
     { id: 'preview3d', label: '3D Preview', icon: '3d', disabled: !hasAnalysis },
   ], [hasAnalysis]);
 
-  // Color scheme - black/white only - memoized
+  // Color scheme - black/white only
   const colors = useMemo(() => {
     const isDark = theme === 'dark';
     return {
       isDark,
       bg: isDark ? '#0a0a0a' : '#ffffff',
-      bgAlt: isDark ? '#141414' : '#f5f5f5',
+      bgAlt: isDark ? '#111111' : '#f8f8f8',
       text: isDark ? '#ffffff' : '#0a0a0a',
       textMuted: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)',
-      textFaint: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)',
-      border: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-      grid: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
-      accent: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+      textFaint: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
+      border: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+      grid: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
     };
   }, [theme]);
 
-  // Handle style change and capture previews
+  // Handle style change
   const handleStyleChange = useCallback(async (style) => {
     setCardStyle(style);
     setCapturedPreview(null);
     
-    if (!hasAnalysis && style !== 'brand') {
-      return;
-    }
+    if (!hasAnalysis && style !== 'brand') return;
     
     if (style === 'preview2d' && onCapture2D) {
       const captured = await onCapture2D();
-      if (captured) {
-        setCapturedPreview(captured);
-      }
+      if (captured) setCapturedPreview(captured);
     } else if (style === 'preview3d' && onCapture3D) {
       const captured = await onCapture3D();
-      if (captured) {
-        setCapturedPreview(captured);
-      }
+      if (captured) setCapturedPreview(captured);
     }
   }, [hasAnalysis, onCapture2D, onCapture3D]);
 
-  // Draw AST node graph for brand card
-  const drawASTGraph = useCallback((ctx, centerX, centerY, width, height) => {
+  // Draw minimalist background with subtle texture
+  const drawBackground = useCallback((ctx, width, height) => {
+    // Base fill
+    ctx.fillStyle = colors.bg;
+    ctx.fillRect(0, 0, width, height);
+
+    // Subtle gradient overlay for depth
+    const gradient = ctx.createRadialGradient(
+      width * 0.3, height * 0.3, 0,
+      width * 0.5, height * 0.5, width * 0.8
+    );
+    gradient.addColorStop(0, colors.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)');
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+
+    // Grid pattern
+    ctx.strokeStyle = colors.grid;
+    ctx.lineWidth = 1;
+    const gridSize = 30;
+    
+    for (let x = 0; x <= width; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= height; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+  }, [colors]);
+
+  // Draw AST tree visualization - clean geometric style
+  const drawASTTree = useCallback((ctx, centerX, centerY, width, height) => {
     const nodes = [];
-    const radius = Math.min(width, height) * 0.35;
+    const baseRadius = Math.min(width, height) * 0.3;
     
+    // Generate hierarchical tree
     // Root node
-    nodes.push({ x: centerX, y: centerY - radius * 0.6, r: 18, level: 0 });
+    nodes.push({ x: centerX, y: centerY - baseRadius * 0.65, r: 14, level: 0 });
     
-    // Second level
-    for (let i = 0; i < 3; i++) {
-      const angle = -Math.PI / 3 + (i * Math.PI / 3);
+    // Level 1 - 3 nodes
+    const l1Angles = [-Math.PI / 5, 0, Math.PI / 5];
+    l1Angles.forEach((angle, i) => {
       nodes.push({
-        x: centerX + Math.cos(angle) * radius * 0.5,
-        y: centerY - radius * 0.1 + Math.sin(angle) * radius * 0.3,
-        r: 12,
+        x: centerX + Math.sin(angle) * baseRadius * 0.5,
+        y: centerY - baseRadius * 0.1 + Math.cos(angle) * baseRadius * 0.15,
+        r: 10,
         level: 1
       });
-    }
+    });
     
-    // Third level
-    for (let i = 0; i < 5; i++) {
-      const angle = -Math.PI / 2.5 + (i * Math.PI / 5);
-      nodes.push({
-        x: centerX + Math.cos(angle) * radius * 0.9,
-        y: centerY + radius * 0.35 + Math.sin(angle) * radius * 0.3,
-        r: 8,
-        level: 2
-      });
-    }
+    // Level 2 - 5 nodes
+    const l2Positions = [
+      { x: centerX - baseRadius * 0.75, y: centerY + baseRadius * 0.35 },
+      { x: centerX - baseRadius * 0.4, y: centerY + baseRadius * 0.5 },
+      { x: centerX, y: centerY + baseRadius * 0.4 },
+      { x: centerX + baseRadius * 0.4, y: centerY + baseRadius * 0.5 },
+      { x: centerX + baseRadius * 0.75, y: centerY + baseRadius * 0.35 },
+    ];
+    l2Positions.forEach(pos => {
+      nodes.push({ ...pos, r: 6, level: 2 });
+    });
 
     // Draw connections
     ctx.strokeStyle = colors.textFaint;
     ctx.lineWidth = 1;
     
+    // Root to level 1
     for (let i = 1; i <= 3; i++) {
       ctx.beginPath();
       ctx.moveTo(nodes[0].x, nodes[0].y);
@@ -103,175 +134,182 @@ function SocialCardGenerator({
       ctx.stroke();
     }
     
-    const level2Start = 4;
-    const level2Connections = [[0], [1, 2], [3, 4]];
-    for (let i = 0; i < 3; i++) {
-      const parentNode = nodes[i + 1];
-      level2Connections[i].forEach(offset => {
-        const childNode = nodes[level2Start + offset];
-        if (childNode) {
-          ctx.beginPath();
-          ctx.moveTo(parentNode.x, parentNode.y);
-          ctx.lineTo(childNode.x, childNode.y);
-          ctx.stroke();
-        }
-      });
-    }
+    // Level 1 to level 2
+    const connections = [[4, 5], [5, 6], [6, 7], [7, 8]];
+    connections.forEach(([from, to]) => {
+      const parentIdx = Math.floor((from - 4) / 2) + 1 + (from > 5 ? 1 : 0);
+      const parent = nodes[Math.min(parentIdx, 3)];
+      if (parent) {
+        [from, to].forEach(idx => {
+          if (nodes[idx]) {
+            ctx.beginPath();
+            ctx.moveTo(parent.x, parent.y);
+            ctx.lineTo(nodes[idx].x, nodes[idx].y);
+            ctx.stroke();
+          }
+        });
+      }
+    });
 
-    // Draw nodes with glow
-    nodes.forEach((node) => {
-      // Glow effect
-      const glowGradient = ctx.createRadialGradient(
-        node.x, node.y, 0,
-        node.x, node.y, node.r * 2
-      );
-      glowGradient.addColorStop(0, colors.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)');
-      glowGradient.addColorStop(1, 'transparent');
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, node.r * 2, 0, Math.PI * 2);
-      ctx.fillStyle = glowGradient;
-      ctx.fill();
-      
-      // Node
+    // Draw nodes
+    nodes.forEach(node => {
+      // Node fill
       ctx.beginPath();
       ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
-      const gradient = ctx.createRadialGradient(
-        node.x - node.r * 0.3, node.y - node.r * 0.3, 0,
-        node.x, node.y, node.r
-      );
-      gradient.addColorStop(0, colors.isDark ? 'rgba(255,255,255,1)' : 'rgba(0,0,0,1)');
-      gradient.addColorStop(1, colors.isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)');
-      ctx.fillStyle = gradient;
+      ctx.fillStyle = colors.text;
+      ctx.fill();
+      
+      // Inner highlight
+      ctx.beginPath();
+      ctx.arc(node.x - node.r * 0.25, node.y - node.r * 0.25, node.r * 0.35, 0, Math.PI * 2);
+      ctx.fillStyle = colors.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.5)';
       ctx.fill();
     });
 
-    // Outer ring
+    // Decorative orbit
     ctx.strokeStyle = colors.textFaint;
     ctx.lineWidth = 0.5;
     ctx.setLineDash([4, 8]);
     ctx.beginPath();
-    ctx.arc(centerX, centerY, radius * 1.5, 0, Math.PI * 2);
+    ctx.arc(centerX, centerY, baseRadius * 1.3, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
   }, [colors]);
-
-  // Draw feature icon
-  const drawFeatureIcon = useCallback((ctx, x, y, type, color) => {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    ctx.lineWidth = 1.5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    switch (type) {
-      case 'gesture': // 3D cube
-        ctx.beginPath();
-        ctx.rect(-10, -10, 20, 20);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(-10, -10);
-        ctx.lineTo(-5, -15);
-        ctx.lineTo(15, -15);
-        ctx.lineTo(15, 5);
-        ctx.lineTo(10, 10);
-        ctx.moveTo(-10, -10);
-        ctx.lineTo(-5, -15);
-        ctx.moveTo(10, -10);
-        ctx.lineTo(15, -15);
-        ctx.moveTo(10, 10);
-        ctx.lineTo(15, 5);
-        ctx.stroke();
-        break;
-
-      case 'analysis': // Magnifying glass with chart
-        ctx.beginPath();
-        ctx.arc(-3, -3, 9, 0, Math.PI * 1.5);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(3, 3);
-        ctx.lineTo(10, 10);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(-6, 1);
-        ctx.lineTo(-2, -4);
-        ctx.lineTo(2, 2);
-        ctx.stroke();
-        break;
-
-      case 'performance': // Speed gauge
-        ctx.beginPath();
-        ctx.arc(0, 4, 12, Math.PI, 0, false);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(0, 4);
-        ctx.lineTo(6, -3);
-        ctx.stroke();
-        break;
-
-      case 'autofix': // Magic wand
-        ctx.beginPath();
-        ctx.moveTo(-10, 10);
-        ctx.lineTo(10, -10);
-        ctx.stroke();
-        [[-5, -6], [6, 5], [-2, -12], [12, 0]].forEach(([sx, sy]) => {
-          ctx.beginPath();
-          ctx.moveTo(sx - 2, sy);
-          ctx.lineTo(sx + 2, sy);
-          ctx.moveTo(sx, sy - 2);
-          ctx.lineTo(sx, sy + 2);
-          ctx.stroke();
-        });
-        break;
-
-      default:
-        ctx.beginPath();
-        ctx.arc(0, 0, 8, 0, Math.PI * 2);
-        ctx.stroke();
-        break;
-    }
-    ctx.restore();
-  }, []);
 
   // Draw logo
   const drawLogo = useCallback((ctx, x, y, size) => {
     ctx.save();
     ctx.translate(x, y);
     
-    // Braces {}
+    // Braces
     ctx.font = `bold ${size}px "SF Mono", "Fira Code", monospace`;
     ctx.fillStyle = colors.text;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('{}', 0, 0);
+    ctx.fillText('{ }', 0, 0);
     
-    // Radiating nodes
-    [
-      { angle: -Math.PI / 3, dist: size * 0.85, r: 2.5 },
-      { angle: -Math.PI / 6, dist: size * 1.0, r: 2 },
-      { angle: 0, dist: size * 0.9, r: 3 },
-      { angle: Math.PI / 6, dist: size * 1.0, r: 2 },
-      { angle: Math.PI / 3, dist: size * 0.85, r: 2.5 },
-    ].forEach(node => {
-      const nx = Math.cos(node.angle) * node.dist;
-      const ny = Math.sin(node.angle) * node.dist;
-      
+    // Dots around
+    const dots = [
+      { angle: -Math.PI / 3, dist: size * 0.9 },
+      { angle: -Math.PI / 6, dist: size * 1.05 },
+      { angle: Math.PI / 6, dist: size * 1.05 },
+      { angle: Math.PI / 3, dist: size * 0.9 },
+    ];
+    
+    dots.forEach(dot => {
       ctx.beginPath();
-      ctx.strokeStyle = colors.textMuted;
-      ctx.lineWidth = 0.8;
-      ctx.moveTo(Math.cos(node.angle) * size * 0.4, Math.sin(node.angle) * size * 0.4);
-      ctx.lineTo(nx, ny);
-      ctx.stroke();
-      
-      ctx.beginPath();
-      ctx.arc(nx, ny, node.r, 0, Math.PI * 2);
-      ctx.fillStyle = colors.text;
+      ctx.arc(
+        Math.cos(dot.angle) * dot.dist,
+        Math.sin(dot.angle) * dot.dist,
+        2, 0, Math.PI * 2
+      );
+      ctx.fillStyle = colors.textMuted;
       ctx.fill();
     });
     
     ctx.restore();
   }, [colors]);
+
+  // Draw feature items
+  const drawFeatures = useCallback((ctx, y, width, features) => {
+    const itemWidth = width / features.length;
+    const startX = itemWidth / 2;
+    
+    features.forEach((feature, i) => {
+      const x = startX + i * itemWidth;
+      
+      // Icon circle
+      ctx.beginPath();
+      ctx.arc(x, y - 12, 6, 0, Math.PI * 2);
+      ctx.fillStyle = colors.text;
+      ctx.fill();
+      
+      // Label
+      ctx.font = '500 14px "SF Pro Text", -apple-system, sans-serif';
+      ctx.fillStyle = colors.text;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(feature, x, y + 4);
+    });
+  }, [colors]);
+
+  // Generate brand card
+  const generateBrandCard = useCallback((ctx, width, height) => {
+    const padding = 48;
+
+    // Background
+    drawBackground(ctx, width, height);
+
+    // Logo and title
+    drawLogo(ctx, padding + 28, padding + 28, 26);
+    
+    ctx.font = '700 32px "SF Pro Display", -apple-system, sans-serif';
+    ctx.fillStyle = colors.text;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('PyVizAST', padding + 70, padding + 28);
+
+    // Version
+    ctx.font = '500 14px "SF Pro Text", -apple-system, sans-serif';
+    ctx.fillStyle = colors.textMuted;
+    ctx.textAlign = 'right';
+    ctx.fillText(`v${VERSION}`, width - padding - 40, padding + 28);
+
+    // Tagline
+    ctx.font = '400 15px "SF Pro Text", -apple-system, sans-serif';
+    ctx.fillStyle = colors.textMuted;
+    ctx.textAlign = 'left';
+    ctx.fillText('Python AST Visualizer & Static Analyzer', padding + 70, padding + 56);
+
+    // Center AST visualization
+    drawASTTree(ctx, width / 2, height / 2, width * 0.6, height * 0.45);
+
+    // Features
+    const features = ['3D Visualization', 'Code Analysis', 'Security Scan', 'Auto-Fix'];
+    drawFeatures(ctx, height - padding - 30, width, features);
+
+    // Bottom border decoration
+    ctx.strokeStyle = colors.textFaint;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padding, height - padding - 60);
+    ctx.lineTo(width - padding, height - padding - 60);
+    ctx.stroke();
+
+    // Corner decorations
+    const cornerSize = 12;
+    ctx.strokeStyle = colors.textFaint;
+    ctx.lineWidth = 1;
+    
+    // Top left
+    ctx.beginPath();
+    ctx.moveTo(padding, padding + cornerSize);
+    ctx.lineTo(padding, padding);
+    ctx.lineTo(padding + cornerSize, padding);
+    ctx.stroke();
+    
+    // Top right
+    ctx.beginPath();
+    ctx.moveTo(width - padding - cornerSize, padding);
+    ctx.lineTo(width - padding, padding);
+    ctx.lineTo(width - padding, padding + cornerSize);
+    ctx.stroke();
+    
+    // Bottom left
+    ctx.beginPath();
+    ctx.moveTo(padding, height - padding - cornerSize);
+    ctx.lineTo(padding, height - padding);
+    ctx.lineTo(padding + cornerSize, height - padding);
+    ctx.stroke();
+    
+    // Bottom right
+    ctx.beginPath();
+    ctx.moveTo(width - padding - cornerSize, height - padding);
+    ctx.lineTo(width - padding, height - padding);
+    ctx.lineTo(width - padding, height - padding - cornerSize);
+    ctx.stroke();
+
+  }, [colors, drawBackground, drawLogo, drawASTTree, drawFeatures]);
 
   // Round rect helper
   const roundRect = useCallback((ctx, x, y, w, h, r) => {
@@ -288,207 +326,97 @@ function SocialCardGenerator({
     ctx.closePath();
   }, []);
 
-  // Generate brand card
-  const generateBrandCard = useCallback((ctx, width, height) => {
-    const edgePadding = 40;
-
-    // Background
-    ctx.fillStyle = colors.bg;
-    ctx.fillRect(0, 0, width, height);
-
-    // Subtle gradient overlay
-    const bgGradient = ctx.createRadialGradient(
-      width * 0.3, height * 0.3, 0,
-      width * 0.5, height * 0.5, width * 0.8
-    );
-    bgGradient.addColorStop(0, colors.accent);
-    bgGradient.addColorStop(1, 'transparent');
-    ctx.fillStyle = bgGradient;
-    ctx.fillRect(0, 0, width, height);
-
-    // Bottom-left grid
-    ctx.save();
-    ctx.translate(edgePadding, height - edgePadding - 100);
-    ctx.strokeStyle = colors.grid;
-    ctx.lineWidth = 0.5;
-    for (let i = 0; i <= 7; i++) {
-      ctx.beginPath();
-      ctx.moveTo(i * 15, 0);
-      ctx.lineTo(i * 15, -100);
-      ctx.stroke();
-    }
-    for (let j = 0; j <= 7; j++) {
-      ctx.beginPath();
-      ctx.moveTo(0, -j * 15);
-      ctx.lineTo(100, -j * 15);
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // Top decoration circles
-    ctx.save();
-    ctx.translate(width - edgePadding - 40, edgePadding + 40);
-    ctx.strokeStyle = colors.textFaint;
-    ctx.lineWidth = 0.5;
-    for (let i = 0; i < 3; i++) {
-      ctx.beginPath();
-      ctx.arc(0, 0, 15 + i * 12, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // Logo
-    drawLogo(ctx, edgePadding + 30, edgePadding + 32, 24);
-    
-    // Project name
-    ctx.font = '700 36px "SF Pro Display", -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillStyle = colors.text;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('PyVizAST', edgePadding + 70, edgePadding + 32);
-    
-    // Version badge
-    ctx.font = '500 16px "SF Pro Text", -apple-system, sans-serif';
-    ctx.fillStyle = colors.textMuted;
-    ctx.textAlign = 'right';
-    ctx.fillText(`v${VERSION}`, width - edgePadding - 50, edgePadding + 32);
-
-    // Center AST visualization
-    drawASTGraph(ctx, width / 2, height / 2 - 20, width * 0.6, height * 0.45);
-
-    // Features
-    const featuresY = height - edgePadding - 45;
-    const features = [
-      { icon: 'gesture', label: '3D Gesture Control' },
-      { icon: 'analysis', label: 'Code Analysis' },
-      { icon: 'performance', label: 'Performance Hotspots' },
-      { icon: 'autofix', label: 'Auto-Fix Patches' },
-    ];
-    
-    const featureWidth = 200;
-    const startFeatureX = (width - features.length * featureWidth) / 2 + featureWidth / 2;
-
-    features.forEach((feature, i) => {
-      const fx = startFeatureX + i * featureWidth;
-      drawFeatureIcon(ctx, fx, featuresY - 18, feature.icon, colors.text);
-      
-      ctx.font = '500 16px "SF Pro Text", -apple-system, sans-serif';
-      ctx.fillStyle = colors.text;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText(feature.label, fx, featuresY + 12);
-    });
-
-    // Bottom-right GitHub star
-    ctx.save();
-    ctx.translate(width - edgePadding - 22, height - edgePadding - 22);
-    ctx.beginPath();
-    ctx.moveTo(0, -10);
-    ctx.lineTo(3, -3);
-    ctx.lineTo(10, -3);
-    ctx.lineTo(5, 2);
-    ctx.lineTo(6, 9);
-    ctx.lineTo(0, 5);
-    ctx.lineTo(-6, 9);
-    ctx.lineTo(-5, 2);
-    ctx.lineTo(-10, -3);
-    ctx.lineTo(-3, -3);
-    ctx.closePath();
-    ctx.strokeStyle = colors.textMuted;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.restore();
-  }, [colors, drawLogo, drawASTGraph, drawFeatureIcon]);
-
-  // Generate preview card (with captured screenshot)
+  // Generate preview card
   const generatePreviewCard = useCallback((ctx, width, height, previewImage, previewType) => {
-    const edgePadding = 40;
+    const padding = 48;
     const headerHeight = 70;
     const footerHeight = 60;
 
     // Background
-    ctx.fillStyle = colors.bg;
-    ctx.fillRect(0, 0, width, height);
+    drawBackground(ctx, width, height);
 
-    // Header section
-    // Logo
-    drawLogo(ctx, edgePadding + 24, edgePadding + 28, 20);
+    // Header
+    drawLogo(ctx, padding + 22, padding + 24, 22);
     
-    // Project name
-    ctx.font = '700 28px "SF Pro Display", -apple-system, sans-serif';
+    ctx.font = '700 26px "SF Pro Display", -apple-system, sans-serif';
     ctx.fillStyle = colors.text;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText('PyVizAST', edgePadding + 60, edgePadding + 28);
+    ctx.fillText('PyVizAST', padding + 60, padding + 24);
 
     // Preview type badge
-    ctx.font = '500 14px "SF Pro Text", -apple-system, sans-serif';
+    ctx.font = '500 13px "SF Pro Text", -apple-system, sans-serif';
+    const badgeText = previewType === 'preview2d' ? '2D AST View' : '3D AST View';
+    const badgeWidth = ctx.measureText(badgeText).width + 24;
+    
+    ctx.fillStyle = colors.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
+    roundRect(ctx, width - padding - badgeWidth - 10, padding + 8, badgeWidth + 10, 32, 16);
+    ctx.fill();
+    
+    ctx.strokeStyle = colors.border;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
     ctx.fillStyle = colors.textMuted;
-    ctx.textAlign = 'right';
-    ctx.fillText(previewType === 'preview2d' ? '2D AST View' : '3D AST View', width - edgePadding - 40, edgePadding + 28);
+    ctx.textAlign = 'center';
+    ctx.fillText(badgeText, width - padding - badgeWidth / 2 - 5, padding + 24);
 
-    // Preview area with border
-    const previewX = edgePadding;
+    // Preview area
+    const previewX = padding;
     const previewY = headerHeight + 10;
-    const previewWidth = width - edgePadding * 2;
+    const previewWidth = width - padding * 2;
     const previewHeight = height - headerHeight - footerHeight - 30;
 
-    // Preview container with subtle border
+    // Border
     roundRect(ctx, previewX - 1, previewY - 1, previewWidth + 2, previewHeight + 2, 12);
     ctx.strokeStyle = colors.border;
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Draw captured preview image
     if (previewImage) {
       const img = new Image();
       img.src = previewImage;
       
-      // Clip to rounded rect
       ctx.save();
       roundRect(ctx, previewX, previewY, previewWidth, previewHeight, 12);
       ctx.clip();
-      
-      // Draw image scaled to fit
       ctx.drawImage(img, previewX, previewY, previewWidth, previewHeight);
       ctx.restore();
     } else {
-      // Placeholder if no image - show run analysis hint
+      // Placeholder
       roundRect(ctx, previewX, previewY, previewWidth, previewHeight, 12);
       ctx.fillStyle = colors.bgAlt;
       ctx.fill();
       
-      // Draw a subtle icon
-      const iconCenterX = width / 2;
-      const iconCenterY = previewY + previewHeight / 2 - 20;
-      ctx.strokeStyle = colors.textFaint;
-      ctx.lineWidth = 1.5;
+      // Play icon
+      const iconX = width / 2;
+      const iconY = previewY + previewHeight / 2 - 20;
       
-      // Play/analyze icon
+      ctx.strokeStyle = colors.textFaint;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(iconCenterX - 12, iconCenterY - 15);
-      ctx.lineTo(iconCenterX + 15, iconCenterY);
-      ctx.lineTo(iconCenterX - 12, iconCenterY + 15);
+      ctx.moveTo(iconX - 12, iconY - 15);
+      ctx.lineTo(iconX + 15, iconY);
+      ctx.lineTo(iconX - 12, iconY + 15);
       ctx.closePath();
       ctx.stroke();
       
-      ctx.font = '500 16px "SF Pro Text", -apple-system, sans-serif';
+      ctx.font = '500 14px "SF Pro Text", -apple-system, sans-serif';
       ctx.fillStyle = colors.textMuted;
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('Run analysis to enable preview capture', width / 2, iconCenterY + 40);
+      ctx.fillText('Run analysis to enable preview', width / 2, iconY + 40);
     }
 
     // Footer
-    const footerY = height - footerHeight + 15;
+    const footerY = height - padding + 8;
     ctx.font = '500 14px "SF Pro Text", -apple-system, sans-serif';
     ctx.fillStyle = colors.textMuted;
     ctx.textAlign = 'left';
-    ctx.fillText('Python AST Visualizer & Static Analyzer', edgePadding, footerY);
+    ctx.fillText('Python AST Visualizer', padding, footerY);
 
     ctx.textAlign = 'right';
-    ctx.fillText(`v${VERSION}`, width - edgePadding, footerY);
-  }, [colors, drawLogo, roundRect]);
+    ctx.fillText(`v${VERSION}`, width - padding, footerY);
+  }, [colors, drawBackground, drawLogo, roundRect]);
 
   // Generate card image
   const generateCard = useCallback(() => {
@@ -509,7 +437,6 @@ function SocialCardGenerator({
       setGeneratedImage(imageData);
       setIsGenerating(false);
     } else {
-      // Preview cards - use capturedPreview
       if (capturedPreview) {
         const img = new Image();
         img.onload = () => {
@@ -564,9 +491,17 @@ function SocialCardGenerator({
     <div className="social-card-overlay" onClick={onClose}>
       <div className="social-card-modal" onClick={e => e.stopPropagation()}>
         <div className="social-card-header">
-          <h3>Generate Social Card</h3>
-          <button className="btn btn-ghost btn-icon" onClick={onClose}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <div className="social-card-header-left">
+            <div className="social-card-logo">
+              <span>{ }</span>
+            </div>
+            <div className="social-card-title-group">
+              <h3>Generate Social Card</h3>
+              <span className="social-card-subtitle">Export shareable image</span>
+            </div>
+          </div>
+          <button className="btn btn-ghost btn-icon social-card-close" onClick={onClose}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -580,10 +515,10 @@ function SocialCardGenerator({
               className={`style-btn ${cardStyle === style.id ? 'active' : ''}`}
               onClick={() => handleStyleChange(style.id)}
               disabled={style.disabled}
-              title={style.disabled ? 'Run analysis first to enable this option' : ''}
+              title={style.disabled ? 'Run analysis first' : ''}
             >
               {style.icon === 'logo' && (
-                <span className="style-icon-text">PV</span>
+                <span className="style-icon-logo">{ }</span>
               )}
               {style.icon === '2d' && (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -601,7 +536,7 @@ function SocialCardGenerator({
                   <path d="M2 12l10 5 10-5" />
                 </svg>
               )}
-              {style.label}
+              <span className="style-label">{style.label}</span>
             </button>
           ))}
         </div>
@@ -613,7 +548,7 @@ function SocialCardGenerator({
               <line x1="12" y1="16" x2="12" y2="12" />
               <line x1="12" y1="8" x2="12.01" y2="8" />
             </svg>
-            <span>Run code analysis first to capture visualization preview</span>
+            <span>Run code analysis first to capture preview</span>
           </div>
         )}
 
