@@ -6,13 +6,14 @@ Challenge API routes
 """
 import logging
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel
 
 from ..models.schemas import ChallengeResult
 from ..exceptions import ResourceNotFoundError
+from ..llm import get_llm_service
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,13 @@ router = APIRouter(prefix="/api/challenges", tags=["challenges"])
 class ChallengeSubmission(BaseModel):
     challenge_id: str
     found_issues: List[str]
+
+
+class GenerateChallengeRequest(BaseModel):
+    category: str
+    difficulty: str = "medium"
+    topic: Optional[str] = None
+    focus_issues: Optional[List[str]] = None
 
 
 def load_challenges() -> List[Dict[str, Any]]:
@@ -88,21 +96,21 @@ def _generate_challenge_feedback(correct, missed, wrong, solution_hint=None, pas
     feedback = []
     
     if passed:
-        feedback.append("🎉 Congratulations! You passed this challenge!")
+        feedback.append("Congratulations! You passed this challenge!")
     else:
         feedback.append("Keep practicing! You're getting there.")
     
     if correct:
-        feedback.append(f"✅ Correctly identified: {', '.join(sorted(correct))}")
+        feedback.append(f"Correctly identified: {', '.join(sorted(correct))}")
     
     if missed:
-        feedback.append(f"⚠️ Missed issues: {', '.join(sorted(missed))}")
+        feedback.append(f"Missed issues: {', '.join(sorted(missed))}")
     
     if wrong:
-        feedback.append(f"❌ Incorrectly identified: {', '.join(sorted(wrong))}")
+        feedback.append(f"Incorrectly identified: {', '.join(sorted(wrong))}")
     
     if solution_hint and not passed:
-        feedback.append(f"💡 Hint: {solution_hint}")
+        feedback.append(f"Hint: {solution_hint}")
     
     return "\n\n".join(feedback) if feedback else "Keep trying!"
 
@@ -206,3 +214,56 @@ async def submit_challenge(submission: ChallengeSubmission):
             )
     
     raise ResourceNotFoundError(f"Challenge not found: {submission.challenge_id}")
+
+
+# ============== LLM-Powered Challenge Generation ==============
+
+@router.post("/generate")
+async def generate_challenge_llm(request: GenerateChallengeRequest):
+    """Generate a new challenge using LLM"""
+    llm_service = get_llm_service()
+    
+    if not llm_service.is_enabled:
+        raise ResourceNotFoundError("LLM service is not enabled. Enable it in settings.")
+    
+    try:
+        challenge = await llm_service.generate_challenge(
+            category=request.category,
+            difficulty=request.difficulty,
+            topic=request.topic,
+            focus_issues=request.focus_issues
+        )
+        
+        return {
+            "id": f"llm_generated_{request.category}_{hash(challenge.title) % 10000}",
+            "title": challenge.title,
+            "description": challenge.description,
+            "code": challenge.code,
+            "category": challenge.category,
+            "difficulty": challenge.difficulty.value,
+            "hints": challenge.hints,
+            "learning_objectives": challenge.learning_objectives,
+            "solution_hint": challenge.solution_hint,
+            "points": challenge.points,
+            "estimated_time_minutes": challenge.estimated_time_minutes,
+            "issues": challenge.issues,
+            "llm_generated": True
+        }
+    except RuntimeError as e:
+        raise ResourceNotFoundError(str(e))
+    except Exception as e:
+        logger.error(f"Challenge generation failed: {e}")
+        raise ResourceNotFoundError(f"Failed to generate challenge: {str(e)}")
+
+
+@router.post("/hint")
+async def get_llm_hint(request: GenerateChallengeRequest):
+    """Get an LLM-generated hint for a challenge"""
+    llm_service = get_llm_service()
+    
+    if not llm_service.is_enabled:
+        return {"hint": "", "available": False}
+    
+    # This endpoint is for getting hints during challenge solving
+    # The actual hint generation needs the challenge code and issues
+    return {"hint": "", "available": True, "message": "Use the challenge hint endpoint with code context"}

@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import CodeEditor from './CodeEditor';
 import ASTVisualizer from './ASTVisualizer';
-import { analyzeCode, explainNode } from '../api';
+import { analyzeCode, explainNode, getLLMStatus } from '../api';
 import logger from '../utils/logger';
 import { useToast } from './ToastContext';
 
@@ -106,7 +106,22 @@ function LearnView({ theme }) {
   const [explanation, setExplanation] = useState(null);
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [llmEnabled, setLlmEnabled] = useState(false);
+  const [useLLM, setUseLLM] = useState(true);
   const toast = useToast();
+
+  // Check LLM status on mount
+  useEffect(() => {
+    const checkLLM = async () => {
+      try {
+        const status = await getLLMStatus();
+        setLlmEnabled(status.status === 'ready' && status.enabled);
+      } catch (err) {
+        logger.debug('LLM status check failed', { error: err.message });
+      }
+    };
+    checkLLM();
+  }, []);
 
   // Analyze code
   const handleAnalyze = useCallback(async () => {
@@ -136,7 +151,7 @@ function LearnView({ theme }) {
     setLoading(true);
 
     try {
-      const result = await explainNode(node.id, code);
+      const result = await explainNode(node.id, code, { use_llm: llmEnabled && useLLM });
       setExplanation(result);
     } catch (err) {
       toast.error('Failed to get explanation');
@@ -144,7 +159,7 @@ function LearnView({ theme }) {
     } finally {
       setLoading(false);
     }
-  }, [code, toast]);
+  }, [code, toast, llmEnabled, useLLM]);
 
   // Handle code change
   const handleCodeChange = useCallback((newCode) => {
@@ -162,13 +177,31 @@ function LearnView({ theme }) {
           <h2>AST Learning Mode</h2>
           <p>Write Python code, visualize AST, and click nodes to learn</p>
         </div>
-        <button 
-          className="analyze-btn"
-          onClick={handleAnalyze}
-          disabled={analyzing}
-        >
-          {analyzing ? 'Analyzing...' : 'Analyze'}
-        </button>
+        <div className="learn-header-actions">
+          {llmEnabled && (
+            <label className="llm-toggle">
+              <input
+                type="checkbox"
+                checked={useLLM}
+                onChange={(e) => setUseLLM(e.target.checked)}
+              />
+              <span className="llm-toggle-label">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"/>
+                  <path d="M12 6v6l4 2"/>
+                </svg>
+                LLM
+              </span>
+            </label>
+          )}
+          <button 
+            className="analyze-btn"
+            onClick={handleAnalyze}
+            disabled={analyzing}
+          >
+            {analyzing ? 'Analyzing...' : 'Analyze'}
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}

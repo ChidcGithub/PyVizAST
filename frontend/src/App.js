@@ -10,6 +10,8 @@ import LearnView from './components/LearnView';
 import ChallengeView from './components/ChallengeView';
 import GestureControl from './components/GestureControl';
 import SocialCardGenerator from './components/SocialCardGenerator';
+import LLMSettings from './components/LLMSettings';
+import LLMDownloader from './components/LLMDownloader';
 import { ToastProvider, useToast } from './components/ToastContext';
 import ToastContainer from './components/Toast';
 import { analyzeCode, checkServerHealth, getApiBaseUrl } from './api';
@@ -19,6 +21,7 @@ import './components/components.css';
 import './components/AnalysisPanel.css';
 import './components/LearnChallenge.css';
 import './components/GestureControl.css';
+import './components/LLMSettings.css';
 
 // Lazy load heavy components for code splitting
 const ASTVisualizer = lazy(() => import('./components/ASTVisualizer'));
@@ -288,6 +291,10 @@ function App() {
   const [gestureEnabled, setGestureEnabled] = useState(false);
   const gestureControlRef = useRef(null);
   const visualizerRef = useRef(null); // For receiving gesture commands
+  
+  // LLM state
+  const [showLLMSettings, setShowLLMSettings] = useState(false);
+  const [showLLMDownloader, setShowLLMDownloader] = useState(false);
   
   // Initialize global error handlers
   useEffect(() => {
@@ -648,6 +655,8 @@ function App() {
         canExport={!!analysisResult}
         gestureEnabled={gestureEnabled}
         onGestureToggle={handleGestureToggle}
+        onLLMSettings={() => setShowLLMSettings(true)}
+        onLLMDownload={() => setShowLLMDownloader(true)}
       />
       
       {/* Share Dialog */}
@@ -717,6 +726,20 @@ function App() {
         viewMode={viewMode}
         onCapture2D={handleCapture2D}
         onCapture3D={handleCapture3D}
+      />
+      
+      {/* LLM Settings Modal */}
+      <LLMSettings
+        isOpen={showLLMSettings}
+        onClose={() => setShowLLMSettings(false)}
+        theme={theme}
+      />
+      
+      {/* LLM Downloader Modal */}
+      <LLMDownloader
+        isOpen={showLLMDownloader}
+        onClose={() => setShowLLMDownloader(false)}
+        theme={theme}
       />
       
       <div className="app-body">

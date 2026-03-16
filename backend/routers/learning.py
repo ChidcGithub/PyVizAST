@@ -5,13 +5,14 @@ Learning mode API routes
 @link: github.com/chidcGithub
 """
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from fastapi import APIRouter
 
 from ..models.schemas import CodeInput, LearningModeResult
 from ..exceptions import ResourceNotFoundError, CodeParsingError
 from ..ast_parser import ASTParser
+from ..llm import get_llm_service
 
 logger = logging.getLogger(__name__)
 
@@ -290,12 +291,13 @@ def _generate_node_explanation(node) -> Dict[str, Any]:
 
 @router.post("/node/{node_id}")
 async def explain_node(node_id: str, input_data: CodeInput):
-    """Explain AST node (learning mode)"""
+    """Explain AST node (learning mode) - supports LLM enhancement"""
     logger.debug(f"Explaining AST node: {node_id}")
     
     try:
         code = input_data.code
         options = input_data.options or {}
+        use_llm = options.get('use_llm', False)
         
         parser = get_parser(options)
         ast_graph = parser.parse(code)
@@ -310,7 +312,30 @@ async def explain_node(node_id: str, input_data: CodeInput):
         if not node:
             raise ResourceNotFoundError(f"Node not found: {node_id}")
         
-        # Generate explanation
+        node_type = node.type.value if hasattr(node.type, 'value') else str(node.type)
+        node_name = node.name
+        
+        # Try LLM first if enabled and requested
+        if use_llm:
+            llm_service = get_llm_service()
+            if llm_service.is_enabled and llm_service.status.value == "ready":
+                try:
+                    llm_explanation = await llm_service.generate_explanation(
+                        node_type=node_type,
+                        node_name=node_name,
+                        code_context=code
+                    )
+                    return LearningModeResult(
+                        node_id=node_id,
+                        explanation=llm_explanation.explanation,
+                        python_doc=llm_explanation.python_doc,
+                        examples=llm_explanation.examples,
+                        related_concepts=llm_explanation.related_concepts
+                    )
+                except Exception as e:
+                    logger.warning(f"LLM explanation failed, falling back to static: {e}")
+        
+        # Fall back to static explanations
         explanation = _generate_node_explanation(node)
         
         return LearningModeResult(

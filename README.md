@@ -13,11 +13,11 @@
 
 # PyVizAST
 
-[![Version](https://img.shields.io/badge/Version-0.7.2-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Version](https://img.shields.io/badge/Version-1.0.0--alpha-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
-[![Status](https://img.shields.io/badge/Status-stable-brightgreen.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Status](https://img.shields.io/badge/Status-alpha-red.svg)](https://github.com/ChidcGithub/PyVizAST)
 ![CI Build Status](https://github.com/ChidcGithub/PyVizAST/actions/workflows/ci.yml/badge.svg)
 
 A Python AST Visualizer & Static Analyzer that transforms code into interactive graphs. Detect complexity, performance bottlenecks, and code smells with actionable refactoring suggestions.
@@ -47,6 +47,28 @@ A Python AST Visualizer & Static Analyzer that transforms code into interactive 
 - **Code Anatomy**: Highlight execution flow of specific algorithms
 - **Beginner Mode**: Display Python documentation when hovering over AST nodes
 - **Challenge Mode**: Identify performance issues in provided code samples
+
+### LLM AI Features (v1.0.0-alpha)
+- **Local LLM Integration**: Powered by Ollama for privacy-first AI features
+- **Auto Install Ollama**: One-click automatic Ollama installation and configuration
+- **AI Node Explanations**: Get intelligent explanations for any AST node
+  - Code context-aware explanations
+  - Python documentation snippets
+  - Practical code examples
+  - Related concepts
+  - Fullscreen view for detailed reading
+  - Auto-retry on failure (up to 2 times)
+- **AI Challenge Generation**: Generate custom coding challenges with LLM
+- **AI Hints**: Get contextual hints during challenge solving
+- **Model Management**:
+  - Recommended models for code analysis (CodeLlama, DeepSeek Coder, etc.)
+  - One-click model download with aria2 acceleration
+  - Auto-select best model for code analysis
+  - Model status monitoring (installed/running)
+- **Settings Panel**: Configure LLM features:
+  - Enable/disable AI explanations, challenges, hints
+  - Temperature and token limits
+  - Model selection with "Load" button to enable LLM
 
 ### Easter Egg
 - Just explore the project and you'll find it :)
@@ -212,6 +234,101 @@ Contributions are welcome. Please submit pull requests to the main repository.
 <details>
 
 <summary>Version History</summary>
+
+<details>
+<summary>v1.0.0-alpha (2026-03-16)</summary>
+
+**Major Release - LLM AI Integration**
+
+**New Features:**
+
+**LLM Service Module (`backend/llm/`):**
+- `models.py`: Data models for LLM configuration, status, and responses
+- `ollama_client.py`: Ollama API client for local LLM communication
+- `prompts.py`: Prompt templates for node explanations, challenges, and hints
+- `service.py`: Core LLM service with explanation/challenge/hint generation
+- `downloader.py`: Ollama auto-install and model download with aria2 acceleration
+
+**LLM API Endpoints (`backend/routers/llm.py`):**
+- `GET /api/llm/status` - Get LLM service status
+- `GET/POST /api/llm/config` - LLM configuration management
+- `GET /api/llm/models` - List installed models
+- `POST /api/llm/models/pull` - Download model with progress streaming
+- `DELETE /api/llm/models/{name}` - Delete model
+- `GET /api/llm/ollama/status` - Get Ollama installation status
+- `POST /api/llm/ollama/install` - Auto-install Ollama
+- `POST /api/llm/ollama/start` - Start Ollama server
+- `POST /api/llm/generate/explanation` - Generate node explanation
+- `POST /api/llm/generate/challenge` - Generate coding challenge
+- `POST /api/llm/generate/hint` - Generate contextual hint
+
+**Frontend Components:**
+- `LLMSettings.js`: Settings panel with model management and configuration
+- `LLMDownloader.js`: Quick setup wizard for Ollama installation
+- `LLMSettings.css`: Black/white minimalist design styles
+
+**AI Node Explanations (2D & 3D):**
+- AI explanations display in node detail panel when LLM is enabled
+- Code context snippet shown with explanations
+- Fullscreen modal for detailed reading
+- Auto-retry on failure (up to 2 times)
+- Error display with manual retry button
+
+**Model Management:**
+- Recommended models: CodeLlama 7B/13B, Llama 3.2 3B, Mistral 7B, DeepSeek Coder, Qwen 2.5 Coder
+- One-click download with progress tracking
+- Auto-select best model for code analysis
+- "Use" button for installed models, "In Use" indicator for current model
+
+**Ollama Auto-Install:**
+- Automatic platform detection (Windows/macOS/Linux)
+- One-click Ollama installation
+- Automatic server startup
+- Status monitoring (installed/running)
+
+**Configuration Options:**
+- Enable/disable LLM features
+- Toggle AI explanations, challenges, hints separately
+- Temperature and max tokens settings
+- Model selection with "Load" button
+
+**Bug Fixes:**
+- Fixed model name case sensitivity matching (codeLlama:7b vs codellama:7b)
+- Fixed async state update issue in Load button
+- Fixed LLM explanation status checks
+- Fixed pullModel API to use POST with streaming
+
+**Dependencies Added:**
+- `httpx>=0.27.0` for LLM API calls
+
+**Files Added:**
+- `backend/llm/__init__.py`
+- `backend/llm/models.py`
+- `backend/llm/ollama_client.py`
+- `backend/llm/prompts.py`
+- `backend/llm/service.py`
+- `backend/llm/downloader.py`
+- `backend/routers/llm.py`
+- `frontend/src/components/LLMSettings.js`
+- `frontend/src/components/LLMDownloader.js`
+- `frontend/src/components/LLMSettings.css`
+
+**Files Modified:**
+- `backend/config.py` - Version bump
+- `backend/main.py` - LLM router registration
+- `backend/routers/__init__.py` - Export LLM router
+- `backend/routers/learning.py` - LLM-enhanced explanations
+- `backend/routers/challenges.py` - LLM challenge generation
+- `frontend/src/App.js` - LLM settings modal
+- `frontend/src/api.js` - LLM API functions
+- `frontend/src/components/Header.js` - AI button
+- `frontend/src/components/ASTVisualizer.js` - AI explanations
+- `frontend/src/components/ASTVisualizer3D.js` - AI explanations
+- `frontend/src/components/components.css` - LLM explanation styles
+- `frontend/src/components/LearnChallenge.css` - LLM toggle styles
+- `requirements.txt` - Added httpx
+
+</details>
 
 <details>
 <summary>v0.7.2 (2026-03-15)</summary>

@@ -1355,6 +1355,416 @@
   margin: 0;
 }
 
+/* ========== LLM AI Explanation Section ========== */
+.llm-explanation-section {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-top: 8px;
+}
+
+.llm-explanation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.llm-explanation-header .detail-label {
+  display: flex;
+  align-items: center;
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 700;
+  margin-bottom: 0;
+}
+
+.llm-explanation-header .detail-label svg {
+  opacity: 0.8;
+}
+
+.llm-loading {
+  font-size: 10px;
+  color: var(--text-muted);
+  animation: llm-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes llm-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.llm-explanation-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.llm-explanation-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin: 0;
+}
+
+.llm-doc-section,
+.llm-examples-section,
+.llm-concepts-section {
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.llm-doc-label,
+.llm-examples-label,
+.llm-concepts-label {
+  display: block;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.llm-python-doc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.llm-example-code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--bg-tertiary);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  line-height: 1.6;
+  margin: 6px 0;
+}
+
+.llm-concepts-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.llm-concept-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 9px;
+  font-weight: 500;
+  border-radius: 100px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.llm-no-explanation {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0;
+}
+
+/* LLM Error and Retry Section */
+.llm-error-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 100, 100, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 100, 100, 0.15);
+}
+
+.light-theme .llm-error-section {
+  background: rgba(200, 50, 50, 0.05);
+  border-color: rgba(200, 50, 50, 0.15);
+}
+
+.llm-error-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(255, 150, 150, 1);
+}
+
+.light-theme .llm-error-message {
+  color: rgba(180, 50, 50, 1);
+}
+
+.llm-error-message svg {
+  flex-shrink: 0;
+}
+
+.llm-retry-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  align-self: flex-start;
+}
+
+.llm-retry-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.llm-retry-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.light-theme .llm-retry-btn {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.light-theme .llm-retry-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.1);
+  border-color: rgba(0, 0, 0, 0.25);
+}
+
+.llm-retry-limit {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Light theme adjustments for LLM section */
+.light-theme .llm-explanation-section {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.02) 0%, rgba(0, 0, 0, 0.01) 100%);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.light-theme .llm-concept-tag {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+/* LLM Header Actions */
+.llm-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.llm-fullscreen-btn {
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.llm-fullscreen-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.light-theme .llm-fullscreen-btn {
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.light-theme .llm-fullscreen-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+/* LLM Code Context */
+.llm-code-context {
+  margin-bottom: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.llm-code-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.llm-code-snippet {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 10px 12px;
+  margin: 0;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.light-theme .llm-code-context {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.light-theme .llm-code-label {
+  background: rgba(0, 0, 0, 0.02);
+  border-bottom-color: rgba(0, 0, 0, 0.05);
+}
+
+/* LLM Fullscreen Modal */
+.llm-fullscreen-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: llm-overlay-fade-in 0.2s ease;
+}
+
+@keyframes llm-overlay-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.llm-fullscreen-modal {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 900px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
+  animation: llm-modal-slide-up 0.25s ease;
+}
+
+@keyframes llm-modal-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.llm-fullscreen-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.llm-fullscreen-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.llm-fullscreen-title svg {
+  opacity: 0.7;
+}
+
+.llm-fullscreen-close {
+  padding: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.llm-fullscreen-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.llm-fullscreen-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.llm-fullscreen-section {
+  margin-bottom: 20px;
+}
+
+.llm-fullscreen-section:last-child {
+  margin-bottom: 0;
+}
+
+.llm-fullscreen-section h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.llm-code-context-full {
+  margin-bottom: 20px;
+}
+
+.llm-code-context-full .llm-code-snippet {
+  max-height: 200px;
+}
+
+/* Light theme for fullscreen modal */
+.light-theme .llm-fullscreen-overlay {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.light-theme .llm-fullscreen-modal {
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.15);
+}
+
+.light-theme .llm-fullscreen-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
 /* Attributes list */
 .attributes-list {
   display: flex;

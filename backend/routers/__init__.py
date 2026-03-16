@@ -12,6 +12,7 @@ from .learning import router as learning_router
 from .challenges import router as challenges_router
 from .projects import router as projects_router
 from .logs import router as logs_router
+from .llm import router as llm_router
 
 __all__ = [
     'base_router',
@@ -22,4 +23,5 @@ __all__ = [
     'challenges_router',
     'projects_router',
     'logs_router',
+    'llm_router',
 ]

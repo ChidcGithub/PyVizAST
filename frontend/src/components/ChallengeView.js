@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import CodeEditor from './CodeEditor';
-import { getChallenges, getChallenge, submitChallenge, getChallengeCategories } from '../api';
+import { 
+  getChallenges, 
+  getChallenge, 
+  submitChallenge, 
+  getChallengeCategories,
+  getLLMStatus,
+  generateChallenge,
+  generateHint 
+} from '../api';
 import logger from '../utils/logger';
 import { useToast } from './ToastContext';
 
@@ -60,6 +68,9 @@ function ChallengeView({ theme }) {
   const [view, setView] = useState('list'); // 'list', 'detail', 'result'
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterDifficulty, setFilterDifficulty] = useState('all');
+  const [llmEnabled, setLlmEnabled] = useState(false);
+  const [generatingChallenge, setGeneratingChallenge] = useState(false);
+  const [llmHint, setLlmHint] = useState('');
   const toast = useToast();
 
   // Fetch challenges and categories on mount
@@ -67,12 +78,14 @@ function ChallengeView({ theme }) {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [challengesData, categoriesData] = await Promise.all([
+        const [challengesData, categoriesData, llmStatus] = await Promise.all([
           getChallenges(),
-          getChallengeCategories()
+          getChallengeCategories(),
+          getLLMStatus().catch(() => ({ status: 'unavailable' }))
         ]);
         setChallenges(challengesData);
         setCategories(categoriesData);
+        setLlmEnabled(llmStatus.status === 'ready' && llmStatus.enabled);
       } catch (err) {
         toast.error('Failed to load challenges');
         logger.error('Failed to load challenges', { error: err.message });
@@ -132,6 +145,48 @@ function ChallengeView({ theme }) {
     }
   }, [selectedChallenge, selectedIssues, toast]);
 
+  // Generate LLM challenge
+  const handleGenerateChallenge = useCallback(async (category, difficulty = 'medium') => {
+    if (!llmEnabled) {
+      toast.error('LLM is not enabled. Enable it in settings.');
+      return;
+    }
+
+    setGeneratingChallenge(true);
+    try {
+      const challenge = await generateChallenge(category, difficulty);
+      setSelectedChallenge({
+        ...challenge,
+        llm_generated: true
+      });
+      setSelectedIssues([]);
+      setResult(null);
+      setView('detail');
+      toast.success('Challenge generated!');
+    } catch (err) {
+      toast.error('Failed to generate challenge');
+      logger.error('Failed to generate challenge', { error: err.message });
+    } finally {
+      setGeneratingChallenge(false);
+    }
+  }, [llmEnabled, toast]);
+
+  // Get LLM hint
+  const handleGetHint = useCallback(async () => {
+    if (!selectedChallenge || !llmEnabled) return;
+
+    try {
+      const hintData = await generateHint(
+        selectedChallenge.code,
+        selectedChallenge.issues || [],
+        `Selected ${selectedIssues.length} issues`
+      );
+      setLlmHint(hintData.hint);
+    } catch (err) {
+      logger.warning('Failed to get hint', { error: err.message });
+    }
+  }, [selectedChallenge, selectedIssues, llmEnabled]);
+
   // Filter challenges
   const filteredChallenges = challenges.filter(c => {
     if (filterCategory !== 'all' && c.category !== filterCategory) return false;
@@ -163,6 +218,20 @@ function ChallengeView({ theme }) {
           <option value="medium">Medium</option>
           <option value="hard">Hard</option>
         </select>
+        
+        {llmEnabled && (
+          <button 
+            className="llm-generate-btn"
+            onClick={() => handleGenerateChallenge(filterCategory === 'all' ? 'performance' : filterCategory, filterDifficulty === 'all' ? 'medium' : filterDifficulty)}
+            disabled={generatingChallenge}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"/>
+              <path d="M12 6v6l4 2"/>
+            </svg>
+            {generatingChallenge ? 'Generating...' : 'Generate with LLM'}
+          </button>
+        )}
       </div>
 
       <div className="challenge-cards">
@@ -200,6 +269,15 @@ function ChallengeView({ theme }) {
       {filteredChallenges.length === 0 && (
         <div className="challenge-empty">
           <p>No challenges match your filters</p>
+          {llmEnabled && (
+            <button 
+              className="llm-generate-btn large"
+              onClick={() => handleGenerateChallenge('performance', 'medium')}
+              disabled={generatingChallenge}
+            >
+              Generate a challenge with LLM
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -293,6 +371,24 @@ function ChallengeView({ theme }) {
                   <li key={i}>{hint}</li>
                 ))}
               </ul>
+              {llmEnabled && (
+                <div className="llm-hint-section">
+                  <button 
+                    className="llm-hint-btn"
+                    onClick={handleGetHint}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z" />
+                    </svg>
+                    Get AI Hint
+                  </button>
+                  {llmHint && (
+                    <div className="llm-hint-content">
+                      {llmHint}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

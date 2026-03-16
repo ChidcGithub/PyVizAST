@@ -34,6 +34,7 @@ from .routers import (
     challenges_router,
     projects_router,
     logs_router,
+    llm_router,
 )
 
 
@@ -191,6 +192,7 @@ app.include_router(learning_router)
 app.include_router(challenges_router)
 app.include_router(projects_router)
 app.include_router(logs_router)
+app.include_router(llm_router)
 
 
 if __name__ == "__main__":
