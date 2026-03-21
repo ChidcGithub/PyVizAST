@@ -68,8 +68,13 @@ const LLMExplanationPanel = ({ llmConfig, selectedNode, fullCode }) => {
       return;
     }
 
-    // Skip if already fetched this node
+    // Skip if already fetched this node successfully
     if (lastFetchedKeyRef.current === nodeKey && status === STATUS.SUCCESS) {
+      return;
+    }
+
+    // Skip if currently loading (prevent duplicate requests)
+    if (status === STATUS.LOADING) {
       return;
     }
 
@@ -132,7 +137,7 @@ const LLMExplanationPanel = ({ llmConfig, selectedNode, fullCode }) => {
     return () => {
       controller.abort();
     };
-  }, [nodeKey, isLLMAvailable]); // Only depend on stable values
+  }, [nodeKey, isLLMAvailable, selectedNode, fullCode, status]);
 
   // Effect: Simulate progress during loading
   useEffect(() => {
