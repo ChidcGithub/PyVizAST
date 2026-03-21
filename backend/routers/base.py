@@ -6,6 +6,8 @@ Base API routes (root, health check)
 """
 from fastapi import APIRouter
 
+from ..config import VERSION
+
 router = APIRouter(tags=["base"])
 
 
@@ -14,7 +16,7 @@ async def root():
     """API root endpoint"""
     return {
         "name": "PyVizAST API",
-        "version": "0.6.3",
+        "version": VERSION,
         "description": "Python AST Visualizer and Static Analyzer",
         "status": "running",
         "endpoints": {

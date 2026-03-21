@@ -337,29 +337,32 @@ function App() {
     }
   }, []);
   
-  // Splitter drag handling
+  // Splitter drag handling - use ref to avoid dependency issues
+  const isDraggingRef = useRef(isDragging);
+  isDraggingRef.current = isDragging;
+  
   const handleMouseDown = useCallback((e) => {
     e.preventDefault();
     setIsDragging(true);
   }, []);
   
-  const handleMouseMove = useCallback((e) => {
-    if (!isDragging || !mainContentRef.current) return;
-    
-    const rect = mainContentRef.current.getBoundingClientRect();
-    const newPosition = ((e.clientX - rect.left) / rect.width) * 100;
-    
-    // Limit minimum and maximum position
-    const clampedPosition = Math.min(Math.max(newPosition, 20), 80);
-    setSplitPosition(clampedPosition);
-  }, [isDragging]);
-  
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-  
-  // Add global mouse event listeners
+  // Add global mouse event listeners - handlers defined inside to avoid stale closure
   useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDraggingRef.current || !mainContentRef.current) return;
+      
+      const rect = mainContentRef.current.getBoundingClientRect();
+      const newPosition = ((e.clientX - rect.left) / rect.width) * 100;
+      
+      // Limit minimum and maximum position
+      const clampedPosition = Math.min(Math.max(newPosition, 20), 80);
+      setSplitPosition(clampedPosition);
+    };
+    
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+    
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
@@ -373,7 +376,7 @@ function App() {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isDragging, handleMouseMove, handleMouseUp]);
+  }, [isDragging]);
 
   // Check server connection status
   useEffect(() => {
@@ -624,8 +627,16 @@ function App() {
     const was2D = viewMode === '2d';
     if (was2D) {
       setViewMode('3d');
-      // Wait for 3D to render
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for React state update and render using requestAnimationFrame
+      // This is more reliable than a fixed timeout
+      await new Promise(resolve => {
+        requestAnimationFrame(() => {
+          // Wait for another frame to ensure 3D scene is rendered
+          requestAnimationFrame(resolve);
+        });
+      });
+      // Additional small delay for WebGL texture upload
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
     
     if (visualizerRef.current && visualizerRef.current.captureScreenshot) {

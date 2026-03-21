@@ -1,187 +1,318 @@
 """
-LLM Prompt Templates
+LLM Prompt Templates - Optimized for Python AST Analysis
 
 @author: Chidc
 @link: github.com/chidcGithub
 """
 from typing import List, Optional
+import json
 
 
-# System prompts
-SYSTEM_PROMPT_EXPLANATION = """You are an expert Python programming educator. Your task is to explain Python AST (Abstract Syntax Tree) nodes in a clear, educational manner.
+# ============== System Prompts ==============
 
-Guidelines:
-- Provide concise but comprehensive explanations
-- Include practical code examples
-- Mention best practices and common pitfalls
-- Use simple language suitable for learners
-- Focus on Python-specific behavior"""
+SYSTEM_PROMPT_EXPLANATION = """You are an expert Python programming educator specializing in AST (Abstract Syntax Tree) analysis.
 
-SYSTEM_PROMPT_CHALLENGE = """You are an expert Python programming instructor who creates educational code challenges.
+Your role:
+- Explain Python code constructs clearly and concisely
+- Provide practical, runnable code examples
+- Connect concepts to real-world programming scenarios
+- Use simple language suitable for learners at all levels
 
-Guidelines:
-- Create realistic code examples with intentional issues
-- Issues should be educational and common in real-world code
-- Provide helpful hints without giving away the answer
-- Include clear learning objectives
-- Match difficulty to the specified level"""
+Output format: Valid JSON only. No markdown, no code blocks, no explanation outside JSON."""
 
+SYSTEM_PROMPT_CHALLENGE = """You are an expert Python code reviewer and educator creating educational challenges.
+
+Your role:
+- Create realistic code with intentional issues
+- Design problems that teach common pitfalls
+- Provide helpful hints without revealing answers
+- Match difficulty appropriately
+
+Output format: Valid JSON only. No markdown, no code blocks, no explanation outside JSON."""
+
+
+# ============== Helper Functions ==============
+
+def _escape_json_string(s: str) -> str:
+    """Escape special characters for JSON strings"""
+    if not s:
+        return ""
+    return s.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+
+
+def _truncate_code(code: str, max_length: int = 1500) -> str:
+    """Truncate code while preserving readability"""
+    if not code or len(code) <= max_length:
+        return code
+    return code[:max_length] + "\n# ... (truncated)"
+
+
+# ============== Prompt Builders ==============
 
 def get_node_explanation_prompt(
     node_type: str,
-    node_name: Optional[str],
-    node_info: dict,
-    code_context: Optional[str] = None
+    node_name: Optional[str] = None,
+    node_info: Optional[dict] = None,
+    code_context: Optional[str] = None,
+    full_code: Optional[str] = None
 ) -> str:
-    """Generate prompt for node explanation"""
+    """
+    Generate prompt for AST node explanation.
     
-    prompt = f"""Explain the Python AST node type: {node_type.upper()}
-
-"""
+    Optimized for:
+    - Clear context about the node
+    - Specific focus on the selected code
+    - Practical examples
+    """
     
+    sections = []
+    
+    # Header
+    sections.append(f"# Task: Explain Python AST Node\n")
+    sections.append(f"Node Type: **{node_type}**\n")
+    
+    # Node identification
     if node_name:
-        prompt += f"Node name/identifier: {node_name}\n\n"
+        sections.append(f"Node Name: `{node_name}`\n")
     
+    # Node details
     if node_info:
-        prompt += f"Node details:\n"
+        details = []
         for key, value in node_info.items():
-            prompt += f"- {key}: {value}\n"
-        prompt += "\n"
+            if value is not None and value != '' and not (isinstance(value, (list, dict)) and len(value) == 0):
+                details.append(f"- {key}: {value}")
+        if details:
+            sections.append(f"\n## Node Details\n" + "\n".join(details) + "\n")
     
+    # Code context (most important)
     if code_context:
-        prompt += f"""Code context:
+        sections.append(f"""
+## Selected Code
+This is the specific code being analyzed:
 ```python
-{code_context}
+{_truncate_code(code_context)}
 ```
-
-"""
+""")
     
-    prompt += """Please provide a structured explanation with:
-1. A brief explanation of what this node represents (1-2 sentences)
-2. Detailed documentation about how it works in Python (2-3 paragraphs)
-3. 2-3 practical code examples showing correct usage
-4. A list of 3-6 related concepts/keywords
-
-Format your response as JSON:
+    # Full code context (secondary)
+    if full_code and full_code != code_context:
+        truncated_full = _truncate_code(full_code, 2000)
+        sections.append(f"""
+## Surrounding Code Context
+```python
+{truncated_full}
+```
+""")
+    
+    # Output format specification
+    sections.append("""
+## Required Output Format
+Return ONLY valid JSON with this exact structure:
 {
-  "explanation": "Brief explanation here",
-  "python_doc": "Detailed documentation here",
-  "examples": ["example 1", "example 2"],
-  "related_concepts": ["concept1", "concept2"]
-}"""
+  "explanation": "Brief 1-2 sentence explanation of what this node does in the context of the code above",
+  "python_doc": "Detailed documentation (2-3 paragraphs) about this Python construct, including syntax rules and behavior",
+  "examples": [
+    "# Example 1: Basic usage\\n...",
+    "# Example 2: Common pattern\\n..."
+  ],
+  "related_concepts": ["concept1", "concept2", "concept3"]
+}
+
+Important:
+- explanation should reference the specific code shown above
+- examples should be practical and runnable
+- related_concepts should include 3-5 relevant Python terms
+- Return ONLY the JSON object, no other text
+""")
     
-    return prompt
+    return "".join(sections)
 
 
 def get_challenge_generation_prompt(
     category: str,
-    difficulty: str,
+    difficulty: str = "medium",
     topic: Optional[str] = None,
     focus_issues: Optional[List[str]] = None
 ) -> str:
-    """Generate prompt for challenge creation"""
+    """
+    Generate prompt for creating code challenges.
     
-    difficulty_descriptions = {
-        "easy": "Simple issues that beginners can identify. 1-2 issues in the code.",
-        "medium": "Moderate complexity issues. 2-3 issues requiring good understanding.",
-        "hard": "Complex or subtle issues. 3-4 issues requiring expert knowledge."
+    Optimized for:
+    - Clear difficulty guidelines
+    - Specific issue types
+    - Realistic code scenarios
+    """
+    
+    difficulty_specs = {
+        "easy": {
+            "issues": "1-2 issues",
+            "complexity": "Simple code patterns, obvious issues",
+            "time": "3-5 minutes",
+            "points": "50-100"
+        },
+        "medium": {
+            "issues": "2-3 issues",
+            "complexity": "Moderate patterns, requires understanding",
+            "time": "5-10 minutes",
+            "points": "100-200"
+        },
+        "hard": {
+            "issues": "3-4 issues",
+            "complexity": "Complex/subtle issues, expert knowledge needed",
+            "time": "10-15 minutes",
+            "points": "200-350"
+        }
     }
     
-    prompt = f"""Create a Python code challenge for finding issues in code.
+    spec = difficulty_specs.get(difficulty, difficulty_specs["medium"])
+    
+    sections = []
+    
+    sections.append(f"""# Task: Create Python Code Challenge
 
-Category: {category}
-Difficulty: {difficulty} - {difficulty_descriptions.get(difficulty, "")}
-"""
+## Requirements
+- Category: {category}
+- Difficulty: **{difficulty}**
+- Issues to include: {spec['issues']}
+- Code complexity: {spec['complexity']}
+- Estimated time: {spec['time']}
+- Points: {spec['points']}
+""")
     
     if topic:
-        prompt += f"\nTopic/Focus: {topic}\n"
+        sections.append(f"- Topic/Focus: {topic}\n")
     
     if focus_issues:
-        prompt += f"\nShould include these types of issues: {', '.join(focus_issues)}\n"
+        sections.append(f"- Must include these issue types: {', '.join(focus_issues)}\n")
     
-    prompt += """
-
-Create a realistic Python function or class with intentional issues that learners should identify.
-
-Format your response as JSON:
+    # Available issue types reference
+    sections.append("""
+## Available Issue IDs
+Performance: nested_loop, list_membership, string_concat_in_loop, inefficient_recursion, no_memoization, memory_inefficient, no_generator
+Security: eval_usage, sql_injection, bare_except, resource_leak, broad_exception, race_condition, thread_unsafe
+Complexity: deep_nesting, high_complexity, long_parameter_list
+Code Smell: unused_variable, empty_list_iteration, dead_code, magic_string, boilerplate_code
+Best Practice: missing_type_hints, no_enum, hardcoded_dependency, tight_coupling
+""")
+    
+    sections.append("""
+## Required Output Format
+Return ONLY valid JSON with this exact structure:
 {
-  "title": "Challenge title",
+  "title": "Challenge Title",
   "description": "What the learner should do (1-2 sentences)",
-  "category": "performance/security/complexity/code_smell/best_practice",
-  "code": "The Python code with issues (use proper indentation)",
+  "category": "performance|security|complexity|code_smell|best_practice",
+  "code": "def example():\\n    # Code with intentional issues\\n    pass",
   "issues": ["issue_id_1", "issue_id_2"],
-  "difficulty": "easy/medium/hard",
+  "difficulty": "easy|medium|hard",
   "learning_objectives": ["objective 1", "objective 2"],
-  "hints": ["hint 1 (don't give away answer)", "hint 2"],
-  "solution_hint": "Brief hint about how to fix without full solution",
-  "estimated_time_minutes": 5-15,
-  "points": 100-350
+  "hints": ["Hint 1 (helpful but not revealing)", "Hint 2"],
+  "solution_hint": "Brief guidance without full solution",
+  "estimated_time_minutes": 5,
+  "points": 100
 }
 
-Available issue IDs:
-- nested_loop, list_membership, eval_usage, sql_injection
-- deep_nesting, high_complexity, long_parameter_list
-- unused_variable, empty_list_iteration, dead_code
-- string_concat_in_loop, list_membership_check
-- bare_except, resource_leak, broadException
-- inefficient_recursion, no_memoization
-- missing_type_hints, magic_string, no_enum
-- memory_inefficient, no_generator
-- race_condition, thread_unsafe, singleton_race
-- hardcoded_dependency, datetime_coupling, tight_coupling
-- boilerplate_code, missing_dataclass, manual_methods"""
+Important:
+- Code must be valid Python with proper indentation
+- Issues must be from the available issue IDs list
+- Hints should guide without revealing the answer
+- Return ONLY the JSON object, no other text
+""")
     
-    return prompt
+    return "".join(sections)
 
 
 def get_challenge_hint_prompt(
     code: str,
     issues: List[str],
-    user_progress: str
+    user_progress: str = ""
 ) -> str:
-    """Generate prompt for contextual hints"""
+    """
+    Generate prompt for contextual hints.
     
-    return f"""A learner is working on a code challenge. Provide a helpful hint.
+    Optimized for:
+    - Brief, helpful hints
+    - Progress-aware suggestions
+    """
+    
+    sections = []
+    
+    sections.append(f"""# Task: Generate Contextual Hint
 
-Code:
+## Challenge Code
 ```python
-{code}
+{_truncate_code(code, 1000)}
 ```
 
-Issues to find: {', '.join(issues)}
-User's current progress: {user_progress}
+## Issues to Find
+{', '.join(issues) if issues else 'Not specified'}
 
-Provide ONE specific hint that helps them progress without giving away the answer.
-Keep it under 2 sentences.
+## User's Progress
+{user_progress if user_progress else 'Just started'}
+""")
+    
+    sections.append("""
+## Required Output Format
+Return ONLY valid JSON:
+{
+  "hint": "One specific hint (under 2 sentences) that helps progress without revealing the answer"
+}
 
-Format: {{"hint": "Your hint here"}}"""
+Important:
+- Hint must be helpful but not give away the solution
+- Consider what the user has already found
+- Return ONLY the JSON object
+""")
+    
+    return "".join(sections)
 
 
 def get_code_improvement_prompt(
     code: str,
     issues: List[str]
 ) -> str:
-    """Generate prompt for code improvement suggestions"""
+    """
+    Generate prompt for code improvement suggestions.
     
-    return f"""Analyze the following Python code and suggest improvements.
+    Optimized for:
+    - Clear before/after comparison
+    - Specific fix explanations
+    """
+    
+    sections = []
+    
+    sections.append(f"""# Task: Suggest Code Improvements
 
-Code:
+## Original Code
 ```python
-{code}
+{_truncate_code(code, 2000)}
 ```
 
-Issues identified: {', '.join(issues)}
-
-Provide improved code with explanations of changes.
-
-Format your response as JSON:
-{{
-  "improved_code": "The improved Python code",
+## Identified Issues
+{chr(10).join(f'- {issue}' for issue in issues) if issues else 'No specific issues provided'}
+""")
+    
+    sections.append("""
+## Required Output Format
+Return ONLY valid JSON:
+{
+  "improved_code": "The improved Python code with all fixes applied",
   "changes": [
-    {{"issue": "issue_id", "fix": "description of the fix"}}
+    {
+      "issue": "issue_id",
+      "fix": "Description of what was changed and why"
+    }
   ],
-  "explanation": "Overall explanation of improvements"
-}}"""
+  "explanation": "Brief summary of overall improvements (1-2 sentences)"
+}
+
+Important:
+- improved_code must be complete, runnable Python
+- Each change should explain both what and why
+- Return ONLY the JSON object
+""")
+    
+    return "".join(sections)
 
 
 def get_learning_summary_prompt(
@@ -189,19 +320,45 @@ def get_learning_summary_prompt(
     identified_issues: List[str],
     missed_issues: List[str]
 ) -> str:
-    """Generate prompt for personalized learning summary"""
+    """
+    Generate prompt for personalized learning summary.
     
-    return f"""Generate a personalized learning summary for a Python programmer.
+    Optimized for:
+    - Actionable feedback
+    - Clear next steps
+    """
+    
+    total = len(identified_issues) + len(missed_issues)
+    accuracy = (len(identified_issues) / total * 100) if total > 0 else 0
+    
+    sections = []
+    
+    sections.append(f"""# Task: Generate Learning Summary
 
-Completed challenges: {len(completed_challenges)}
-Issues correctly identified: {', '.join(identified_issues) if identified_issues else 'None'}
-Issues missed: {', '.join(missed_issues) if missed_issues else 'None'}
+## Performance
+- Challenges completed: {len(completed_challenges)}
+- Issues found: {len(identified_issues)}
+- Issues missed: {len(missed_issues)}
+- Accuracy: {accuracy:.0f}%
 
-Provide:
-1. A brief assessment of their strengths
-2. Areas that need improvement
-3. Recommended next steps
+## Issues Correctly Identified
+{', '.join(identified_issues) if identified_issues else 'None'}
 
-Keep it concise (3-4 sentences total).
+## Issues Missed
+{', '.join(missed_issues) if missed_issues else 'None'}
+""")
+    
+    sections.append("""
+## Required Output Format
+Return ONLY valid JSON:
+{
+  "summary": "Personalized assessment (3-4 sentences covering strengths, areas for improvement, and recommended next steps)"
+}
 
-Format: {{"summary": "Your summary here"}}"""
+Important:
+- Be encouraging while honest
+- Suggest specific topics to study
+- Return ONLY the JSON object
+""")
+    
+    return "".join(sections)

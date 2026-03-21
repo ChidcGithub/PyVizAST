@@ -54,6 +54,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     
     # Shutdown
     logger.info("PyVizAST API shutting down...")
+    
+    # Clean up HTTP client for LLM service
+    try:
+        from .llm.ollama_client import OllamaClient
+        await OllamaClient.shutdown_async()
+    except Exception as e:
+        logger.warning(f"Error during shutdown cleanup: {e}")
 
 
 # Create FastAPI application with lifespan

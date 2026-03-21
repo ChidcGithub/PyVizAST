@@ -6,7 +6,7 @@
  * @author Chidc
  * @link github.com/chidcGithub
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from './ToastContext';
 import logger from '../utils/logger';
 import {
@@ -70,38 +70,14 @@ function LLMSettings({ isOpen, theme, onClose }) {
   const [pulling, setPulling] = useState(null);
   const [pullProgress, setPullProgress] = useState(null);
   const toast = useToast();
+  
+  // Track if we've already auto-selected a model to prevent repeated updates
+  const autoSelectDoneRef = useRef(false);
 
-  // Fetch all status on open
-  const fetchAll = useCallback(async () => {
-    await Promise.all([
-      fetchOllamaStatus(),
-      fetchStatus(),
-      fetchConfig(),
-      fetchModels(),
-    ]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (isOpen) {
-      fetchAll();
-    }
-  }, [isOpen, fetchAll]);
-
-  // Auto-select first available model when models are loaded and no model is selected
-  useEffect(() => {
-    if (models.length > 0 && !config.model) {
-      // Select first available model
-      handleConfigChange('model', models[0].name);
-    } else if (models.length > 0 && config.model) {
-      // Check if selected model exists in available models
-      const modelExists = models.some(m => m.name === config.model);
-      if (!modelExists) {
-        // Selected model not found, select first available
-        handleConfigChange('model', models[0].name);
-      }
-    }
-  }, [models, config.model]);
+  // Define handleConfigChange first - used by other callbacks and effects
+  const handleConfigChange = useCallback((key, value) => {
+    setConfig(prev => ({ ...prev, [key]: value }));
+  }, []);
 
   const fetchOllamaStatus = async () => {
     try {
@@ -140,11 +116,48 @@ function LLMSettings({ isOpen, theme, onClose }) {
     }
   };
 
-  const handleConfigChange = useCallback((key, value) => {
-    setConfig(prev => ({ ...prev, [key]: value }));
-  }, []);
+  // Fetch all status on open
+  const fetchAll = useCallback(async () => {
+    await Promise.all([
+      fetchOllamaStatus(),
+      fetchStatus(),
+      fetchConfig(),
+      fetchModels(),
+    ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchAll();
+    }
+  }, [isOpen, fetchAll]);
+
+  // Auto-select first available model when models are loaded and no model is selected
+  // Use ref to prevent repeated auto-selects which could cause render loops
+  useEffect(() => {
+    // Skip if already done or no models available
+    if (autoSelectDoneRef.current || models.length === 0) return;
+    
+    // Check if we need to auto-select
+    const needsSelection = !config.model || !models.some(m => m.name === config.model);
+    
+    if (needsSelection) {
+      // Mark as done before updating to prevent loops
+      autoSelectDoneRef.current = true;
+      handleConfigChange('model', models[0].name);
+    }
+  }, [models, config.model, handleConfigChange]);
+  
+  // Reset auto-select flag when modal reopens
+  useEffect(() => {
+    if (isOpen) {
+      autoSelectDoneRef.current = false;
+    }
+  }, [isOpen]);
 
   // Auto-select best model for code analysis
+  // eslint-disable-next-line no-unused-vars
   const autoSelectBestModel = useCallback(() => {
     if (models.length === 0) {
       toast.info('No models installed. Please download a model first.');
@@ -172,9 +185,31 @@ function LLMSettings({ isOpen, theme, onClose }) {
     // Fallback to first available
     handleConfigChange('model', models[0].name);
     toast.success(`Auto-selected: ${models[0].name}`);
-  }, [models, handleConfigChange]);
+  }, [models, handleConfigChange, toast]);
 
   const handleSaveConfig = async () => {
+    // Validate required fields
+    if (config.enabled && !config.model) {
+      toast.error('Please select a model before enabling LLM features');
+      return;
+    }
+    
+    if (config.enabled && !config.base_url) {
+      toast.error('Please enter Ollama URL');
+      return;
+    }
+    
+    // Validate numeric fields
+    if (config.temperature < 0 || config.temperature > 2) {
+      toast.error('Temperature must be between 0 and 2');
+      return;
+    }
+    
+    if (config.max_tokens < 256 || config.max_tokens > 8192) {
+      toast.error('Max tokens must be between 256 and 8192');
+      return;
+    }
+    
     setLoading(true);
     try {
       const data = await updateLLMConfig(config);
@@ -252,14 +287,22 @@ function LLMSettings({ isOpen, theme, onClose }) {
     await pullModel(
       modelName,
       (progress) => {
+        // Safely calculate progress with NaN protection
+        let progressPercent = 0;
+        if (progress.completed != null && progress.total != null && progress.total > 0) {
+          progressPercent = Math.round((progress.completed / progress.total) * 100);
+          // Ensure it's a valid number
+          if (isNaN(progressPercent) || !isFinite(progressPercent)) {
+            progressPercent = 0;
+          }
+        }
+        
         setPullProgress({
           status: progress.status || 'downloading',
-          progress: progress.completed && progress.total 
-            ? Math.round((progress.completed / progress.total) * 100) 
-            : 0,
+          progress: progressPercent,
           digest: progress.digest,
-          completed: progress.completed,
-          total: progress.total,
+          completed: progress.completed || 0,
+          total: progress.total || 0,
         });
       },
       (error) => {
@@ -535,12 +578,35 @@ function LLMSettings({ isOpen, theme, onClose }) {
                               model: config.model || models[0].name,
                             };
                             
+                            logger.debug('Loading LLM config', { newConfig });
                             const data = await updateLLMConfig(newConfig);
+                            logger.debug('LLM config response', { data });
                             
                             if (data.status === 'ok') {
                               setConfig(newConfig);
-                              setStatus(data.llm_status);
-                              toast.success('LLM loaded and enabled');
+                              
+                              // Check actual status from response
+                              const actualStatus = data.llm_status?.status;
+                              const isReady = actualStatus === 'ready';
+                              
+                              logger.debug('LLM status check', { 
+                                actualStatus, 
+                                isReady,
+                                llm_status: data.llm_status 
+                              });
+                              
+                              setStatus({ ...status, ...data.llm_status, status: actualStatus || 'unavailable' });
+                              
+                              // Dispatch custom event to notify other components
+                              window.dispatchEvent(new CustomEvent('llmConfigChanged', {
+                                detail: { config: newConfig, status: data.llm_status }
+                              }));
+                              
+                              if (isReady) {
+                                toast.success(`LLM loaded: ${data.llm_status?.matched_model || newConfig.model}`);
+                              } else {
+                                toast.warning(data.llm_status?.message || 'Model not available');
+                              }
                             } else {
                               toast.error('Failed to load LLM');
                             }

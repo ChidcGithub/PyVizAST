@@ -1,18 +1,18 @@
 @echo off
 chcp 65001 >nul
 echo ========================================
-echo   PyVizAST - Python AST可视化分析器
+echo   PyVizAST - Python AST Visualizer
 echo ========================================
 echo.
 
-:: 检查Python
+:: Check Python
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo 错误: 未找到Python，请先安装Python 3.8+
+    echo Error: Python not found. Please install Python 3.8+
     pause
     exit /b 1
 )
 
-:: 运行安装和启动
+:: Run installation and startup
 python run.py all
 pause

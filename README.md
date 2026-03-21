@@ -13,11 +13,11 @@
 
 # PyVizAST
 
-[![Version](https://img.shields.io/badge/Version-1.0.0--alpha-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Version](https://img.shields.io/badge/Version-1.0.0--beta-blue.svg)](https://github.com/ChidcGithub/PyVizAST)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-brightgreen.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/ChidcGithub/PyVizAST)
-[![Status](https://img.shields.io/badge/Status-alpha-red.svg)](https://github.com/ChidcGithub/PyVizAST)
+[![Status](https://img.shields.io/badge/Status-beta-orange.svg)](https://github.com/ChidcGithub/PyVizAST)
 ![CI Build Status](https://github.com/ChidcGithub/PyVizAST/actions/workflows/ci.yml/badge.svg)
 
 A Python AST Visualizer & Static Analyzer that transforms code into interactive graphs. Detect complexity, performance bottlenecks, and code smells with actionable refactoring suggestions.
@@ -48,7 +48,7 @@ A Python AST Visualizer & Static Analyzer that transforms code into interactive 
 - **Beginner Mode**: Display Python documentation when hovering over AST nodes
 - **Challenge Mode**: Identify performance issues in provided code samples
 
-### LLM AI Features (v1.0.0-alpha)
+### LLM AI Features (v1.0.0-beta)
 - **Local LLM Integration**: Powered by Ollama for privacy-first AI features
 - **Auto Install Ollama**: One-click automatic Ollama installation and configuration
 - **AI Node Explanations**: Get intelligent explanations for any AST node
@@ -234,6 +234,57 @@ Contributions are welcome. Please submit pull requests to the main repository.
 <details>
 
 <summary>Version History</summary>
+
+<details>
+<summary>v1.0.0-beta (2026-03-21)</summary>
+
+**LLM AI Refactoring & Bug Fixes**
+
+**LLM Explanation Panel Refactoring:**
+- Redesigned AI explanation panel with premium black/white minimalist theme
+- Added unavailable state UI with helpful messages when LLM not configured
+- Added fullscreen modal for detailed reading
+- Improved loading states and error handling
+- Auto-retry on failure (up to 2 times)
+
+**Backend LLM Service Refactoring:**
+- Improved prompt templates with clearer JSON output format requirements
+- Multi-strategy JSON parsing with fallback mechanisms
+- Thread-safe caching with TTL for explanation caching
+- Case-insensitive model name matching (codeLlama:7b vs codellama:7b)
+- Separated error handling for availability check and model listing
+- Added shorter timeouts to avoid UI hanging
+
+**Frontend LLM Integration Improvements:**
+- Added custom event system (`llmConfigChanged`) for cross-component communication
+- Fixed React Hooks order issue (useMemo before early return)
+- Fixed incorrect default status value (`'ready'` → `'unavailable'`)
+- Improved SSE parsing with type annotations
+- Better error feedback and loading states
+
+**Files Added:**
+- `frontend/src/components/LLMExplanationPanel.js` - AI explanation panel component
+- `frontend/src/components/LLMExplanationPanel.css` - Black/white minimalist styles
+
+**Files Modified:**
+- `backend/llm/prompts.py` - Improved prompt templates
+- `backend/llm/service.py` - Multi-strategy parsing, caching, status handling
+- `backend/llm/ollama_client.py` - Shorter timeouts
+- `backend/routers/llm.py` - Unified error responses, detailed logging
+- `frontend/src/api.js` - SSE parsing, shorter timeouts
+- `frontend/src/components/LLMSettings.js` - Event dispatching, improved status handling
+- `frontend/src/components/ASTVisualizer.js` - Event listeners, fixed default status
+- `frontend/src/components/ASTVisualizer3D.js` - Event listeners, fixed default status
+- `frontend/src/components/components.css` - LLM explanation panel styles
+
+**Bug Fixes:**
+- Fixed model not loading when clicking Load button
+- Fixed UI stuck at loading state (timeout optimization)
+- Fixed false "loaded" display when model not actually loaded
+- Fixed React Hooks error (useMemo called after early return)
+- Fixed model name case sensitivity matching
+
+</details>
 
 <details>
 <summary>v1.0.0-alpha (2026-03-16)</summary>

@@ -9,8 +9,14 @@ const RETRY_DELAY = 1000; // Retry delay (milliseconds)
 // Idempotent method list (safe to retry)
 const IDEMPOTENT_METHODS = ['get', 'head', 'options', 'put', 'delete'];
 
+// LLM endpoints that are safe to retry (they generate content, not modify state)
+const LLM_RETRY_ENDPOINTS = [
+  '/api/llm/generate/explanation',
+  '/api/llm/generate/hint',
+];
+
 // Determine if error should be retried
-const shouldRetry = (error, method) => {
+const shouldRetry = (error, method, url) => {
   // Cases not to retry
   if (!error) return false;
   
@@ -20,8 +26,11 @@ const shouldRetry = (error, method) => {
     return false;
   }
   
-  // Non-idempotent methods don't retry (avoid duplicate operations)
-  if (method && !IDEMPOTENT_METHODS.includes(method.toLowerCase())) {
+  // LLM endpoints are safe to retry even for POST requests
+  if (url && LLM_RETRY_ENDPOINTS.some(endpoint => url.includes(endpoint))) {
+    // Continue to retry logic below
+  } else if (method && !IDEMPOTENT_METHODS.includes(method.toLowerCase())) {
+    // Non-idempotent methods don't retry (avoid duplicate operations)
     return false;
   }
   
@@ -45,18 +54,18 @@ const shouldRetry = (error, method) => {
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Request wrapper with retry
-const withRetry = async (requestFn, method = 'get', retries = MAX_RETRIES) => {
+const withRetry = async (requestFn, method = 'get', url = '', retries = MAX_RETRIES) => {
   try {
     return await requestFn();
   } catch (error) {
     // If shouldn't retry or retries exhausted
-    if (!shouldRetry(error, method) || retries <= 0) {
+    if (!shouldRetry(error, method, url) || retries <= 0) {
       throw error;
     }
 
     // Wait then retry
     await delay(RETRY_DELAY);
-    return withRetry(requestFn, method, retries - 1);
+    return withRetry(requestFn, method, url, retries - 1);
   }
 };
 
@@ -123,6 +132,11 @@ const extractErrorMessage = (detail) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Ignore cancelled requests - don't transform to error
+    if (error.code === 'ERR_CANCELED' || error.name === 'CanceledError' || error.name === 'AbortError') {
+      return Promise.reject(error);
+    }
+    
     let errorMessage = 'Request failed';
     
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
@@ -440,10 +454,77 @@ export const generateTaskId = () => {
   return `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 };
 
-// ============== LLM API Functions ==============
+// ============== LLM API Configuration ==============
+
+const LLM_TIMEOUT = 300000; // 5 minutes for LLM operations
+
+/**
+ * Helper: Parse SSE stream from response
+ */
+const parseSSEStream = async (response, callbacks) => {
+  const { onProgress, onError, onComplete } = callbacks;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+
+        try {
+          const data = JSON.parse(line.slice(6));
+          onProgress?.(data);
+
+          // Check for completion states
+          if (data.status === 'completed' || data.status === 'success') {
+            onComplete?.(data);
+            return;
+          }
+
+          if (data.status === 'error') {
+            onError?.(data.error || 'Unknown error');
+            return;
+          }
+        } catch (e) {
+          // Skip malformed JSON
+          logger.debug('SSE parse skip', { line: line.slice(0, 50) });
+        }
+      }
+    }
+
+    // Process any remaining buffer
+    if (buffer.startsWith('data: ')) {
+      try {
+        const data = JSON.parse(buffer.slice(6));
+        onProgress?.(data);
+        if (data.status === 'completed' || data.status === 'success') {
+          onComplete?.(data);
+        } else if (data.status === 'error') {
+          onError?.(data.error);
+        }
+      } catch (e) {
+        // Ignore final parse errors
+      }
+    }
+  } catch (error) {
+    logger.error('SSE stream error', { error: error.message });
+    onError?.(error.message);
+  }
+};
+
+// ============== LLM Status & Configuration ==============
 
 /**
  * Get LLM service status
+ * @returns {Promise<{status: string, enabled: boolean, model?: string, message: string}>}
  */
 export const getLLMStatus = async () => {
   const response = await api.get('/api/llm/status');
@@ -452,6 +533,7 @@ export const getLLMStatus = async () => {
 
 /**
  * Get LLM configuration
+ * @returns {Promise<Object>}
  */
 export const getLLMConfig = async () => {
   const response = await api.get('/api/llm/config');
@@ -460,14 +542,19 @@ export const getLLMConfig = async () => {
 
 /**
  * Update LLM configuration
+ * @param {Object} config - Configuration object
+ * @returns {Promise<{status: string, config: Object, llm_status: Object}>}
  */
 export const updateLLMConfig = async (config) => {
-  const response = await api.post('/api/llm/config', config);
+  const response = await api.post('/api/llm/config', config, { timeout: 15000 });
   return response.data;
 };
 
+// ============== Model Management ==============
+
 /**
- * Get available models
+ * Get available (pulled) models
+ * @returns {Promise<Array<{name: string, size: number, modified_at: string}>>}
  */
 export const getLLMModels = async () => {
   const response = await api.get('/api/llm/models');
@@ -476,6 +563,7 @@ export const getLLMModels = async () => {
 
 /**
  * Get recommended models
+ * @returns {Promise<Array<Object>>}
  */
 export const getRecommendedModels = async () => {
   const response = await api.get('/api/llm/models/recommended');
@@ -483,84 +571,79 @@ export const getRecommendedModels = async () => {
 };
 
 /**
- * Pull a model (uses POST with streaming response)
+ * Pull a model from Ollama registry (streaming)
+ * @param {string} modelName - Model name to pull
+ * @param {function} onProgress - Progress callback
+ * @param {function} onError - Error callback
+ * @param {function} onComplete - Completion callback
  */
 export const pullModel = async (modelName, onProgress, onError, onComplete) => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/llm/models/pull`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model_name: modelName }),
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const text = decoder.decode(value);
-      const lines = text.split('\n').filter(line => line.startsWith('data: '));
-
-      for (const line of lines) {
-        try {
-          const data = JSON.parse(line.slice(6));
-          onProgress(data);
-
-          // Handle completion (success or completed status)
-          if (data.status === 'success' || data.status === 'completed') {
-            if (onComplete) onComplete(data);
-            return;
-          }
-          
-          // Handle error
-          if (data.status === 'error') {
-            if (onError) onError(data.error || 'Unknown error');
-            return;
-          }
-        } catch (e) {
-          // Ignore parse errors for incomplete lines
-        }
-      }
-    }
-    
-    // If we exit the loop without completion, call onComplete
-    if (onComplete) onComplete({ status: 'completed', model: modelName });
+    await parseSSEStream(response, {
+      onProgress,
+      onError,
+      onComplete: (data) => onComplete?.({ ...data, model: modelName }),
+    });
   } catch (error) {
     logger.error('Model pull error', { model: modelName, error: error.message });
-    if (onError) onError(error.message || 'Unknown error');
+    onError?.(error.message);
   }
 };
 
 /**
  * Delete a model
+ * @param {string} modelName - Model name to delete
+ * @returns {Promise<{status: string, message: string}>}
  */
 export const deleteModel = async (modelName) => {
   const response = await api.delete(`/api/llm/models/${encodeURIComponent(modelName)}`);
   return response.data;
 };
 
+// ============== LLM Generation ==============
+
 /**
  * Generate node explanation using LLM
+ * @param {Object} params - Request parameters
+ * @param {string} params.node_type - AST node type
+ * @param {string} [params.node_name] - Node name/identifier
+ * @param {string} [params.code_context] - Code snippet for the node
+ * @param {Object} [params.node_info] - Additional node information
+ * @param {string} [params.full_code] - Full source code for context
+ * @param {AbortSignal} [signal] - Optional abort signal
+ * @returns {Promise<{node_type: string, explanation: string, python_doc: string, examples: string[], related_concepts: string[]}>}
  */
-export const generateExplanation = async (nodeType, nodeName, codeContext) => {
-  const response = await api.post('/api/llm/generate/explanation', {
-    node_type: nodeType,
-    node_name: nodeName,
-    code_context: codeContext,
-  });
-  return response.data;
+export const generateExplanation = async (params, signal = null) => {
+  const url = '/api/llm/generate/explanation';
+  return withRetry(async () => {
+    const response = await api.post(url, {
+      node_type: params.node_type,
+      node_name: params.node_name,
+      code_context: params.code_context,
+      node_info: params.node_info,
+      full_code: params.full_code,
+    }, { timeout: LLM_TIMEOUT, signal });
+    return response.data;
+  }, 'post', url);
 };
 
 /**
- * Generate challenge using LLM
+ * Generate a new challenge using LLM
+ * @param {string} category - Challenge category
+ * @param {string} [difficulty='medium'] - Difficulty level
+ * @param {string} [topic] - Optional topic
+ * @param {string[]} [focusIssues] - Issues to focus on
+ * @returns {Promise<Object>}
  */
 export const generateChallenge = async (category, difficulty = 'medium', topic = null, focusIssues = null) => {
   const response = await api.post('/api/llm/generate/challenge', {
@@ -568,48 +651,31 @@ export const generateChallenge = async (category, difficulty = 'medium', topic =
     difficulty,
     topic,
     focus_issues: focusIssues,
-  });
+  }, { timeout: LLM_TIMEOUT });
   return response.data;
 };
 
 /**
- * Generate hint using LLM
+ * Generate a contextual hint for a challenge
+ * @param {string} code - Challenge code
+ * @param {string[]} issues - Issues to find
+ * @param {string} [userProgress=''] - User's current progress
+ * @returns {Promise<{hint: string}>}
  */
 export const generateHint = async (code, issues, userProgress = '') => {
   const response = await api.post('/api/llm/generate/hint', {
     code,
     issues,
     user_progress: userProgress,
-  });
+  }, { timeout: LLM_TIMEOUT });
   return response.data;
 };
 
-/**
- * Get aria2 status
- */
-export const getAria2Status = async () => {
-  const response = await api.get('/api/llm/downloads/aria2/status');
-  return response.data;
-};
-
-/**
- * Get aria2 install instructions
- */
-export const getAria2InstallInstructions = async () => {
-  const response = await api.get('/api/llm/downloads/aria2/install');
-  return response.data;
-};
-
-/**
- * Get Ollama download info
- */
-export const getOllamaDownloadInfo = async () => {
-  const response = await api.get('/api/llm/downloads/ollama');
-  return response.data;
-};
+// ============== Ollama Management ==============
 
 /**
  * Get Ollama installation status
+ * @returns {Promise<{installed: boolean, running: boolean, can_auto_install: boolean, version?: string}>}
  */
 export const getOllamaStatus = async () => {
   const response = await api.get('/api/llm/ollama/status');
@@ -617,7 +683,17 @@ export const getOllamaStatus = async () => {
 };
 
 /**
- * Get Ollama download info for installation
+ * Get Ollama download information
+ * @returns {Promise<Object>}
+ */
+export const getOllamaDownloadInfo = async () => {
+  const response = await api.get('/api/llm/downloads/ollama');
+  return response.data;
+};
+
+/**
+ * Get Ollama installation info
+ * @returns {Promise<Object>}
  */
 export const getOllamaInstallInfo = async () => {
   const response = await api.get('/api/llm/ollama/download-info');
@@ -625,54 +701,33 @@ export const getOllamaInstallInfo = async () => {
 };
 
 /**
- * Install Ollama (returns streaming progress)
+ * Install Ollama (streaming progress)
+ * @param {function} onProgress - Progress callback
+ * @param {function} onError - Error callback
+ * @param {function} onComplete - Completion callback
  */
 export const installOllama = async (onProgress, onError, onComplete) => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/llm/ollama/install`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const text = decoder.decode(value);
-      const lines = text.split('\n').filter(line => line.startsWith('data: '));
-
-      for (const line of lines) {
-        try {
-          const data = JSON.parse(line.slice(6));
-          onProgress(data);
-
-          if (data.status === 'completed' || data.status === 'error') {
-            if (data.status === 'completed' && onComplete) onComplete(data);
-            if (data.status === 'error' && onError) onError(data.error);
-            return;
-          }
-        } catch (e) {
-          // Ignore parse errors
-        }
-      }
-    }
+    await parseSSEStream(response, { onProgress, onError, onComplete });
   } catch (error) {
     logger.error('Ollama install error', { error: error.message });
-    if (onError) onError(error.message);
+    onError?.(error.message);
   }
 };
 
 /**
  * Start Ollama server
+ * @param {number} [port=11434] - Port to run on
+ * @returns {Promise<{status: string, message: string}>}
  */
 export const startOllamaServer = async (port = 11434) => {
   const response = await api.post('/api/llm/ollama/start', { port });
@@ -681,9 +736,30 @@ export const startOllamaServer = async (port = 11434) => {
 
 /**
  * Stop Ollama server
+ * @returns {Promise<{status: string, message: string}>}
  */
 export const stopOllamaServer = async () => {
   const response = await api.post('/api/llm/ollama/stop');
+  return response.data;
+};
+
+// ============== aria2 Download Manager ==============
+
+/**
+ * Get aria2 availability status
+ * @returns {Promise<{available: boolean, version?: string, platform: string}>}
+ */
+export const getAria2Status = async () => {
+  const response = await api.get('/api/llm/downloads/aria2/status');
+  return response.data;
+};
+
+/**
+ * Get aria2 installation instructions
+ * @returns {Promise<{platform: string, instructions: string}>}
+ */
+export const getAria2InstallInstructions = async () => {
+  const response = await api.get('/api/llm/downloads/aria2/install');
   return response.data;
 };
 

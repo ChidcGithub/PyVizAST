@@ -46,6 +46,37 @@ def ensure_logs_dir():
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def sanitize_log_content(content: str, max_length: int = 500) -> str:
+    """Sanitize log content to prevent log injection attacks
+    
+    Removes/escapes potentially dangerous characters:
+    - Newlines (prevent log entry spoofing)
+    - Control characters
+    """
+    if not content:
+        return ""
+    
+    # Truncate to max length
+    content = content[:max_length]
+    
+    # Remove control characters and newlines
+    sanitized = ""
+    for char in content:
+        if char == '\n':
+            sanitized += '\\n'
+        elif char == '\r':
+            sanitized += '\\r'
+        elif char == '\t':
+            sanitized += '\\t'
+        elif ord(char) < 32:
+            # Skip other control characters
+            continue
+        else:
+            sanitized += char
+    
+    return sanitized
+
+
 @router.post("/frontend")
 async def receive_frontend_logs(request: FrontendLogsRequest):
     """Receive frontend logs and save to file"""
@@ -58,23 +89,23 @@ async def receive_frontend_logs(request: FrontendLogsRequest):
     try:
         with open(log_file, 'a', encoding='utf-8') as f:
             for log_entry in request.logs:
-                # Format log entry
+                # Format log entry with sanitized content
                 log_line = (
-                    f"[{log_entry.timestamp}] "
-                    f"[{log_entry.level.upper()}] "
-                    f"{log_entry.message}"
+                    f"[{sanitize_log_content(log_entry.timestamp, 30)}] "
+                    f"[{sanitize_log_content(log_entry.level, 10).upper()}] "
+                    f"{sanitize_log_content(log_entry.message, 1000)}"
                 )
                 
-                # Add extra info
+                # Add extra info with sanitized content
                 extras = []
                 if log_entry.url:
-                    extras.append(f"url={log_entry.url}")
+                    extras.append(f"url={sanitize_log_content(log_entry.url, 200)}")
                 if log_entry.filename:
-                    extras.append(f"file={log_entry.filename}:{log_entry.lineno}:{log_entry.colno}")
+                    extras.append(f"file={sanitize_log_content(log_entry.filename, 200)}:{log_entry.lineno}:{log_entry.colno}")
                 if log_entry.stack:
-                    extras.append(f"stack={log_entry.stack[:500]}")  # Limit stack length
+                    extras.append(f"stack={sanitize_log_content(log_entry.stack, 500)}")
                 if log_entry.componentStack:
-                    extras.append(f"componentStack={log_entry.componentStack[:500]}")
+                    extras.append(f"componentStack={sanitize_log_content(log_entry.componentStack, 500)}")
                 
                 if extras:
                     log_line += f" | {' | '.join(extras)}"

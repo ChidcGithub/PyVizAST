@@ -1,7 +1,8 @@
 """
 Circular Dependency Detector - Detect circular dependencies
 """
-from typing import List, Dict, Set
+from __future__ import annotations
+from typing import List, Dict, Set, Optional, Tuple
 from collections import defaultdict
 from dataclasses import dataclass
 
@@ -37,6 +38,43 @@ class CycleDetector:
             for dep in deps:
                 self.adjacency[module].add(dep)
     
+    def _find_all_cycles(self) -> Tuple[List[List[str]], List[Set[str]]]:
+        """
+        Find all cycles using strongly connected components (SCC).
+        
+        This method leverages the Tarjan's algorithm from get_strongly_connected_components()
+        to efficiently detect cycles. Each SCC with more than one node contains at least
+        one cycle.
+        
+        Returns:
+            Tuple of (cycles, complex_sccs) where:
+            - cycles: List of extracted cycles (each cycle is a list of module names)
+            - complex_sccs: List of SCCs where exact cycle couldn't be extracted
+        """
+        # Get strongly connected components using Tarjan's algorithm
+        sccs = self.get_strongly_connected_components()
+        
+        cycles = []
+        complex_sccs = []
+        
+        for scc in sccs:
+            # Each SCC with more than one node contains cycles
+            if len(scc) > 1:
+                # Extract a representative cycle from each SCC
+                cycle = self._extract_cycle_from_scc(scc)
+                if cycle:
+                    cycles.append(cycle)
+                else:
+                    # Store the SCC for separate reporting
+                    complex_sccs.append(scc)
+        
+        # Also check for self-loops (module depends on itself)
+        for module, deps in self.adjacency.items():
+            if module in deps:
+                cycles.append([module])
+        
+        return cycles, complex_sccs
+    
     def detect(self) -> List[GlobalIssue]:
         """
         Detect all circular dependencies
@@ -44,7 +82,7 @@ class CycleDetector:
         Returns:
             List of circular dependency issues
         """
-        cycles = self._find_all_cycles()
+        cycles, complex_sccs = self._find_all_cycles()
         issues = []
         
         seen_cycles = set()  # For deduplication
@@ -76,42 +114,17 @@ class CycleDetector:
             )
             issues.append(issue)
         
+        # Handle complex SCCs that couldn't be reduced to simple cycles
+        for scc in complex_sccs:
+            issue = self._create_scc_issue(scc)
+            issues.append(issue)
+        
         if issues:
             logger.warning(f"Detected {len(issues)} circular dependencies")
         
         return issues
     
-    def _find_all_cycles(self) -> List[List[str]]:
-        """
-        Find all cycles using strongly connected components (SCC).
-        
-        This method leverages the Tarjan's algorithm from get_strongly_connected_components()
-        to efficiently detect cycles. Each SCC with more than one node contains at least
-        one cycle.
-        
-        Returns:
-            List of cycles, where each cycle is a list of module names
-        """
-        # Get strongly connected components using Tarjan's algorithm
-        sccs = self.get_strongly_connected_components()
-        
-        cycles = []
-        for scc in sccs:
-            # Each SCC with more than one node contains cycles
-            if len(scc) > 1:
-                # Extract a representative cycle from each SCC
-                cycle = self._extract_cycle_from_scc(scc)
-                if cycle:
-                    cycles.append(cycle)
-        
-        # Also check for self-loops (module depends on itself)
-        for module, deps in self.adjacency.items():
-            if module in deps:
-                cycles.append([module])
-        
-        return cycles
-    
-    def _extract_cycle_from_scc(self, scc: Set[str]) -> List[str]:
+    def _extract_cycle_from_scc(self, scc: Set[str]) -> Optional[List[str]]:
         """
         Extract a representative cycle from a strongly connected component.
         
@@ -121,10 +134,10 @@ class CycleDetector:
             scc: Set of nodes in the strongly connected component
             
         Returns:
-            A cycle as a list of module names
+            A cycle as a list of module names, or None if extraction fails
         """
         if len(scc) < 2:
-            return []
+            return None
         
         # Start from any node in the SCC
         start = next(iter(scc))
@@ -163,15 +176,45 @@ class CycleDetector:
                 else:
                     break
         
-        # Could not extract a specific cycle - return the SCC as a group
+        # Could not extract a specific cycle
         # This indicates mutual dependencies exist but exact cycle is complex
-        # Log this situation for debugging and mark with special prefix to indicate it's a complex group
-        # rather than a simple cycle (helps avoid false positives in reporting)
         logger.warning(f"Could not extract specific cycle from SCC of size {len(scc)}, "
                       f"modules: {list(scc)[:5]}{'...' if len(scc) > 5 else ''}. "
                       f"This indicates complex mutual dependencies.")
-        # Mark as complex group by adding a special indicator
-        return ['__COMPLEX_GROUP__'] + list(scc)
+        return None
+    
+    def _create_scc_issue(self, scc: Set[str]) -> GlobalIssue:
+        """
+        Create an issue for a complex SCC where exact cycle couldn't be extracted.
+        
+        Args:
+            scc: Set of modules in the strongly connected component
+            
+        Returns:
+            GlobalIssue representing the complex mutual dependency
+        """
+        modules = list(scc)
+        normalized = sorted(modules)
+        severity = self._get_severity(modules)
+        
+        return GlobalIssue(
+            issue_type='circular_dependency',
+            severity=severity,
+            message=f"Complex mutual dependencies among {len(scc)} modules: {', '.join(normalized[:5])}{'...' if len(normalized) > 5 else ''}",
+            locations=[
+                {
+                    'file_path': module,
+                    'type': 'module',
+                }
+                for module in normalized
+            ],
+            suggestion=(
+                "Suggestions to simplify module structure:\n"
+                "1. Consider introducing an intermediate module for decoupling\n"
+                "2. Use dependency injection instead of direct imports\n"
+                "3. Review if all these inter-dependencies are necessary"
+            ),
+        )
     
     def _normalize_cycle(self, cycle: List[str]) -> List[str]:
         """

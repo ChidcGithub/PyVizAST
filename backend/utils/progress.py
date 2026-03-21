@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import json
 import threading
+from collections import deque
 
 
 class ProgressStage(str, Enum):
@@ -52,11 +53,17 @@ class ProgressTracker:
     Thread-safe and supports multiple listeners via callbacks
     """
     
+    # Maximum number of cached updates per task
+    MAX_CACHED_UPDATES = 10
+    # Maximum queue size to prevent memory leak
+    MAX_QUEUE_SIZE = 100
+    
     def __init__(self):
         self._states: Dict[str, ProgressState] = {}
         self._lock = threading.RLock()
         self._listeners: Dict[str, list] = {}  # task_id -> list of callbacks
         self._queues: Dict[str, asyncio.Queue] = {}  # task_id -> queue for SSE
+        self._pending_updates: Dict[str, deque] = {}  # task_id -> cached updates when no event loop
     
     def create_task(self, task_id: str, initial_message: str = "Starting...") -> None:
         """Create a new progress tracking task"""
@@ -67,7 +74,8 @@ class ProgressTracker:
                 message=initial_message,
             )
             self._listeners[task_id] = []
-            self._queues[task_id] = asyncio.Queue()
+            # Set maxsize to prevent unbounded queue growth
+            self._queues[task_id] = asyncio.Queue(maxsize=self.MAX_QUEUE_SIZE)
     
     def update(
         self,
@@ -116,10 +124,24 @@ class ProgressTracker:
                 # Try to get running event loop
                 try:
                     loop = asyncio.get_running_loop()
-                    loop.call_soon_threadsafe(lambda: queue.put_nowait(state))
-                except RuntimeError as e:
-                    # No running loop - this is expected when called from non-async context
-                    logger.debug(f"No running event loop for task {task_id}: {e}")
+                    # Use default argument to capture state value, not reference
+                    loop.call_soon_threadsafe(lambda s=state: queue.put_nowait(s))
+                    
+                    # Also push any cached updates
+                    if task_id in self._pending_updates:
+                        pending = self._pending_updates[task_id]
+                        while pending:
+                            cached_state = pending.popleft()
+                            # Capture cached_state value to avoid closure issues
+                            loop.call_soon_threadsafe(lambda s=cached_state: queue.put_nowait(s))
+                    
+                except RuntimeError:
+                    # No running loop - cache the update for later delivery
+                    logger.debug(f"No running event loop for task {task_id}, caching update")
+                    if task_id not in self._pending_updates:
+                        self._pending_updates[task_id] = deque(maxlen=self.MAX_CACHED_UPDATES)
+                    self._pending_updates[task_id].append(state)
+                    
                 except Exception as e:
                     logger.warning(f"Failed to schedule queue put for task {task_id}: {e}")
             except Exception as e:
@@ -154,6 +176,7 @@ class ProgressTracker:
             self._states.pop(task_id, None)
             self._listeners.pop(task_id, None)
             self._queues.pop(task_id, None)
+            self._pending_updates.pop(task_id, None)
     
     def add_listener(self, task_id: str, callback: Callable[[ProgressState], None]) -> None:
         """Add a callback listener for progress updates"""
@@ -182,13 +205,28 @@ class ProgressTracker:
             yield f"data: {json.dumps({'error': 'Task not found', 'task_id': task_id})}\n\n"
             return
         
+        # Timeout for waiting on queue (prevents infinite blocking)
+        queue_timeout = 300.0  # 5 minutes max wait per item
+        
         try:
             while True:
-                state = await queue.get()
-                yield state.to_sse()
-                
-                if state.stage in (ProgressStage.COMPLETE, ProgressStage.ERROR):
-                    break
+                try:
+                    # Use wait_for with timeout to prevent infinite blocking
+                    state = await asyncio.wait_for(queue.get(), timeout=queue_timeout)
+                    yield state.to_sse()
+                    
+                    if state.stage in (ProgressStage.COMPLETE, ProgressStage.ERROR):
+                        break
+                except asyncio.TimeoutError:
+                    # No update received within timeout period
+                    # Check if task still exists
+                    with self._lock:
+                        if task_id not in self._states:
+                            # Task was removed, end stream
+                            yield f"data: {json.dumps({'error': 'Task cancelled', 'task_id': task_id})}\n\n"
+                            break
+                    # Continue waiting if task still exists
+                    continue
         finally:
             self.remove_task(task_id)
 

@@ -262,18 +262,6 @@ class NodeBuilder:
         
         return counts
     
-    def _count_branches(self, node: ast.AST) -> int:
-        """Count number of if/elif/else branches - deprecated, use _count_structures"""
-        return self._count_structures(node)['branches']
-    
-    def _count_loops(self, node: ast.AST) -> int:
-        """Count number of loops - deprecated, use _count_structures"""
-        return self._count_structures(node)['loops']
-    
-    def _count_exception_handlers(self, node: ast.AST) -> int:
-        """Count number of except handlers - deprecated, use _count_structures"""
-        return self._count_structures(node)['exception_handlers']
-    
     def _generate_detailed_label(self, ast_node: ast.AST, node_type: NodeType, 
                                   name: Optional[str], attributes: Dict[str, Any]) -> str:
         """Generate detailed node label for better understanding"""

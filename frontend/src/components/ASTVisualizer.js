@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react';
 import logger from '../utils/logger';
 import { GestureAction } from '../utils/GestureService';
-import { getLLMConfig, getLLMStatus, generateExplanation } from '../api';
+import { getLLMConfig, getLLMStatus } from '../api';
+import LLMExplanationPanel from './LLMExplanationPanel';
 
 // Performance constants
 const MAX_NODES_FULL = 300;
@@ -119,13 +120,8 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   // Track Cytoscape initialization state
   const isInitializedRef = useRef(false);
   
-  // LLM explanation state
+  // LLM config (for determining panel visibility and styling)
   const [llmConfig, setLLMConfig] = useState(null);
-  const [llmExplanation, setLLMExplanation] = useState(null);
-  const [llmLoading, setLLMLoading] = useState(false);
-  const [llmRetryCount, setLLMRetryCount] = useState(0);
-  const [llmError, setLLMError] = useState(null);
-  const [showLLMFullscreen, setShowLLMFullscreen] = useState(false);
   const pendingElementsRef = useRef(null);
   
   // Search related state
@@ -139,7 +135,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   // Format attribute key using memoized map
   const formatAttrKey = useCallback((key) => ATTR_KEY_MAP[key] || key, []);
   
-  // Fetch LLM config on mount
+  // Fetch LLM config on mount and listen for changes
   useEffect(() => {
     const fetchLLMConfig = async () => {
       try {
@@ -157,104 +153,33 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
         setLLMConfig(null);
       }
     };
+    
     fetchLLMConfig();
-  }, []);
-  
-  // Fetch LLM explanation when node is selected
-  useEffect(() => {
-    const fetchExplanation = async () => {
-      // Reset explanation when node changes
-      setLLMExplanation(null);
-      
-      if (!selectedNode) return;
-      
-      if (!llmConfig) {
-        logger.debug('No LLM config available');
-        return;
+    
+    // Listen for LLM config changes from LLMSettings
+    const handleLLMConfigChange = (event) => {
+      logger.debug('LLM config changed event received', event.detail);
+      const { config, status } = event.detail || {};
+      if (config) {
+        // Use the actual status from the response, not a default
+        const actualStatus = status?.status;
+        logger.debug('Setting LLM config with status', { config, actualStatus });
+        setLLMConfig({
+          ...config,
+          status: actualStatus || 'unavailable'
+        });
+      } else {
+        // Refetch if detail not provided
+        fetchLLMConfig();
       }
-      
-      // Check if LLM is enabled and use_for_explanations is true
-      if (!llmConfig.enabled) {
-        logger.debug('LLM is not enabled');
-        return;
-      }
-      
-      if (!llmConfig.use_for_explanations) {
-        logger.debug('LLM explanations are disabled');
-        return;
-      }
-      
-      if (llmConfig.status !== 'ready') {
-        logger.debug('LLM status is not ready', { status: llmConfig.status });
-        return;
-      }
-      
-      // Skip Module nodes (root)
-      if (selectedNode.type === 'Module' || selectedNode.type === 'module') {
-        logger.debug('Skipping Module node');
-        return;
-      }
-      
-      logger.debug('Fetching LLM explanation for node', { type: selectedNode.type, name: selectedNode.name });
-      setLLMLoading(true);
-      setLLMError(null);
-      
-      const fetchWithRetry = async (retriesLeft = 2) => {
-        try {
-          const explanation = await generateExplanation(
-            selectedNode.type,
-            selectedNode.name,
-            selectedNode.sourceCode || selectedNode.label
-          );
-          logger.debug('LLM explanation received', { explanation });
-          setLLMExplanation(explanation);
-          setLLMRetryCount(0);
-          setLLMError(null);
-          return true;
-        } catch (err) {
-          logger.error(`Failed to generate LLM explanation (${retriesLeft} retries left)`, { error: err.message });
-          
-          if (retriesLeft > 0) {
-            // Wait 500ms before retry
-            await new Promise(resolve => setTimeout(resolve, 500));
-            return fetchWithRetry(retriesLeft - 1);
-          } else {
-            setLLMExplanation(null);
-            setLLMError(err.message || 'Failed to generate explanation');
-            return false;
-          }
-        }
-      };
-      
-      await fetchWithRetry(2);
-      setLLMLoading(false);
     };
     
-    fetchExplanation();
-  }, [selectedNode, llmConfig]);
-  
-  // Manual retry function for LLM explanation
-  const retryLLMExplanation = useCallback(async () => {
-    if (!selectedNode || !llmConfig || llmLoading) return;
+    window.addEventListener('llmConfigChanged', handleLLMConfigChange);
     
-    setLLMLoading(true);
-    setLLMError(null);
-    
-    try {
-      const explanation = await generateExplanation(
-        selectedNode.type,
-        selectedNode.name,
-        selectedNode.sourceCode || selectedNode.label
-      );
-      setLLMExplanation(explanation);
-      setLLMRetryCount(0);
-    } catch (err) {
-      setLLMRetryCount(prev => prev + 1);
-      setLLMError(err.message || 'Failed to generate explanation');
-    } finally {
-      setLLMLoading(false);
-    }
-  }, [selectedNode, llmConfig, llmLoading]);
+    return () => {
+      window.removeEventListener('llmConfigChanged', handleLLMConfigChange);
+    };
+  }, []);
   
   // Search debounce ref
   const searchDebounceRef = useRef(null);
@@ -431,7 +356,12 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   // Cursor animation loop - smooth interpolation
   const runCursorAnimation = useCallback(() => {
     const state = cursorStateRef.current;
-    if (!state.visible) {
+    
+    // Check if we should continue animating
+    // Keep running if: visible OR still interpolating position (not at target yet)
+    const isMoving = Math.abs(state.x - state.targetX) > 0.5 || Math.abs(state.y - state.targetY) > 0.5;
+    
+    if (!state.visible && !isMoving) {
       cursorAnimFrameRef.current = null;
       return;
     }
@@ -471,12 +401,12 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
             attributes: data.attributes,
           });
         }
-        // Reset state
+        // Reset hover state but don't stop animation - let it continue for smooth cursor movement
         state.hoveredNodeId = null;
         state.progress = 0;
-        state.visible = false;
-        cursorAnimFrameRef.current = null;
-        return;
+        state.hoverStartTime = 0;
+        // Note: We don't set visible=false here, allowing the cursor to continue following
+        // The cursor will be hidden when the user stops pointing (via clearPointingCursor)
       }
     }
     
@@ -1729,7 +1659,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
         </svg>
         
         {selectedNode && (
-          <div className="node-detail-panel">
+          <div className={`node-detail-panel${llmConfig?.enabled && llmConfig?.use_for_explanations ? ' has-llm-explanation' : ''}`}>
             <div className="panel-header">
               <div className="panel-header-main">
                 <span className="node-icon">{selectedNode.icon || '•'}</span>
@@ -1767,186 +1697,12 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
                 </div>
               )}
               
-              {/* LLM AI Explanation */}
-              {llmConfig?.enabled && llmConfig?.use_for_explanations && (
-                <div className="detail-item llm-explanation-section">
-                  <div className="llm-explanation-header">
-                    <span className="detail-label">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '6px', verticalAlign: 'middle' }}>
-                        <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
-                        <circle cx="7.5" cy="14.5" r="1.5"/>
-                        <circle cx="16.5" cy="14.5" r="1.5"/>
-                      </svg>
-                      AI Explanation
-                    </span>
-                    <div className="llm-header-actions">
-                      {llmLoading && <span className="llm-loading">Loading...</span>}
-                      {llmExplanation && (
-                        <button 
-                          className="llm-fullscreen-btn" 
-                          onClick={() => setShowLLMFullscreen(true)}
-                          title="View fullscreen"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Code snippet context */}
-                  {(selectedNode.sourceCode || selectedNode.label) && (
-                    <div className="llm-code-context">
-                      <span className="llm-code-label">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="16 18 22 12 16 6"/>
-                          <polyline points="8 6 2 12 8 18"/>
-                        </svg>
-                        Code Context
-                      </span>
-                      <pre className="llm-code-snippet">{selectedNode.sourceCode || selectedNode.label}</pre>
-                    </div>
-                  )}
-                  
-                  {llmExplanation ? (
-                    <div className="llm-explanation-content">
-                      {llmExplanation.explanation && (
-                        <p className="llm-explanation-text">{llmExplanation.explanation}</p>
-                      )}
-                      
-                      {llmExplanation.python_doc && (
-                        <div className="llm-doc-section">
-                          <span className="llm-doc-label">Documentation</span>
-                          <p className="llm-python-doc">{llmExplanation.python_doc}</p>
-                        </div>
-                      )}
-                      
-                      {llmExplanation.examples && llmExplanation.examples.length > 0 && (
-                        <div className="llm-examples-section">
-                          <span className="llm-examples-label">Examples</span>
-                          {llmExplanation.examples.map((example, idx) => (
-                            <pre key={idx} className="llm-example-code">{example}</pre>
-                          ))}
-                        </div>
-                      )}
-                      
-                      {llmExplanation.related_concepts && llmExplanation.related_concepts.length > 0 && (
-                        <div className="llm-concepts-section">
-                          <span className="llm-concepts-label">Related Concepts</span>
-                          <div className="llm-concepts-list">
-                            {llmExplanation.related_concepts.map((concept, idx) => (
-                              <span key={idx} className="llm-concept-tag">{concept}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : !llmLoading && (
-                    <div className="llm-error-section">
-                      <div className="llm-error-message">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <circle cx="12" cy="12" r="10"/>
-                          <line x1="12" y1="8" x2="12" y2="12"/>
-                          <line x1="12" y1="16" x2="12.01" y2="16"/>
-                        </svg>
-                        {llmError ? `Error: ${llmError}` : 'No AI explanation available'}
-                      </div>
-                      {llmRetryCount < 2 && (
-                        <button 
-                          className="llm-retry-btn" 
-                          onClick={retryLLMExplanation}
-                          disabled={llmLoading}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="23 4 23 10 17 10"/>
-                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-                          </svg>
-                          Retry ({2 - llmRetryCount} left)
-                        </button>
-                      )}
-                      {llmRetryCount >= 2 && (
-                        <span className="llm-retry-limit">Max retries reached</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              {/* LLM Fullscreen Modal */}
-              {showLLMFullscreen && llmExplanation && (
-                <div className="llm-fullscreen-overlay" onClick={() => setShowLLMFullscreen(false)}>
-                  <div className="llm-fullscreen-modal" onClick={e => e.stopPropagation()}>
-                    <div className="llm-fullscreen-header">
-                      <div className="llm-fullscreen-title">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
-                          <circle cx="7.5" cy="14.5" r="1.5"/>
-                          <circle cx="16.5" cy="14.5" r="1.5"/>
-                        </svg>
-                        AI Explanation - {selectedNode?.description || selectedNode?.type}
-                        {selectedNode?.name && `: ${selectedNode.name}`}
-                      </div>
-                      <button className="llm-fullscreen-close" onClick={() => setShowLLMFullscreen(false)}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <line x1="18" y1="6" x2="6" y2="18"/>
-                          <line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
-                      </button>
-                    </div>
-                    
-                    <div className="llm-fullscreen-body">
-                      {/* Code snippet context */}
-                      {(selectedNode?.sourceCode || selectedNode?.label) && (
-                        <div className="llm-code-context llm-code-context-full">
-                          <span className="llm-code-label">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <polyline points="16 18 22 12 16 6"/>
-                              <polyline points="8 6 2 12 8 18"/>
-                            </svg>
-                            Code Context
-                          </span>
-                          <pre className="llm-code-snippet">{selectedNode?.sourceCode || selectedNode?.label}</pre>
-                        </div>
-                      )}
-                      
-                      {llmExplanation.explanation && (
-                        <div className="llm-fullscreen-section">
-                          <h4>Explanation</h4>
-                          <p className="llm-explanation-text">{llmExplanation.explanation}</p>
-                        </div>
-                      )}
-                      
-                      {llmExplanation.python_doc && (
-                        <div className="llm-fullscreen-section">
-                          <h4>Documentation</h4>
-                          <p className="llm-python-doc">{llmExplanation.python_doc}</p>
-                        </div>
-                      )}
-                      
-                      {llmExplanation.examples && llmExplanation.examples.length > 0 && (
-                        <div className="llm-fullscreen-section">
-                          <h4>Examples</h4>
-                          {llmExplanation.examples.map((example, idx) => (
-                            <pre key={idx} className="llm-example-code">{example}</pre>
-                          ))}
-                        </div>
-                      )}
-                      
-                      {llmExplanation.related_concepts && llmExplanation.related_concepts.length > 0 && (
-                        <div className="llm-fullscreen-section">
-                          <h4>Related Concepts</h4>
-                          <div className="llm-concepts-list">
-                            {llmExplanation.related_concepts.map((concept, idx) => (
-                              <span key={idx} className="llm-concept-tag">{concept}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* LLM AI Explanation - Unified Component */}
+              <LLMExplanationPanel
+                llmConfig={llmConfig}
+                selectedNode={selectedNode}
+                fullCode={graph?.code}
+              />
               
               {selectedNode.attributes && Object.keys(selectedNode.attributes).length > 0 && (
                 <div className="detail-item">
