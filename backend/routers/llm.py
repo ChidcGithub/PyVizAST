@@ -15,12 +15,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..llm import (
-    LLMService,
     get_llm_service,
     LLMConfig,
-    LLMStatus,
 )
-from ..llm.models import ModelInfo
 from ..llm.downloader import OllamaManager, Aria2Downloader
 
 logger = logging.getLogger(__name__)
@@ -171,7 +168,6 @@ async def install_ollama(background_tasks: BackgroundTasks):
 async def _stream_install_progress(manager: OllamaManager) -> AsyncIterator[str]:
     """Stream Ollama installation progress"""
     import httpx
-    from pathlib import Path
     
     info = manager.OLLAMA_DOWNLOADS.get(manager.platform)
     if not info:

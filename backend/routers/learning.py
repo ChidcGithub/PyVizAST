@@ -5,7 +5,7 @@ Learning mode API routes
 @link: github.com/chidcGithub
 """
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from fastapi import APIRouter
 

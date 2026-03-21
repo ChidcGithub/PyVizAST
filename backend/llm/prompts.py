@@ -5,7 +5,6 @@ LLM Prompt Templates - Optimized for Python AST Analysis
 @link: github.com/chidcGithub
 """
 from typing import List, Optional
-import json
 
 
 # ============== System Prompts ==============
@@ -68,7 +67,7 @@ def get_node_explanation_prompt(
     sections = []
     
     # Header
-    sections.append(f"# Task: Explain Python AST Node\n")
+    sections.append("# Task: Explain Python AST Node\n")
     sections.append(f"Node Type: **{node_type}**\n")
     
     # Node identification
@@ -82,7 +81,7 @@ def get_node_explanation_prompt(
             if value is not None and value != '' and not (isinstance(value, (list, dict)) and len(value) == 0):
                 details.append(f"- {key}: {value}")
         if details:
-            sections.append(f"\n## Node Details\n" + "\n".join(details) + "\n")
+            sections.append("\n## Node Details\n" + "\n".join(details) + "\n")
     
     # Code context (most important)
     if code_context:
