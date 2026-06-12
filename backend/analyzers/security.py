@@ -265,7 +265,6 @@ class SecurityScanner:
                     value_match = re.search(r'=\s*["\']([^"\']+)["\']', line)
                     if value_match:
                         value = value_match.group(1).lower()
-                        original_value = value_match.group(1)
                         if any(indicator in value for indicator in placeholder_indicators):
                             continue
                         # Skip values that are too short and look like placeholders
