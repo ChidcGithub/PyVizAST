@@ -726,9 +726,6 @@
 
 .cursor-progress circle {
   fill: none;
-  cx: 26;
-  cy: 26;
-  r: 22;
 }
 
 .cursor-progress .progress-bg {

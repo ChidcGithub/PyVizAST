@@ -132,14 +132,7 @@
 .cooldown-indicator {
   margin-left: 4px;
   font-size: 12px;
-  animation: dots 1s steps(4, end) infinite;
-}
-
-@keyframes dots {
-  0%, 20% { content: ''; }
-  25% { content: '.'; }
-  50% { content: '..'; }
-  75%, 100% { content: '...'; }
+  animation: cooldownPulse 1s ease-in-out infinite;
 }
 
 /* Expand/Collapse button */

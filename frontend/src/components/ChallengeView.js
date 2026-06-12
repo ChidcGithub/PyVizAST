@@ -183,7 +183,7 @@ function ChallengeView({ theme }) {
       );
       setLlmHint(hintData.hint);
     } catch (err) {
-      logger.warning('Failed to get hint', { error: err.message });
+      logger.warn('Failed to get hint', { error: err.message });
     }
   }, [selectedChallenge, selectedIssues, llmEnabled]);
 

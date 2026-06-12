@@ -349,7 +349,6 @@ const ProjectAnalysisView = forwardRef(function ProjectAnalysisView(
       )}
 
       {/* Error message */}
-      )}
 
       {/* File list */}
       {scanResult && (

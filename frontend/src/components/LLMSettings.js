@@ -124,14 +124,13 @@ function LLMSettings({ isOpen, theme, onClose }) {
       fetchConfig(),
       fetchModels(),
     ]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       fetchAll();
     }
-  }, [isOpen, fetchAll]);
+  }, [isOpen]);
 
   // Auto-select first available model when models are loaded and no model is selected
   // Use ref to prevent repeated auto-selects which could cause render loops

@@ -70,6 +70,10 @@ class OllamaManager:
     
     def get_ollama_executable(self) -> Optional[Path]:
         """Find Ollama executable"""
+        # Check if platform is supported
+        if self.platform not in self.OLLAMA_DOWNLOADS:
+            return None
+        
         # First check our install directory
         our_install = self.install_dir / self.OLLAMA_DOWNLOADS[self.platform]["executable"]
         if our_install.exists():

@@ -172,29 +172,37 @@ class PatchGenerator:
         if not replacements:
             return None
         
-        # Use ast.unparse or manual replacement
+        # Use precise AST byte offset replacement
         lines = code.splitlines(keepends=True)
         result = code
         
+        # Sort by position descending (right-to-left) so earlier replacements
+        # don't shift byte offsets of later replacements
+        replacements.sort(key=lambda r: (r['node'].lineno, r['node'].col_offset), reverse=True)
+        
         for repl in replacements:
             node = repl['node']
-            # Get original code segment
             if hasattr(node, 'lineno') and hasattr(node, 'end_lineno'):
-                start_line = node.lineno - 1
-                end_line = node.end_lineno - 1
+                # Compute precise byte offsets from AST positions
+                byte_start = self._line_col_to_offset(lines, node.lineno, node.col_offset)
+                byte_end = self._line_col_to_offset(lines, node.end_lineno, node.end_col_offset)
                 
-                # Extract original list comprehension
-                original_segment = self._extract_segment(lines, start_line, 
-                                                         node.col_offset, 
-                                                         end_line, 
-                                                         node.end_col_offset)
+                # Extract original list comprehension via byte slice
+                original_segment = result[byte_start:byte_end]
                 
-                if original_segment and original_segment.startswith('[') and original_segment.endswith(']'):
+                if original_segment.startswith('[') and original_segment.endswith(']'):
                     # Convert to generator expression
                     gen_expr = '(' + original_segment[1:-1] + ')'
-                    result = result.replace(original_segment, gen_expr, 1)
+                    result = result[:byte_start] + gen_expr + result[byte_end:]
         
         return result if result != code else None
+    
+    def _line_col_to_offset(self, lines: List[str], lineno: int, col_offset: int) -> int:
+        """Convert 1-based lineno and 0-based col_offset to absolute byte offset"""
+        offset = 0
+        for i in range(lineno - 1):
+            offset += len(lines[i])
+        return offset + col_offset
     
     def _extract_segment(self, lines: List[str], start_line: int, start_col: int,
                          end_line: int, end_col: int) -> str:

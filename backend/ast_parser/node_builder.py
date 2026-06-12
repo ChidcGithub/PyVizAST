@@ -470,7 +470,7 @@ class NodeBuilder:
         """Extract additional node attributes"""
         attrs = {}
         
-        if isinstance(ast_node, ast.FunctionDef):
+        if isinstance(ast_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             attrs['args'] = [arg.arg for arg in ast_node.args.args]
             attrs['decorators'] = self.get_decorator_names(ast_node.decorator_list)
             attrs['is_async'] = isinstance(ast_node, ast.AsyncFunctionDef)

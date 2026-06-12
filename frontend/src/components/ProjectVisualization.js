@@ -139,7 +139,7 @@ function ProjectVisualization({ projectResult, theme, viewMode = '2d' }) {
 
     moduleNames.forEach((moduleName) => {
       const isCircular = circularDeps.some(issue => 
-        issue.locations?.some(loc => loc.file_path === module)
+        issue.locations?.some(loc => loc.file_path === moduleName)
       );
       
       // Module name is dot-separated, take last part as label

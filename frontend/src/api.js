@@ -461,14 +461,25 @@ const LLM_TIMEOUT = 300000; // 5 minutes for LLM operations
 /**
  * Helper: Parse SSE stream from response
  */
-const parseSSEStream = async (response, callbacks) => {
+const parseSSEStream = async (response, callbacks, signal = null) => {
   const { onProgress, onError, onComplete } = callbacks;
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
 
+  const abortHandler = () => {
+    reader.cancel();
+  };
+  if (signal) {
+    signal.addEventListener('abort', abortHandler, { once: true });
+  }
+
   try {
     while (true) {
+      if (signal?.aborted) {
+        reader.cancel();
+        break;
+      }
       const { done, value } = await reader.read();
       if (done) break;
 

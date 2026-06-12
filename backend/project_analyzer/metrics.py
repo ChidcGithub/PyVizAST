@@ -44,7 +44,7 @@ class ProjectMetricsAggregator:
         
         # Basic statistics
         self.total_files = scan_result.total_files
-        self.total_lines = scan_result.total_size
+        self.total_lines = sum(f.line_count for f in scan_result.file_infos)
         
         # Iterate through all file results
         for result in file_results:

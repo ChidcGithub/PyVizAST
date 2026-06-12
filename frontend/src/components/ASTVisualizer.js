@@ -92,7 +92,7 @@ const ATTR_KEY_MAP = {
   'dims': 'Dimensions',
 };
 
-const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLine, gestureEnabled = false }, ref) {
+const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLine, onNodeClick, gestureEnabled = false }, ref) {
   const containerRef = useRef(null);
   const cyRef = useRef(null);
   const [selectedNode, setSelectedNode] = useState(null);
@@ -975,6 +975,8 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
             attributes: nodeData.attributes,
           });
 
+          onNodeClick?.(nodeData);
+
           cy.elements().removeClass('highlighted highlighted-path');
           node.addClass('highlighted');
           node.neighborhood('edge').addClass('highlighted-path');
@@ -1603,8 +1605,8 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
             <div ref={cursorRingRef} className="cursor-ring" style={{ opacity: 0 }} />
             {/* Progress ring */}
             <svg ref={cursorProgressRef} className="cursor-progress" width="52" height="52" style={{ opacity: 0 }}>
-              <circle className="progress-bg" />
-              <circle className="progress-fill" transform="rotate(-90 26 26)" />
+              <circle className="progress-bg" cx="26" cy="26" r="22" />
+              <circle className="progress-fill" cx="26" cy="26" r="22" transform="rotate(-90 26 26)" />
             </svg>
             {/* Snap indicator */}
             <div ref={cursorSnapRef} className="cursor-snap" style={{ opacity: 0 }} />

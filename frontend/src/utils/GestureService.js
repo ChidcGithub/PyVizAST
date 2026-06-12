@@ -191,6 +191,9 @@ class GestureService {
       if (!videoElement.videoWidth || !videoElement.videoHeight) {
         logger.error('Video element has no valid dimensions after waiting');
         this.notifyStatus('error', 'Camera failed to initialize properly');
+        const tracks = stream.getTracks();
+        tracks.forEach(t => t.stop());
+        videoElement.srcObject = null;
         return false;
       }
       

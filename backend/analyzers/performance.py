@@ -267,7 +267,7 @@ class PerformanceAnalyzer:
                 if isinstance(node.func, ast.Attribute):
                     # list.pop(0) - O(n) operation at list start
                     if node.func.attr == 'pop':
-                        if not node.args or (len(node.args) == 1 and 
+                        if (len(node.args) == 1 and 
                             isinstance(node.args[0], ast.Constant) and 
                             node.args[0].value == 0):
                             self.detector.issues.append(CodeIssue(

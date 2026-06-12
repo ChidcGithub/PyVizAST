@@ -3,6 +3,7 @@ Complexity Analyzer - Code complexity analysis
 Calculates cyclomatic complexity, cognitive complexity, and other metrics
 """
 import ast
+import math
 from typing import Dict, List, Any, Optional
 from collections import defaultdict
 from ..models.schemas import ComplexityMetrics, CodeIssue, SeverityLevel
@@ -318,7 +319,7 @@ class ComplexityAnalyzer:
         if n == 0:
             return {'volume': 0, 'difficulty': 0}
         
-        volume = N * (n.bit_length()) if n > 0 else 0  # Volume
+        volume = N * math.log2(n) if n > 1 else 0  # Volume
         difficulty = (n1 / 2) * (N2 / n2) if n2 > 0 else 0  # Difficulty
         
         return {
@@ -344,8 +345,6 @@ class ComplexityAnalyzer:
         - Original formula: MI = 171 - 5.2 * ln(V) - 0.23 * G - 16.2 * ln(LOC)
         - Improved: Use weighted scoring model
         """
-        import math
-        
         if code_length == 0:
             return 100.0
         

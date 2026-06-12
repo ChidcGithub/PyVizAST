@@ -1450,11 +1450,15 @@ const ASTVisualizer3D = forwardRef(function ASTVisualizer3D({ graph, theme, onGo
   
   // Compute 3D layout
   const positions = useMemo(() => {
-    setIsLayoutReady(false);
     const result = computeLayout(filteredElements.nodes, filteredElements.edges, layoutType);
-    setIsLayoutReady(true);
     return result;
   }, [filteredElements, layoutType]);
+
+  useEffect(() => {
+    if (positions && positions.size > 0) {
+      setIsLayoutReady(true);
+    }
+  }, [positions]);
   
   // Cursor animation loop for pointing gesture
   const runCursorAnimation = useCallback(() => {

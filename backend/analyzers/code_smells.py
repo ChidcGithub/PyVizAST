@@ -82,7 +82,7 @@ class CodeSmellDetector:
                             message=f"Function '{node.name}' is too long ({lines} lines), consider splitting into smaller functions",
                             lineno=node.lineno,
                             end_lineno=node.end_lineno,
-                            source_snippet=ast.get_docstring(node)
+                            source_snippet=ast.unparse(node).split('\n')[0][:100] if hasattr(ast, 'unparse') else None
                         ))
     
     def _detect_god_classes(self, tree: ast.AST, source_lines: List[str]):

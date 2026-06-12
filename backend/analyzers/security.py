@@ -275,10 +275,9 @@ class SecurityScanner:
                         # Skip if value is purely numeric and short (likely placeholder like "12345")
                         if value.isdigit() and len(value) <= 6:
                             continue
-                        # Skip values that look like variable names (no special chars, starts with letter)
-                        if re.match(r'^[a-z_][a-z0-9_]*$', original_value):
-                            # Could be a variable name being passed, skip
-                            continue
+                        # Skip values that look like variable names being passed dynamically
+                        # (value is assigned from another variable, not a literal string)
+                        # This case is handled above by checking if the value is a constant
                     
                     # Check for f-string or variable interpolation
                     if 'f"' in line or "f'" in line or '{' in line:
@@ -310,6 +309,23 @@ class SecurityScanner:
                         lineno=node.lineno,
                         documentation_url="https://owasp.org/www-community/attacks/Deserialization_of_untrusted_data"
                     ))
+                    continue
+                
+                # Also check bare function names for imported modules
+                # e.g., from pickle import loads -> func_full_name is "loads"
+                if isinstance(node.func, ast.Name):
+                    for qualified_name, msg in self.UNSAFE_DESERIALIZE.items():
+                        bare_func = qualified_name.split('.')[-1]
+                        if node.func.id == bare_func:
+                            self.issues.append(CodeIssue(
+                                id=self._generate_issue_id("unsafe_deserialize"),
+                                type="security",
+                                severity=SeverityLevel.CRITICAL,
+                                message=msg,
+                                lineno=node.lineno,
+                                documentation_url="https://owasp.org/www-community/attacks/Deserialization_of_untrusted_data"
+                            ))
+                            break
     
     def _get_func_full_name(self, node: ast.AST) -> str:
         """Get full name of a function"""
@@ -499,24 +515,25 @@ class SecurityScanner:
                                     suggestion="Use os.path.join() for more reliable path construction"
                                 ))
                 
-                # f-string path construction (JoinedStr)
-                elif isinstance(node, ast.JoinedStr):
-                    # Check if f-string contains path-like patterns
-                    for value in node.values:
-                        if isinstance(value, ast.Constant):
-                            const_str = str(value.value)
-                            path_indicators = ['/', '\\', '.txt', '.csv', '.json', '.xml',
-                                              '.log', '.dat', 'path', 'file']
-                            if any(indicator in const_str for indicator in path_indicators):
-                                self.issues.append(CodeIssue(
-                                    id=self._generate_issue_id("fstring_path"),
-                                    type="security",
-                                    severity=SeverityLevel.WARNING,
-                                    message="f-string path construction may be vulnerable to path traversal",
-                                    lineno=node.lineno,
-                                    suggestion="Validate path components before constructing paths"
-                                ))
-                                break
+        # f-string path construction (JoinedStr)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.JoinedStr):
+                # Check if f-string contains path-like patterns
+                for value in node.values:
+                    if isinstance(value, ast.Constant):
+                        const_str = str(value.value)
+                        path_indicators = ['/', '\\', '.txt', '.csv', '.json', '.xml',
+                                          '.log', '.dat', 'path', 'file']
+                        if any(indicator in const_str for indicator in path_indicators):
+                            self.issues.append(CodeIssue(
+                                id=self._generate_issue_id("fstring_path"),
+                                type="security",
+                                severity=SeverityLevel.WARNING,
+                                message="f-string path construction may be vulnerable to path traversal",
+                                lineno=node.lineno,
+                                suggestion="Validate path components before constructing paths"
+                            ))
+                            break
     
     def _check_weak_crypto(self, tree: ast.AST):
         """Check for weak encryption algorithms"""

@@ -395,7 +395,7 @@ class LLMService:
             raise RuntimeError("LLM service is not available")
         
         # Create cache key
-        cache_key = f"{node_type}:{node_name}:{hash(code_context or '')}"
+        cache_key = f"{node_type}:{node_name}:{code_context or ''}"
         
         # Check cache
         cached = self._explanation_cache.get(cache_key)

@@ -106,10 +106,10 @@ class ASTParser:
         self._relationship_builder.build_decorator_relationships(
             self.nodes, self.edges
         )
-        self._relationship_builder.analyze_variable_scopes(self.nodes)
-        
-        # Post-process: calculate additional metrics
+        # Post-process: calculate additional metrics first (sets scope_name)
         self._relationship_builder.post_process_nodes(self.nodes)
+        
+        self._relationship_builder.analyze_variable_scopes(self.nodes)
         
         return ASTGraph(
             nodes=list(self.nodes.values()),

@@ -55,6 +55,7 @@ const LLMExplanationPanel = ({ llmConfig, selectedNode, fullCode }) => {
     if (!nodeKey) {
       setStatus(STATUS.IDLE);
       setExplanation(null);
+      lastFetchedKeyRef.current = null;
       return;
     }
 
@@ -73,8 +74,8 @@ const LLMExplanationPanel = ({ llmConfig, selectedNode, fullCode }) => {
       return;
     }
 
-    // Skip if currently loading (prevent duplicate requests)
-    if (status === STATUS.LOADING) {
+    // Skip if already loading the same node
+    if (abortControllerRef.current && lastFetchedKeyRef.current === nodeKey) {
       return;
     }
 
@@ -137,7 +138,7 @@ const LLMExplanationPanel = ({ llmConfig, selectedNode, fullCode }) => {
     return () => {
       controller.abort();
     };
-  }, [nodeKey, isLLMAvailable, selectedNode, fullCode, status]);
+  }, [nodeKey, isLLMAvailable, fullCode]);
 
   // Effect: Simulate progress during loading
   useEffect(() => {
