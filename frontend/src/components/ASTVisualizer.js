@@ -103,6 +103,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   const [signalParticles, setSignalParticles] = useState([]); // Particles for edge animation
   const zoomRef = useRef(1);
   const initialThemeRef = useRef(theme); // Store initial theme to avoid re-initializing
+  const onNodeClickRef = useRef(onNodeClick); // Store callback to avoid re-initializing Cytoscape
   
   // Gesture control state
   const gestureStateRef = useRef({
@@ -135,6 +136,9 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
   // Format attribute key using memoized map
   const formatAttrKey = useCallback((key) => ATTR_KEY_MAP[key] || key, []);
   
+  // Keep onNodeClickRef current without triggering Cytoscape re-init
+  useEffect(() => { onNodeClickRef.current = onNodeClick; }, [onNodeClick]);
+
   // Fetch LLM config on mount and listen for changes
   useEffect(() => {
     const fetchLLMConfig = async () => {
@@ -975,7 +979,7 @@ const ASTVisualizer = forwardRef(function ASTVisualizer({ graph, theme, onGoToLi
             attributes: nodeData.attributes,
           });
 
-          onNodeClick?.(nodeData);
+          onNodeClickRef.current?.(nodeData);
 
           cy.elements().removeClass('highlighted highlighted-path');
           node.addClass('highlighted');

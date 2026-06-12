@@ -138,7 +138,7 @@ const LLMExplanationPanel = ({ llmConfig, selectedNode, fullCode }) => {
     return () => {
       controller.abort();
     };
-  }, [nodeKey, isLLMAvailable, fullCode]);
+  }, [nodeKey, isLLMAvailable, fullCode, selectedNode, status]);
 
   // Effect: Simulate progress during loading
   useEffect(() => {

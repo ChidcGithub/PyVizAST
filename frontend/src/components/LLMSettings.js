@@ -130,7 +130,7 @@ function LLMSettings({ isOpen, theme, onClose }) {
     if (isOpen) {
       fetchAll();
     }
-  }, [isOpen]);
+  }, [isOpen, fetchAll]);
 
   // Auto-select first available model when models are loaded and no model is selected
   // Use ref to prevent repeated auto-selects which could cause render loops
